@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from agents.base import BaseAgent, DATA_DIR
-from services.scraper import scrape_google_maps
+from services.scraper import scrape_b2b_leads
 
 
 class ScoutAgent(BaseAgent):
@@ -24,7 +24,30 @@ class ScoutAgent(BaseAgent):
         # Use provided params or fall back to user_profile config
         if not query:
             industries = config.get("target_industries", [])
-            query = industries[0] if industries else "restaurants"
+            if industries:
+                query = industries[0]
+            else:
+                # Use niche as the search term — but niche is "what we sell",
+                # so we need to search for potential clients instead
+                niche = config.get("niche", "")
+                # Map common agency niches to client search terms
+                niche_to_query = {
+                    "restoran": "restoran", "restaurant": "restoran",
+                    "klinik": "klinik", "clinic": "klinik", "diş": "diş kliniği",
+                    "otel": "otel", "hotel": "otel",
+                    "kuaför": "kuaför", "salon": "güzellik salonu",
+                    "emlak": "emlak ofisi", "spor": "spor salonu",
+                    "e-ticaret": "online mağaza", "cafe": "kafe",
+                }
+                query = "küçük işletme"  # default
+                niche_lower = niche.lower()
+                for key, val in niche_to_query.items():
+                    if key in niche_lower:
+                        query = val
+                        break
+                # If niche mentions marketing/agency, search for small businesses
+                if any(w in niche_lower for w in ["dijital", "pazarlama", "marketing", "web", "seo", "ajans", "agency", "otomasyon"]):
+                    query = "restoran"  # default client type for agencies
         if not location:
             cities = config.get("target_cities", [])
             location = cities[0] if cities else ""
@@ -36,7 +59,7 @@ class ScoutAgent(BaseAgent):
         has_apify = bool(os.environ.get("APIFY_TOKEN", "").strip())
 
         if has_apify:
-            leads = scrape_google_maps(
+            leads = scrape_b2b_leads(
                 query=query,
                 location=location,
                 max_results=limit,

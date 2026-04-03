@@ -1505,9 +1505,9 @@ function postSetupSequence() {
 }
 
 // ─── Actions (real backend calls) ───
-function doScout() {
-  const q = CFG.niche || 'küçük işletmeler';
-  const loc = (CFG.target_cities || [])[0] || 'Istanbul';
+function doScout(customQuery, customLocation) {
+  const q = customQuery || CFG.niche || 'restoran';
+  const loc = customLocation || (CFG.target_cities || [])[0] || 'Istanbul';
 
   sel = 'scout';
   lineDelay = 0;
@@ -1528,22 +1528,42 @@ function doScout() {
     lineDelay = 0;
     gap();
 
-    if (d.status === 'ok' && d.result && d.result.metrics) {
-      const n = d.result.metrics.total_found || 0;
-      const e = d.result.metrics.with_email || 0;
+    const r = d.result || {};
+    const n = (r.metrics || {}).total_found || 0;
+
+    // Error or 0 results
+    if (r.status === 'error' || n === 0) {
+      write('⚠ lead bulunamadı.', 'yellow');
+      gap();
+      if (!CFG.apify_token) {
+        write('APIFY_TOKEN ayarlanmamış — Google Maps verisi çekilemiyor.', 'red');
+        write('Ücretsiz arama da sonuç döndüremedi.', 'dim');
+        gap();
+        write('Apify ücretsiz hesap aç: console.apify.com', 'accent');
+        write('Token\'ı aldıktan sonra ayarlardan gir.', 'dim');
+        gap();
+        action('→ Apify token gir', () => {
+          lineDelay = 0; gap();
+          write('Apify token\'ını yaz (console.apify.com\'dan al):', 'accent');
+          onboardStep = 'apify';
+          document.getElementById('input').placeholder = 'apify_api_...';
+        });
+      } else {
+        write('Apify çalıştı ama sonuç yok. Farklı bir arama dene.', 'dim');
+      }
+      if (r.recommendations) r.recommendations.forEach(rec => write('  → ' + rec, 'dim indent'));
+    } else {
+      const e = (r.metrics || {}).with_email || 0;
       reveal('secLeads');
       write(`${n} işletme bulundu.`, 'bright');
       write(`${e} tanesinin email adresi var.`, 'green');
-      updateLeadStats(d.result.metrics);
+      updateLeadStats(r.metrics);
       gap();
       write('liste belirdi. ham, filtrelenmemiş.', 'dim');
       gap();
       action('→ leadleri puanla', () => doFilter());
       document.getElementById('headerSub').textContent = `${n} lead bulundu`;
       checkDone('chkScout');
-    } else {
-      write('scout tamamlandı ama sonuç boş veya hata oluştu.', 'yellow');
-      if (d.error) write(`  hata: ${d.error}`, 'red indent');
     }
   }).catch(e => {
     officeSetWorking('scout', false);

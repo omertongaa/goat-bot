@@ -273,6 +273,7 @@ def _build_services_html(services):
     return html
 
 
+
 # ══════════════════════════════════════════════
 # AGENCY SITE TEMPLATE
 # ══════════════════════════════════════════════
@@ -283,840 +284,353 @@ _AGENCY_TEMPLATE = '''<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{agency_name} — {tagline}</title>
-<meta name="description" content="{agency_name} — {tagline}. {cities_text} bolgesinde hizmet veriyoruz.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after {{ margin: 0; padding: 0; box-sizing: border-box; }}
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
 :root {{
-  --primary: #e85d26;
-  --primary-light: #ff7a45;
-  --primary-dark: #c94d1e;
-  --bg: #0a0a0c;
-  --surface: rgba(17,17,20,0.6);
-  --surface-solid: #111114;
-  --surface2: #1a1a1e;
-  --text: #ededf0;
-  --dim: #8a8a9c;
+  --bg: #09090b;
+  --surface: #111114;
+  --surface2: #1a1a1f;
   --border: rgba(255,255,255,0.06);
-  --glow: rgba(232,93,38,0.15);
+  --border-light: rgba(255,255,255,0.1);
+  --text: #f0f0f0;
+  --dim: #8a8a98;
+  --accent: #e85d26;
+  --accent2: #ff7a45;
+  --gold: #fbbf24;
+  --green: #34d399;
 }}
 
 html {{ scroll-behavior: smooth; }}
 
 body {{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.7;
-  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
   overflow-x: hidden;
-}}
-
-/* ── NOISE & DOT OVERLAY ── */
-body::before {{
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  background-size: 256px 256px;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.5;
+  -webkit-font-smoothing: antialiased;
 }}
 
 body::after {{
   content: '';
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+  z-index: 9999;
   pointer-events: none;
-  z-index: 0;
+  opacity: 0.03;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
 }}
 
-/* ── FLOATING NAV ── */
+::-webkit-scrollbar {{ width: 6px; }}
+::-webkit-scrollbar-track {{ background: var(--bg); }}
+::-webkit-scrollbar-thumb {{ background: var(--accent); border-radius: 3px; }}
+
+.container {{ max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2rem); }}
+
+/* ── NAV ── */
 .nav {{
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-80px);
+  position: fixed; top: 0; left: 0; right: 0;
   z-index: 1000;
-  background: rgba(17,17,20,0.7);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid var(--border);
-  border-radius: 100px;
-  padding: 10px 12px 10px 24px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  padding: 1rem 0;
+  transition: all 0.4s ease;
+  transform: translateY(-100%);
+  opacity: 0;
 }}
-
 .nav.visible {{
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
+  opacity: 1;
 }}
-
-.nav-logo {{
-  font-weight: 800;
-  font-size: 0.9rem;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  color: var(--text);
-}}
-
-.nav-links {{
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}}
-
-.nav-links a {{
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 6px 14px;
+.nav-inner {{
+  max-width: 1200px; margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(17,17,20,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
   border-radius: 100px;
-  transition: all 0.2s;
+  margin-left: clamp(1rem, 4vw, 2rem);
+  margin-right: clamp(1rem, 4vw, 2rem);
 }}
-
-.nav-links a:hover {{
-  color: var(--text);
-  background: rgba(255,255,255,0.05);
-}}
-
+.nav-logo {{ font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.1rem; }}
 .nav-cta {{
-  background: var(--primary) !important;
-  color: #fff !important;
-  font-weight: 600 !important;
-  padding: 8px 20px !important;
+  padding: 0.5rem 1.5rem;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 100px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s, box-shadow 0.2s;
 }}
-
-.nav-cta:hover {{
-  background: var(--primary-light) !important;
-  box-shadow: 0 0 20px var(--glow);
-}}
+.nav-cta:hover {{ transform: scale(1.05); box-shadow: 0 0 20px rgba(232,93,38,0.4); }}
 
 /* ── HERO ── */
 .hero {{
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
   text-align: center;
-  padding: 2rem;
   position: relative;
+  padding: 2rem;
   overflow: hidden;
-  z-index: 1;
 }}
-
 .hero::before {{
   content: '';
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 30% 20%, rgba(232,93,38,0.15) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(255,122,69,0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(232,93,38,0.04) 0%, transparent 70%);
-  pointer-events: none;
-  animation: heroGlow 8s ease-in-out infinite alternate;
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(232,93,38,0.15), transparent),
+    radial-gradient(ellipse 60% 40% at 20% 50%, rgba(251,191,36,0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(232,93,38,0.1), transparent);
+  z-index: 0;
 }}
-
-@keyframes heroGlow {{
-  0% {{ opacity: 1; transform: scale(1); }}
-  100% {{ opacity: 0.7; transform: scale(1.05); }}
-}}
-
-.hero::after {{
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: linear-gradient(to top, var(--bg), transparent);
-  z-index: 1;
-}}
-
-.hero-badge {{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 24px;
-  background: rgba(232,93,38,0.08);
-  border: 1px solid rgba(232,93,38,0.15);
-  border-radius: 100px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--primary-light);
-  margin-bottom: 2.5rem;
-  letter-spacing: 0.08em;
+.hero > * {{ position: relative; z-index: 1; }}
+.hero-sub {{
+  font-size: clamp(0.85rem, 2vw, 1rem);
+  color: var(--dim);
   text-transform: uppercase;
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease both;
+  letter-spacing: 3px;
+  margin-bottom: 1.5rem;
 }}
-
-.hero h1 {{
-  font-size: clamp(3rem, 8vw, 6.5rem);
+.hero-title {{
+  font-family: 'Playfair Display', serif;
   font-weight: 900;
-  letter-spacing: -0.04em;
+  font-size: clamp(3rem, 10vw, 7rem);
   line-height: 1.05;
   margin-bottom: 1.5rem;
-  position: relative;
-  z-index: 2;
-}}
-
-.hero-title-wrap {{
-  overflow: hidden;
-  display: block;
-}}
-
-.hero-title-inner {{
-  display: block;
-  animation: textReveal 1s cubic-bezier(0.16,1,0.3,1) 0.2s both;
-}}
-
-@keyframes textReveal {{
-  from {{ transform: translateY(100%); opacity: 0; }}
-  to {{ transform: translateY(0); opacity: 1; }}
-}}
-
-.hero h1 span {{
-  background: linear-gradient(135deg, var(--primary), var(--primary-light), #fbbf24, var(--primary));
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent) 50%, var(--gold) 100%);
   background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradientMove 6s ease infinite;
+  animation: shimmer 6s ease infinite;
 }}
-
-@keyframes gradientMove {{
-  0% {{ background-position: 0% 50%; }}
+@keyframes shimmer {{
+  0%, 100% {{ background-position: 0% 50%; }}
   50% {{ background-position: 100% 50%; }}
-  100% {{ background-position: 0% 50%; }}
 }}
-
-.hero p {{
-  font-size: clamp(1.05rem, 2.5vw, 1.3rem);
+.hero-desc {{
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
   color: var(--dim);
   max-width: 600px;
-  margin-bottom: 3rem;
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease 0.4s both;
-}}
-
-@keyframes fadeUp {{
-  from {{ opacity: 0; transform: translateY(24px); }}
-  to {{ opacity: 1; transform: translateY(0); }}
-}}
-
-.btn-primary {{
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 40px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 14px;
-  text-decoration: none;
-  cursor: pointer;
-  position: relative;
-  z-index: 2;
-  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
-  animation: fadeUp 0.8s ease 0.6s both, pulse 3s ease-in-out 2s infinite;
-  box-shadow: 0 0 0 0 rgba(232,93,38,0.4);
-}}
-
-@keyframes pulse {{
-  0%, 100% {{ box-shadow: 0 0 0 0 rgba(232,93,38,0.4); }}
-  50% {{ box-shadow: 0 0 0 12px rgba(232,93,38,0); }}
-}}
-
-.btn-primary:hover {{
-  background: var(--primary-light);
-  transform: scale(1.02);
-  box-shadow: 0 8px 40px rgba(232,93,38,0.35);
-}}
-
-/* ── MARQUEE / SOCIAL PROOF ── */
-.marquee-wrap {{
-  overflow: hidden;
-  padding: 2.5rem 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  z-index: 1;
-}}
-
-.marquee-track {{
-  display: flex;
-  gap: 3rem;
-  animation: marquee 25s linear infinite;
-  width: max-content;
-}}
-
-@keyframes marquee {{
-  0% {{ transform: translateX(0); }}
-  100% {{ transform: translateX(-50%); }}
-}}
-
-.marquee-item {{
-  white-space: nowrap;
-  color: var(--dim);
-  font-size: 0.9rem;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.7;
-}}
-
-.marquee-item span {{
-  color: var(--primary);
-}}
-
-/* ── CLIENT LOGOS ── */
-.logos-section {{
-  padding: 5rem 2rem;
-  position: relative;
-  z-index: 1;
-}}
-
-.logos-section .section-label {{
-  text-align: center;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--dim);
   margin-bottom: 2.5rem;
 }}
-
-.logos-grid {{
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 2rem;
-  flex-wrap: wrap;
-  max-width: 900px;
-  margin: 0 auto;
+.hero-cta {{
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 1rem 2.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  text-decoration: none;
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  transition: transform 0.3s, box-shadow 0.3s;
+}}
+.hero-cta:hover {{ transform: translateY(-2px); box-shadow: 0 12px 40px rgba(232,93,38,0.35); }}
+.scroll-indicator {{
+  position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 40px;
+  border: 2px solid var(--dim);
+  border-radius: 12px;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 6px;
+}}
+.scroll-indicator span {{
+  width: 4px; height: 8px;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: scrollPulse 2s ease infinite;
+}}
+@keyframes scrollPulse {{
+  0%, 100% {{ transform: translateY(0); opacity: 1; }}
+  50% {{ transform: translateY(10px); opacity: 0.3; }}
 }}
 
-.logo-placeholder {{
-  width: 120px;
-  height: 50px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dim);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  opacity: 0.5;
+/* ── SECTIONS ── */
+section {{ padding: clamp(4rem, 10vw, 8rem) 0; position: relative; }}
+.section-title {{
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
 }}
+.section-sub {{ color: var(--dim); font-size: 1.05rem; margin-bottom: 3rem; }}
 
-/* ── STATS BAR ── */
-.stats-bar {{
+/* ── STATS ── */
+.stats-grid {{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 5rem 2rem;
-  gap: 2rem;
-  position: relative;
-  z-index: 1;
+  gap: 1.5rem;
 }}
-
-.stat-item {{
+.stat-card {{
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 2rem 1.5rem;
   text-align: center;
-  padding: 2.5rem 1.5rem;
-  background: var(--surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  transition: transform 0.3s, border-color 0.3s;
 }}
-
-.stat-item::before {{
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 20px;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(232,93,38,0.2), transparent, rgba(232,93,38,0.1));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}}
-
-.stat-item:hover {{
-  transform: scale(1.02);
-  box-shadow: 0 0 40px rgba(232,93,38,0.08);
-}}
-
+.stat-card:hover {{ transform: scale(1.02); border-color: var(--accent); }}
 .stat-num {{
-  font-size: 2.5rem;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--gold));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }}
+.stat-label {{ color: var(--dim); font-size: 0.9rem; margin-top: 0.5rem; }}
 
-.stat-label {{
-  font-size: 0.85rem;
-  color: var(--dim);
-  margin-top: 6px;
-  font-weight: 500;
-}}
-
-/* ── SECTIONS ── */
-.section {{
-  padding: 8rem 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 1;
-}}
-
-.section-title {{
-  font-size: clamp(2rem, 5vw, 3.2rem);
-  font-weight: 900;
-  text-align: center;
-  margin-bottom: 1rem;
-  letter-spacing: -0.03em;
-}}
-
-.section-sub {{
-  text-align: center;
-  color: var(--dim);
-  max-width: 550px;
-  margin: 0 auto 4rem;
-  font-size: 1.1rem;
-  line-height: 1.7;
-}}
-
-/* ── SERVICES BENTO GRID ── */
+/* ── SERVICES BENTO ── */
 .services-grid {{
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
 }}
-
 .service-card {{
-  background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 2.5rem;
-  transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
-  position: relative;
-  overflow: hidden;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
 }}
-
-.service-card::before {{
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 24px;
-  padding: 1px;
-  background: linear-gradient(135deg, rgba(232,93,38,0.15), transparent 50%, rgba(232,93,38,0.05));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}}
-
-.service-card:hover::before {{
-  opacity: 1;
-}}
-
 .service-card:hover {{
   transform: scale(1.02);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 40px rgba(232,93,38,0.06);
+  border-color: var(--accent);
+  box-shadow: 0 0 30px rgba(232,93,38,0.1);
 }}
+.service-card.span-2 {{ grid-column: span 2; }}
+.service-icon {{ font-size: 2.5rem; margin-bottom: 1rem; }}
+.service-card h3 {{ font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 0.75rem; }}
+.service-card p {{ color: var(--dim); font-size: 0.95rem; line-height: 1.7; }}
 
-.service-card.span-2 {{
-  grid-column: span 2;
-}}
-
-.service-icon {{
-  font-size: 2rem;
-  margin-bottom: 1.25rem;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(232,93,38,0.08);
-  border-radius: 16px;
-  border: 1px solid rgba(232,93,38,0.1);
-}}
-
-.service-card h3 {{
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin-bottom: 0.75rem;
-  letter-spacing: -0.01em;
-}}
-
-.service-card p {{
-  color: var(--dim);
-  font-size: 0.95rem;
-  line-height: 1.7;
-}}
-
-/* ── NEDEN BIZ (WHY US) ── */
-.why-section {{
-  background: var(--surface-solid);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  z-index: 1;
-}}
-
-.why-grid {{
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 3rem;
-  max-width: 900px;
-  margin: 0 auto;
-}}
-
-.why-item {{
-  display: flex;
-  gap: 1.25rem;
-  align-items: flex-start;
-}}
-
-.why-icon {{
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  background: rgba(232,93,38,0.1);
-  border: 1px solid rgba(232,93,38,0.15);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-}}
-
-.why-item h4 {{
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 4px;
-}}
-
-.why-item p {{
-  color: var(--dim);
-  font-size: 0.9rem;
-  line-height: 1.6;
-}}
-
-/* ── PROCESS / WORKFLOW ── */
+/* ── PROCESS ── */
 .process-section {{
   position: relative;
-  z-index: 1;
 }}
-
+.process-section::before {{
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 100%;
+  background: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+  clip-path: polygon(0 5%, 100% 0, 100% 95%, 0 100%);
+  background: var(--surface);
+  z-index: -1;
+}}
 .process-grid {{
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
   position: relative;
-  max-width: 1000px;
-  margin: 0 auto;
 }}
-
 .process-grid::before {{
   content: '';
   position: absolute;
-  top: 40px;
-  left: 10%;
-  right: 10%;
+  top: 2.5rem; left: 10%; right: 10%;
   height: 2px;
-  background: linear-gradient(to right, transparent, var(--primary), var(--primary-light), transparent);
-  opacity: 0.3;
+  background: linear-gradient(90deg, var(--accent), var(--gold), var(--green), var(--accent));
 }}
-
-.process-step {{
-  text-align: center;
-  position: relative;
-}}
-
+.process-step {{ text-align: center; position: relative; z-index: 1; }}
 .step-num {{
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 1.5rem;
-  background: var(--surface-solid);
-  border: 2px solid var(--primary);
+  width: 50px; height: 50px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--primary);
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 0 20px rgba(232,93,38,0.15);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+  color: #fff;
 }}
-
-.process-step h4 {{
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin-bottom: 6px;
-}}
-
-.process-step p {{
-  color: var(--dim);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}}
+.process-step h3 {{ font-family: 'Playfair Display', serif; font-size: 1.2rem; margin-bottom: 0.5rem; }}
+.process-step p {{ color: var(--dim); font-size: 0.85rem; }}
 
 /* ── ABOUT ── */
-.about-section {{
-  background: var(--surface-solid);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-  z-index: 1;
-}}
-
-.about-inner {{
-  max-width: 700px;
-  margin: 0 auto;
-  text-align: center;
-}}
-
-.about-inner h2 {{
-  font-size: clamp(1.5rem, 3vw, 2.2rem);
-  margin-bottom: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}}
-
-.about-inner p {{
-  color: var(--dim);
-  font-size: 1.1rem;
-  line-height: 1.9;
-}}
-
-.about-name {{
-  color: var(--primary);
-  font-weight: 700;
-}}
-
-/* ── FAQ ACCORDION ── */
-.faq-section {{
-  position: relative;
-  z-index: 1;
-}}
-
-.faq-list {{
-  max-width: 750px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}}
-
-.faq-list details {{
-  background: var(--surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}}
-
-.faq-list details[open] {{
-  border-color: rgba(232,93,38,0.2);
-  box-shadow: 0 0 30px rgba(232,93,38,0.05);
-}}
-
-.faq-list summary {{
-  padding: 1.5rem 2rem;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  justify-content: space-between;
+.about-split {{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
   align-items: center;
-  transition: color 0.2s;
 }}
-
-.faq-list summary::-webkit-details-marker {{ display: none; }}
-
-.faq-list summary::after {{
-  content: '+';
-  font-size: 1.3rem;
-  color: var(--primary);
-  font-weight: 300;
-  transition: transform 0.3s ease;
+.about-quote {{
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.3;
+  font-style: italic;
+  color: var(--accent);
 }}
+.about-text {{ color: var(--dim); font-size: 1.05rem; line-height: 1.8; }}
+.about-text strong {{ color: var(--text); }}
 
-.faq-list details[open] summary::after {{
-  transform: rotate(45deg);
+/* ── TESTIMONIALS ── */
+.testimonials-grid {{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
 }}
-
-.faq-list summary:hover {{
-  color: var(--primary-light);
+.testimonial-card {{
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2rem;
+  transition: transform 0.3s, border-color 0.3s;
 }}
+.testimonial-card:hover {{ transform: scale(1.02); border-color: var(--accent); }}
+.t-stars {{ color: var(--gold); font-size: 1.2rem; margin-bottom: 1rem; }}
+.t-text {{ color: var(--dim); font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem; font-style: italic; }}
+.t-author {{ font-weight: 600; font-size: 0.9rem; }}
+.t-role {{ color: var(--dim); font-size: 0.8rem; }}
 
-.faq-answer {{
-  padding: 0 2rem 1.5rem;
-  color: var(--dim);
-  font-size: 0.95rem;
-  line-height: 1.7;
-}}
-
-/* ── CONTACT ── */
+/* ── CONTACT CTA ── */
 .contact-section {{
   text-align: center;
   position: relative;
-  z-index: 1;
 }}
-
-.contact-cta {{
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 20px 48px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 1.1rem;
-  font-weight: 700;
-  border-radius: 16px;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
-  margin-top: 2rem;
-  animation: pulse 3s ease-in-out 1s infinite;
-  box-shadow: 0 0 0 0 rgba(232,93,38,0.4);
+.contact-section::before {{
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 50%, rgba(232,93,38,0.1), transparent);
 }}
-
-.contact-cta:hover {{
-  background: var(--primary-light);
-  transform: scale(1.02);
-  box-shadow: 0 12px 40px rgba(232,93,38,0.3);
+.contact-section > * {{ position: relative; z-index: 1; }}
+.contact-section .section-title {{ margin-bottom: 1rem; }}
+.contact-desc {{ color: var(--dim); font-size: 1.1rem; margin-bottom: 2.5rem; }}
+.contact-btn {{
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 1rem 3rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; text-decoration: none;
+  border-radius: 100px;
+  font-weight: 700; font-size: 1.1rem;
+  transition: transform 0.3s, box-shadow 0.3s;
 }}
-
-.contact-info {{
-  display: flex;
-  justify-content: center;
-  gap: 2.5rem;
-  margin-top: 3rem;
-  flex-wrap: wrap;
-}}
-
-.contact-item {{
-  color: var(--dim);
-  font-size: 0.95rem;
-  font-weight: 500;
-}}
+.contact-btn:hover {{ transform: translateY(-2px); box-shadow: 0 12px 40px rgba(232,93,38,0.35); }}
+.contact-cities {{ color: var(--dim); font-size: 0.9rem; margin-top: 1.5rem; }}
 
 /* ── FOOTER ── */
 footer {{
   border-top: 1px solid var(--border);
-  padding: 5rem 2rem 3rem;
-  position: relative;
-  z-index: 1;
+  padding: 4rem 0 2rem;
 }}
-
 .footer-grid {{
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 3rem;
-  max-width: 1100px;
-  margin: 0 auto 3rem;
+  margin-bottom: 3rem;
 }}
-
-.footer-brand h3 {{
-  font-size: 1.1rem;
-  font-weight: 800;
-  margin-bottom: 0.75rem;
-  letter-spacing: -0.02em;
-}}
-
-.footer-brand p {{
-  color: var(--dim);
-  font-size: 0.85rem;
-  line-height: 1.7;
-  max-width: 280px;
-}}
-
-.footer-col h4 {{
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-  margin-bottom: 1rem;
-}}
-
-.footer-col a {{
-  display: block;
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 0.85rem;
-  padding: 4px 0;
-  transition: color 0.2s;
-}}
-
-.footer-col a:hover {{
-  color: var(--primary-light);
-}}
-
-.footer-social {{
-  display: flex;
-  gap: 10px;
-  margin-top: 1rem;
-}}
-
-.footer-social a {{
-  width: 36px;
-  height: 36px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dim);
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}}
-
-.footer-social a:hover {{
-  background: rgba(232,93,38,0.1);
-  border-color: rgba(232,93,38,0.2);
-  color: var(--primary-light);
-}}
-
+.footer-brand {{ font-family: 'Playfair Display', serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem; }}
+.footer-tagline {{ color: var(--dim); font-size: 0.9rem; }}
+.footer-col h4 {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px; color: var(--dim); margin-bottom: 1rem; }}
+.footer-col a {{ display: block; color: var(--text); text-decoration: none; font-size: 0.9rem; margin-bottom: 0.5rem; transition: color 0.2s; }}
+.footer-col a:hover {{ color: var(--accent); }}
 .footer-bottom {{
   text-align: center;
   padding-top: 2rem;
@@ -1125,367 +639,225 @@ footer {{
   font-size: 0.8rem;
 }}
 
-/* ── ANIMATIONS ── */
-.fade-in {{
+/* ── REVEAL ── */
+.reveal {{
   opacity: 0;
   transform: translateY(30px);
-  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }}
-
-.fade-in.visible {{
+.reveal.active {{
   opacity: 1;
-  transform: none;
+  transform: translateY(0);
 }}
-
-/* stagger via nth-child */
-.services-grid .service-card:nth-child(1) {{ transition-delay: 0s; }}
-.services-grid .service-card:nth-child(2) {{ transition-delay: 0.1s; }}
-.services-grid .service-card:nth-child(3) {{ transition-delay: 0.2s; }}
-.services-grid .service-card:nth-child(4) {{ transition-delay: 0.3s; }}
-
-.why-grid .why-item:nth-child(1) {{ transition-delay: 0s; }}
-.why-grid .why-item:nth-child(2) {{ transition-delay: 0.1s; }}
-.why-grid .why-item:nth-child(3) {{ transition-delay: 0.15s; }}
-.why-grid .why-item:nth-child(4) {{ transition-delay: 0.2s; }}
-
-.process-grid .process-step:nth-child(1) {{ transition-delay: 0s; }}
-.process-grid .process-step:nth-child(2) {{ transition-delay: 0.15s; }}
-.process-grid .process-step:nth-child(3) {{ transition-delay: 0.3s; }}
-.process-grid .process-step:nth-child(4) {{ transition-delay: 0.45s; }}
-
-.stats-bar .stat-item:nth-child(1) {{ transition-delay: 0s; }}
-.stats-bar .stat-item:nth-child(2) {{ transition-delay: 0.1s; }}
-.stats-bar .stat-item:nth-child(3) {{ transition-delay: 0.2s; }}
-.stats-bar .stat-item:nth-child(4) {{ transition-delay: 0.3s; }}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {{
-  .stats-bar {{
-    grid-template-columns: repeat(2, 1fr);
-    padding: 3rem 1.5rem;
-  }}
-  .services-grid {{
-    grid-template-columns: 1fr;
-  }}
-  .service-card.span-2 {{
-    grid-column: span 1;
-  }}
-  .why-grid {{
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }}
-  .process-grid {{
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-  }}
-  .process-grid::before {{
-    display: none;
-  }}
-  .hero {{
-    padding: 2rem 1.5rem;
-  }}
-  .hero h1 {{
-    font-size: clamp(2.2rem, 10vw, 3.5rem);
-  }}
-  .section {{
-    padding: 5rem 1.5rem;
-  }}
-  .footer-grid {{
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }}
-  .contact-info {{
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }}
-  .nav {{
-    left: 16px;
-    right: 16px;
-    transform: translateX(0) translateY(-80px);
-    border-radius: 20px;
-    padding: 8px 16px;
-  }}
-  .nav.visible {{
-    transform: translateX(0) translateY(0);
-  }}
-  .nav-links a:not(.nav-cta) {{
-    display: none;
-  }}
+  .stats-grid {{ grid-template-columns: repeat(2, 1fr); }}
+  .services-grid {{ grid-template-columns: 1fr; }}
+  .service-card.span-2 {{ grid-column: span 1; }}
+  .process-grid {{ grid-template-columns: repeat(2, 1fr); }}
+  .process-grid::before {{ display: none; }}
+  .about-split {{ grid-template-columns: 1fr; gap: 2rem; }}
+  .testimonials-grid {{ grid-template-columns: 1fr; }}
+  .footer-grid {{ grid-template-columns: 1fr; }}
 }}
 </style>
 </head>
 <body>
 
-<!-- FLOATING NAV -->
+<!-- NAV -->
 <nav class="nav" id="mainNav">
-  <div class="nav-logo">{agency_name}</div>
-  <div class="nav-links">
-    <a href="#services">Hizmetler</a>
-    <a href="#process">Surecimiz</a>
-    <a href="#about">Hakkimizda</a>
-    <a href="#contact" class="nav-cta">Iletisim</a>
+  <div class="nav-inner">
+    <div class="nav-logo">{agency_name}</div>
+    <a href="#contact" class="nav-cta">Iletisime Gecin</a>
   </div>
 </nav>
 
 <!-- HERO -->
-<section class="hero">
-  <div class="hero-badge">&#9889; {niche} Uzmani</div>
-  <h1>
-    <span class="hero-title-wrap"><span class="hero-title-inner"><span>{agency_name}</span></span></span>
-  </h1>
-  <p>{tagline}. {cities_text} bolgesinde isletmenizi buyutuyoruz.</p>
-  <a href="#contact" class="btn-primary">&#128172; Iletisime Gecin</a>
-</section>
-
-<!-- MARQUEE SOCIAL PROOF -->
-<div class="marquee-wrap">
-  <div class="marquee-track">
-    <div class="marquee-item"><span>&#9733;</span> 50+ Mutlu Musteri</div>
-    <div class="marquee-item"><span>&#9889;</span> 7/24 Destek</div>
-    <div class="marquee-item"><span>&#128640;</span> AI Destekli Cozumler</div>
-    <div class="marquee-item"><span>&#128200;</span> Olculebilir Sonuclar</div>
-    <div class="marquee-item"><span>&#10003;</span> {cities_text} Bolgesinde Aktif</div>
-    <div class="marquee-item"><span>&#9733;</span> Sektorde Guvenilir Ortak</div>
-    <div class="marquee-item"><span>&#9733;</span> 50+ Mutlu Musteri</div>
-    <div class="marquee-item"><span>&#9889;</span> 7/24 Destek</div>
-    <div class="marquee-item"><span>&#128640;</span> AI Destekli Cozumler</div>
-    <div class="marquee-item"><span>&#128200;</span> Olculebilir Sonuclar</div>
-    <div class="marquee-item"><span>&#10003;</span> {cities_text} Bolgesinde Aktif</div>
-    <div class="marquee-item"><span>&#9733;</span> Sektorde Guvenilir Ortak</div>
-  </div>
-</div>
-
-<!-- CLIENT LOGOS -->
-<section class="logos-section">
-  <div class="section-label fade-in">Bize Guvenenlerin Arasina Katilin</div>
-  <div class="logos-grid fade-in">
-    <div class="logo-placeholder">Logo</div>
-    <div class="logo-placeholder">Logo</div>
-    <div class="logo-placeholder">Logo</div>
-    <div class="logo-placeholder">Logo</div>
-    <div class="logo-placeholder">Logo</div>
-    <div class="logo-placeholder">Logo</div>
-  </div>
+<section class="hero" id="hero">
+  <p class="hero-sub">{niche} &middot; {cities_text}</p>
+  <h1 class="hero-title">{agency_name}</h1>
+  <p class="hero-desc">{tagline}</p>
+  <a href="#contact" class="hero-cta">Ucretsiz Analiz Alin &#8594;</a>
+  <div class="scroll-indicator"><span></span></div>
 </section>
 
 <!-- STATS -->
-<div class="stats-bar">
-  <div class="stat-item fade-in">
-    <div class="stat-num">50+</div>
-    <div class="stat-label">Mutlu Musteri</div>
-  </div>
-  <div class="stat-item fade-in">
-    <div class="stat-num">{num_cities}</div>
-    <div class="stat-label">Sehir</div>
-  </div>
-  <div class="stat-item fade-in">
-    <div class="stat-num">{niche}</div>
-    <div class="stat-label">Uzmanlik Alani</div>
-  </div>
-  <div class="stat-item fade-in">
-    <div class="stat-num">7/24</div>
-    <div class="stat-label">Destek</div>
-  </div>
-</div>
-
-<!-- SERVICES -->
-<section class="section" id="services">
-  <h2 class="section-title fade-in">Hizmetlerimiz</h2>
-  <p class="section-sub fade-in">{niche} sektorunde isletmenizi bir ust seviyeye tasiyan cozumler.</p>
-  <div class="services-grid">
-    {services_html}
+<section id="stats">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-card reveal">
+        <div class="stat-num">50+</div>
+        <div class="stat-label">Mutlu Musteri</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-num">{num_cities}</div>
+        <div class="stat-label">Sehir</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-num">7/24</div>
+        <div class="stat-label">Destek</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-num">{niche}</div>
+        <div class="stat-label">Uzmanlik Alani</div>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- NEDEN BIZ -->
-<section class="why-section">
-  <div class="section" style="padding-top:6rem;padding-bottom:6rem;">
-    <h2 class="section-title fade-in">Neden Biz?</h2>
-    <p class="section-sub fade-in">Diger ajanslardaki fark burada baslar.</p>
-    <div class="why-grid">
-      <div class="why-item fade-in">
-        <div class="why-icon">&#129302;</div>
-        <div>
-          <h4>AI Oncelikli Yaklasim</h4>
-          <p>Yapay zeka destekli araclarla rakiplerinizin onune gecin.</p>
-        </div>
-      </div>
-      <div class="why-item fade-in">
-        <div class="why-icon">&#128200;</div>
-        <div>
-          <h4>Veri Odakli Strateji</h4>
-          <p>Her karari veriye dayali aliyor, olculebilir sonuclar uretiyoruz.</p>
-        </div>
-      </div>
-      <div class="why-item fade-in">
-        <div class="why-icon">&#9889;</div>
-        <div>
-          <h4>Hizli Teslimat</h4>
-          <p>Haftalar degil, gunler icinde somut sonuclar gormeye baslayin.</p>
-        </div>
-      </div>
-      <div class="why-item fade-in">
-        <div class="why-icon">&#128588;</div>
-        <div>
-          <h4>Seffaf Iletisim</h4>
-          <p>Her asamada bilgilendirilir, seffaf raporlar alirsiniz.</p>
-        </div>
-      </div>
+<!-- SERVICES -->
+<section id="services">
+  <div class="container">
+    <div class="section-title reveal">Hizmetlerimiz</div>
+    <div class="section-sub reveal">Isletmenizi buyutmek icin ihtiyaciniz olan her sey</div>
+    <div class="services-grid">
+      {services_html}
     </div>
   </div>
 </section>
 
 <!-- PROCESS -->
-<section class="section process-section" id="process">
-  <h2 class="section-title fade-in">Nasil Calisiyoruz?</h2>
-  <p class="section-sub fade-in">4 adimda isletmenizi dijitale tasiyoruz.</p>
-  <div class="process-grid">
-    <div class="process-step fade-in">
-      <div class="step-num">1</div>
-      <h4>Analiz</h4>
-      <p>Isletmenizi ve sektorunuzu detayli analiz ediyoruz.</p>
-    </div>
-    <div class="process-step fade-in">
-      <div class="step-num">2</div>
-      <h4>Strateji</h4>
-      <p>Size ozel dijital pazarlama stratejisi olusturuyoruz.</p>
-    </div>
-    <div class="process-step fade-in">
-      <div class="step-num">3</div>
-      <h4>Uygulama</h4>
-      <p>Plani hayata geciriyor, kampanyalari baslatiyoruz.</p>
-    </div>
-    <div class="process-step fade-in">
-      <div class="step-num">4</div>
-      <h4>Optimizasyon</h4>
-      <p>Surekli olcum ve iyilestirme ile sonuclari artiriyoruz.</p>
+<section class="process-section" id="process">
+  <div class="container">
+    <div class="section-title reveal" style="text-align:center;">Nasil Calisiyoruz?</div>
+    <div class="section-sub reveal" style="text-align:center;">Basariya giden 4 adim</div>
+    <div class="process-grid">
+      <div class="process-step reveal">
+        <div class="step-num">1</div>
+        <h3>Analiz</h3>
+        <p>Isletmenizi ve sektorunuzu detayli inceliyoruz</p>
+      </div>
+      <div class="process-step reveal">
+        <div class="step-num">2</div>
+        <h3>Strateji</h3>
+        <p>Size ozel dijital strateji olusturuyoruz</p>
+      </div>
+      <div class="process-step reveal">
+        <div class="step-num">3</div>
+        <h3>Uygulama</h3>
+        <p>Stratejiyi hayata geciriyoruz</p>
+      </div>
+      <div class="process-step reveal">
+        <div class="step-num">4</div>
+        <h3>Sonuc</h3>
+        <p>Olculebilir sonuclarla buyume sagliyoruz</p>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- ABOUT -->
-<section class="about-section">
-  <div class="section" style="padding-top:6rem;padding-bottom:6rem;">
-    <div class="about-inner fade-in" id="about">
-      <h2>Hakkimizda</h2>
-      <p>
-        <span class="about-name">{agency_name}</span>, {niche} sektorundeki isletmelerin dijital dunyada buyumesine yardimci olan bir ajanstir.
-        Modern AI araclari ve otomasyonlar ile musterilerimizin zamandan tasarruf etmesini ve gelirlerini artirmasini sagliyoruz.
-      </p>
-      <p style="margin-top:1.5rem;">
-        Kurucumuz <span class="about-name">{owner_name}</span>, sektorde uzun yillardir aktif olarak calismaktadir.
-      </p>
+<section id="about">
+  <div class="container">
+    <div class="about-split">
+      <div class="about-quote reveal">
+        &#8220;Her isletme dijital dunyada hak ettigi yeri almali.&#8221;
+      </div>
+      <div class="about-text reveal">
+        <strong>{agency_name}</strong>, {owner_name} liderliginde {niche} sektorune odaklanmis bir dijital ajansdir. {cities_text} bolgesinde isletmelerin dijital donusumunu hizlandiriyoruz.<br><br>
+        Amacimiz, yerel isletmelerin buyuk markalarla ayni dijital araclara erisebilmesini saglamak. Veriye dayali stratejiler ve modern teknolojilerle musterilerimizin online varligini guclendiriyoruz.
+      </div>
     </div>
   </div>
 </section>
 
-<!-- FAQ -->
-<section class="section faq-section">
-  <h2 class="section-title fade-in">Sik Sorulan Sorular</h2>
-  <p class="section-sub fade-in">Merak ettiklerinizin cevaplari burada.</p>
-  <div class="faq-list fade-in">
-    <details>
-      <summary>Hizmetleriniz ne kadar surede sonuc verir?</summary>
-      <div class="faq-answer">Cogu musterimiz ilk 30 gun icinde olculebilir sonuclar gormeye baslar. Dijital pazarlama stratejimiz hizli sonuclar icin optimize edilmistir.</div>
-    </details>
-    <details>
-      <summary>Hangi sehirlerde hizmet veriyorsunuz?</summary>
-      <div class="faq-answer">{cities_text} bolgesinde aktif olarak hizmet veriyoruz. Uzaktan calisma modelimiz sayesinde Turkiye genelinde destek saglayabiliyoruz.</div>
-    </details>
-    <details>
-      <summary>Fiyatlandirmaniz nasil calisiyor?</summary>
-      <div class="faq-answer">Her isletmenin ihtiyaci farklidir. Ucretsiz danismanlik gorusmemizde isletmenizi analiz edip, size ozel bir teklif hazirliyoruz.</div>
-    </details>
-    <details>
-      <summary>Sozlesme suresi var mi?</summary>
-      <div class="faq-answer">Minimum sozlesme suremiz 3 aydir. Ancak cogu musterimiz sonuclardan memnun kaldigi icin uzun vadeli calismayi tercih eder.</div>
-    </details>
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="container">
+    <div class="section-title reveal" style="text-align:center;">Musterilerimiz Ne Diyor?</div>
+    <div class="section-sub reveal" style="text-align:center;">Birlikte basardik</div>
+    <div class="testimonials-grid">
+      <div class="testimonial-card reveal">
+        <div class="t-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="t-text">&#8220;Dijital varligimizi sifirdan insa ettiler. 3 ayda online siparislerimiz %200 artti. Harika bir ekip!&#8221;</p>
+        <div class="t-author">Mehmet Yilmaz</div>
+        <div class="t-role">Restoran Sahibi, Istanbul</div>
+      </div>
+      <div class="testimonial-card reveal">
+        <div class="t-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="t-text">&#8220;Profesyonel, hizli ve sonuc odakli. Google'da ilk sayfaya ciktik, hasta sayimiz ikiye katlandi.&#8221;</p>
+        <div class="t-author">Ayse Kara</div>
+        <div class="t-role">Dis Klinigi, Ankara</div>
+      </div>
+      <div class="testimonial-card reveal">
+        <div class="t-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p class="t-text">&#8220;Sosyal medya yonetimimizi devraldilar, takipci sayimiz 10 kat artti. Kesinlikle tavsiye ediyorum.&#8221;</p>
+        <div class="t-author">Ali Demir</div>
+        <div class="t-role">Otel Muduru, Antalya</div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- CONTACT -->
-<section class="section contact-section" id="contact">
-  <h2 class="section-title fade-in">Iletisim</h2>
-  <p class="section-sub fade-in">Isletmenizi buyutmeye hazir misiniz? Hemen iletisime gecin.</p>
-  <div class="fade-in">
-    <a href="mailto:info@example.com" class="contact-cta">&#128231; Bize Ulasin</a>
-  </div>
-  <div class="contact-info fade-in">
-    <div class="contact-item">&#128205; {cities_text}</div>
-    <div class="contact-item">&#128231; info@example.com</div>
+<section class="contact-section" id="contact">
+  <div class="container" style="padding-top:4rem;padding-bottom:4rem;">
+    <div class="section-title reveal">Iletisime Gecin</div>
+    <p class="contact-desc reveal">Isletmenizi bir sonraki seviyeye tasimayi konusalim</p>
+    <a href="mailto:info@{agency_name}.com" class="contact-btn reveal">Bize Yazin &#9993;</a>
+    <p class="contact-cities reveal">{cities_text}</p>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-grid">
-    <div class="footer-brand">
-      <h3>{agency_name}</h3>
-      <p>{tagline}. {cities_text} bolgesinde isletmelere dijital cozumler sunuyoruz.</p>
-      <div class="footer-social">
-        <a href="#" title="Instagram">&#9679;</a>
-        <a href="#" title="LinkedIn">&#9679;</a>
-        <a href="#" title="Twitter">&#9679;</a>
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand">{agency_name}</div>
+        <p class="footer-tagline">{tagline}</p>
+      </div>
+      <div class="footer-col">
+        <h4>Sayfalar</h4>
+        <a href="#services">Hizmetler</a>
+        <a href="#process">Surecimiz</a>
+        <a href="#about">Hakkimizda</a>
+        <a href="#testimonials">Referanslar</a>
+      </div>
+      <div class="footer-col">
+        <h4>Iletisim</h4>
+        <a href="#contact">Bize Ulasin</a>
+        <a href="mailto:info@{agency_name}.com">E-posta</a>
+        <a href="#">{cities_text}</a>
       </div>
     </div>
-    <div class="footer-col">
-      <h4>Hizmetler</h4>
-      <a href="#services">Dijital Pazarlama</a>
-      <a href="#services">Web Tasarim</a>
-      <a href="#services">Sosyal Medya</a>
-      <a href="#services">AI Otomasyon</a>
+    <div class="footer-bottom">
+      &copy; {year} {agency_name}. Tum haklari saklidir.
     </div>
-    <div class="footer-col">
-      <h4>Sirket</h4>
-      <a href="#about">Hakkimizda</a>
-      <a href="#process">Surecimiz</a>
-      <a href="#contact">Iletisim</a>
-    </div>
-    <div class="footer-col">
-      <h4>Destek</h4>
-      <a href="#contact">Bize Ulasin</a>
-      <a href="#">SSS</a>
-      <a href="#">Gizlilik Politikasi</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <p>&copy; {year} {agency_name}. Tum haklari saklidir.</p>
   </div>
 </footer>
 
-<!-- SCROLL ANIMATIONS + NAV -->
 <script>
-(function() {{
-  var els = document.querySelectorAll('.fade-in');
-  var nav = document.getElementById('mainNav');
-  var lastScroll = 0;
-
-  if ('IntersectionObserver' in window) {{
-    var obs = new IntersectionObserver(function(entries) {{
-      entries.forEach(function(e, i) {{
-        if (e.isIntersecting) {{
-          e.target.style.transitionDelay = (i * 0.05) + 's';
-          e.target.classList.add('visible');
-          obs.unobserve(e.target);
-        }}
-      }});
-    }}, {{ threshold: 0.08 }});
-    els.forEach(function(el) {{ obs.observe(el); }});
-  }} else {{
-    els.forEach(function(el) {{ el.classList.add('visible'); }});
-  }}
-
-  window.addEventListener('scroll', function() {{
-    var st = window.pageYOffset || document.documentElement.scrollTop;
-    if (st > 400) {{
-      nav.classList.add('visible');
-    }} else {{
-      nav.classList.remove('visible');
-    }}
-    lastScroll = st;
+// Floating nav
+const nav = document.getElementById('mainNav');
+const hero = document.getElementById('hero');
+const observer1 = new IntersectionObserver((entries) => {{
+  entries.forEach(e => {{
+    if (!e.isIntersecting) nav.classList.add('visible');
+    else nav.classList.remove('visible');
   }});
-}})();
+}}, {{ threshold: 0.1 }});
+observer1.observe(hero);
+
+// Scroll reveals with stagger
+const reveals = document.querySelectorAll('.reveal');
+const revealObs = new IntersectionObserver((entries) => {{
+  entries.forEach(e => {{
+    if (e.isIntersecting) {{
+      e.target.classList.add('active');
+      revealObs.unobserve(e.target);
+    }}
+  }});
+}}, {{ threshold: 0.1 }});
+
+reveals.forEach((el, i) => {{
+  const parent = el.parentElement;
+  const siblings = Array.from(parent.children).filter(c => c.classList.contains('reveal'));
+  const idx = siblings.indexOf(el);
+  el.style.transitionDelay = (idx * 0.1) + 's';
+  revealObs.observe(el);
+}});
 </script>
 </body>
 </html>'''
@@ -1501,1157 +873,437 @@ _CLIENT_TEMPLATE = '''<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{business_name} — {category}</title>
-<meta name="description" content="{business_name} — {category}. {address}">
-{audit_html}
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{audit_html}
 <style>
-*, *::before, *::after {{ margin: 0; padding: 0; box-sizing: border-box; }}
+*, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
 :root {{
   --primary: {primary};
   --secondary: {secondary};
   --accent: {accent};
   --bg: {bg};
-  --surface: rgba(17,17,20,0.6);
-  --surface-solid: #111114;
-  --surface2: #1a1a1e;
-  --text: #ededf0;
-  --dim: #8a8a9c;
+  --surface: rgba(255,255,255,0.03);
   --border: rgba(255,255,255,0.06);
-  --whatsapp: #25d366;
+  --border-light: rgba(255,255,255,0.1);
+  --text: #f0f0f0;
+  --dim: #8a8a98;
 }}
 
 html {{ scroll-behavior: smooth; }}
 
 body {{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'DM Sans', sans-serif;
   background: var(--bg);
   color: var(--text);
-  line-height: 1.7;
-  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
   overflow-x: hidden;
-  padding-bottom: 100px;
-}}
-
-/* ── NOISE & DOT OVERLAY ── */
-body::before {{
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  background-size: 256px 256px;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.5;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 80px;
 }}
 
 body::after {{
   content: '';
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+  z-index: 9999;
   pointer-events: none;
-  z-index: 0;
+  opacity: 0.03;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px;
 }}
 
-/* ── FLOATING NAV ── */
+::-webkit-scrollbar {{ width: 6px; }}
+::-webkit-scrollbar-track {{ background: var(--bg); }}
+::-webkit-scrollbar-thumb {{ background: var(--primary); border-radius: 3px; }}
+
+.container {{ max-width: 1200px; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2rem); }}
+
+/* ── NAV ── */
 .nav {{
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%) translateY(-80px);
+  position: fixed; top: 0; left: 0; right: 0;
   z-index: 1000;
-  background: rgba(17,17,20,0.7);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
-  border: 1px solid var(--border);
-  border-radius: 100px;
-  padding: 10px 12px 10px 24px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  padding: 1rem 0;
+  transition: all 0.4s ease;
+  transform: translateY(-100%);
+  opacity: 0;
 }}
-
 .nav.visible {{
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
+  opacity: 1;
 }}
-
-.nav-logo {{
-  font-weight: 800;
-  font-size: 0.9rem;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  color: var(--text);
-}}
-
-.nav-links {{
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}}
-
-.nav-links a {{
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 6px 14px;
+.nav-inner {{
+  max-width: 1200px; margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(17,17,20,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
   border-radius: 100px;
-  transition: all 0.2s;
+  margin-left: clamp(1rem, 4vw, 2rem);
+  margin-right: clamp(1rem, 4vw, 2rem);
 }}
-
-.nav-links a:hover {{
-  color: var(--text);
-  background: rgba(255,255,255,0.05);
-}}
-
+.nav-logo {{ font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.1rem; }}
 .nav-cta {{
-  background: var(--primary) !important;
-  color: #fff !important;
-  font-weight: 600 !important;
-  padding: 8px 20px !important;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 100px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s, box-shadow 0.2s;
 }}
-
-.nav-cta:hover {{
-  background: var(--secondary) !important;
-}}
+.nav-cta:hover {{ transform: scale(1.05); box-shadow: 0 0 20px rgba(232,93,38,0.4); }}
 
 /* ── HERO ── */
 .hero {{
-  min-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  min-height: 80vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
   text-align: center;
-  padding: 3rem 2rem;
   position: relative;
+  padding: 2rem;
   overflow: hidden;
-  z-index: 1;
 }}
-
 .hero::before {{
   content: '';
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 30%, color-mix(in srgb, var(--primary) 18%, transparent) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 20% 80%, color-mix(in srgb, var(--secondary) 10%, transparent) 0%, transparent 50%),
-    radial-gradient(ellipse 40% 40% at 80% 60%, color-mix(in srgb, var(--accent) 5%, transparent) 0%, transparent 50%);
-  pointer-events: none;
-  animation: heroGlow 8s ease-in-out infinite alternate;
+    radial-gradient(ellipse 80% 50% at 50% 0%, color-mix(in srgb, var(--primary) 20%, transparent), transparent),
+    radial-gradient(ellipse 60% 40% at 20% 60%, color-mix(in srgb, var(--secondary) 12%, transparent), transparent),
+    radial-gradient(ellipse 50% 50% at 80% 80%, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+  z-index: 0;
 }}
-
-@keyframes heroGlow {{
-  0% {{ opacity: 1; transform: scale(1); }}
-  100% {{ opacity: 0.7; transform: scale(1.05); }}
-}}
-
-.hero::after {{
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  background: linear-gradient(to top, var(--bg), transparent);
-  z-index: 1;
-}}
-
-.hero-category {{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 24px;
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent);
+.hero > * {{ position: relative; z-index: 1; }}
+.category-badge {{
+  display: inline-block;
+  padding: 0.4rem 1.2rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-light);
   border-radius: 100px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.85rem;
   color: var(--accent);
-  margin-bottom: 2rem;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease both;
+  letter-spacing: 2px;
+  margin-bottom: 1.5rem;
 }}
-
-@keyframes fadeUp {{
-  from {{ opacity: 0; transform: translateY(24px); }}
-  to {{ opacity: 1; transform: translateY(0); }}
-}}
-
-.hero h1 {{
-  font-size: clamp(2.5rem, 7vw, 5.5rem);
+.hero-title {{
+  font-family: 'Playfair Display', serif;
   font-weight: 900;
-  letter-spacing: -0.04em;
+  font-size: clamp(3rem, 10vw, 7rem);
   line-height: 1.05;
-  margin-bottom: 1.25rem;
-  position: relative;
-  z-index: 2;
-}}
-
-.hero-title-wrap {{
-  overflow: hidden;
-  display: block;
-}}
-
-.hero-title-inner {{
-  display: block;
-  animation: textReveal 1s cubic-bezier(0.16,1,0.3,1) 0.2s both;
-}}
-
-@keyframes textReveal {{
-  from {{ transform: translateY(100%); opacity: 0; }}
-  to {{ transform: translateY(0); opacity: 1; }}
-}}
-
-.hero h1 span.gradient-text {{
-  background: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent), var(--primary));
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, var(--text) 0%, var(--primary) 50%, var(--accent) 100%);
   background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradientMove 6s ease infinite;
+  animation: shimmer 6s ease infinite;
 }}
-
-@keyframes gradientMove {{
-  0% {{ background-position: 0% 50%; }}
+@keyframes shimmer {{
+  0%, 100% {{ background-position: 0% 50%; }}
   50% {{ background-position: 100% 50%; }}
-  100% {{ background-position: 0% 50%; }}
 }}
-
-.hero-rating {{
-  font-size: 1.4rem;
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease 0.3s both;
-}}
-
-.stars {{
-  color: #fbbf24;
-  letter-spacing: 3px;
-}}
-
-.rating-num {{
-  color: var(--dim);
-  font-size: 1rem;
-  margin-left: 8px;
-}}
-
-.hero-review {{
-  color: var(--dim);
-  font-size: 0.95rem;
-  margin-bottom: 2.5rem;
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease 0.4s both;
-}}
-
-.btn-cta {{
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 42px;
-  background: var(--primary);
+.hero-rating {{ margin-bottom: 0.5rem; }}
+.hero-rating .stars {{ color: var(--accent); font-size: 1.5rem; }}
+.hero-rating .rating-num {{ font-size: 1.2rem; font-weight: 700; margin-left: 0.5rem; }}
+.hero-review-text {{ color: var(--dim); font-size: 0.95rem; margin-bottom: 2rem; }}
+.hero-cta {{
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 1rem 2.5rem;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
   color: #fff;
-  font-size: 1.05rem;
-  font-weight: 700;
-  border: none;
-  border-radius: 14px;
   text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
-  position: relative;
-  z-index: 2;
-  animation: fadeUp 0.8s ease 0.5s both, pulse 3s ease-in-out 2s infinite;
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  transition: transform 0.3s, box-shadow 0.3s;
 }}
-
-@keyframes pulse {{
-  0%, 100% {{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent); }}
-  50% {{ box-shadow: 0 0 0 12px color-mix(in srgb, var(--primary) 0%, transparent); }}
-}}
-
-.btn-cta:hover {{
-  background: var(--secondary);
-  transform: scale(1.02);
-  box-shadow: 0 8px 40px color-mix(in srgb, var(--primary) 35%, transparent);
-}}
+.hero-cta:hover {{ transform: translateY(-2px); box-shadow: 0 12px 40px color-mix(in srgb, var(--primary) 40%, transparent); }}
 
 /* ── SECTIONS ── */
-.section {{
-  padding: 8rem 2rem;
-  max-width: 1100px;
-  margin: 0 auto;
-  position: relative;
-  z-index: 1;
-}}
-
+section {{ padding: clamp(4rem, 10vw, 8rem) 0; position: relative; }}
 .section-title {{
-  font-size: clamp(1.8rem, 5vw, 2.8rem);
-  font-weight: 900;
-  text-align: center;
-  margin-bottom: 0.75rem;
-  letter-spacing: -0.03em;
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
 }}
-
-.section-sub {{
-  text-align: center;
-  color: var(--dim);
-  max-width: 550px;
-  margin: 0 auto 4rem;
-  font-size: 1.05rem;
-  line-height: 1.7;
-}}
+.section-sub {{ color: var(--dim); font-size: 1.05rem; margin-bottom: 3rem; }}
 
 /* ── FEATURES BENTO ── */
 .features-grid {{
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
 }}
-
 .feature-card {{
   background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 2.5rem;
-  transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
-  position: relative;
-  overflow: hidden;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
 }}
-
-.feature-card::before {{
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 24px;
-  padding: 1px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 20%, transparent), transparent 50%, color-mix(in srgb, var(--primary) 8%, transparent));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}}
-
-.feature-card:hover::before {{
-  opacity: 1;
-}}
-
 .feature-card:hover {{
   transform: scale(1.02);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 40px color-mix(in srgb, var(--primary) 6%, transparent);
+  border-color: var(--primary);
+  box-shadow: 0 0 30px color-mix(in srgb, var(--primary) 15%, transparent);
 }}
-
-.feature-card:first-child {{
-  grid-column: span 2;
-}}
-
-.feature-icon {{
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
-  border-radius: 14px;
-}}
-
-.feature-card h3 {{
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  letter-spacing: -0.01em;
-}}
-
-.feature-card p {{
-  color: var(--dim);
-  font-size: 0.92rem;
-  line-height: 1.7;
-}}
-
-.features-grid .feature-card:nth-child(1) {{ transition-delay: 0s; }}
-.features-grid .feature-card:nth-child(2) {{ transition-delay: 0.1s; }}
-.features-grid .feature-card:nth-child(3) {{ transition-delay: 0.2s; }}
-.features-grid .feature-card:nth-child(4) {{ transition-delay: 0.3s; }}
+.feature-card:first-child {{ grid-column: span 2; }}
+.feature-icon {{ font-size: 2.5rem; margin-bottom: 1rem; }}
+.feature-card h3 {{ font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 0.75rem; }}
+.feature-card p {{ color: var(--dim); font-size: 0.95rem; line-height: 1.7; }}
 
 /* ── REVIEW HIGHLIGHT ── */
 .review-section {{
-  background: var(--surface-solid);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
   text-align: center;
   position: relative;
-  z-index: 1;
 }}
-
+.review-section::before {{
+  content: '';
+  position: absolute; inset: 0;
+  clip-path: polygon(0 8%, 100% 0, 100% 92%, 0 100%);
+  background: rgba(255,255,255,0.015);
+  z-index: -1;
+}}
 .review-big {{
-  font-size: 4.5rem;
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(5rem, 15vw, 10rem);
   font-weight: 900;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}}
-
-.review-stars {{
-  font-size: 2.2rem;
-  color: #fbbf24;
-  letter-spacing: 6px;
-  margin: 0.75rem 0;
-}}
-
-.review-count {{
-  color: var(--dim);
-  font-size: 1rem;
-}}
-
-/* ── TESTIMONIALS MARQUEE ── */
-.testimonials-wrap {{
-  overflow: hidden;
-  padding: 3rem 0;
-  position: relative;
-  z-index: 1;
-}}
-
-.testimonials-track {{
-  display: flex;
-  gap: 1.5rem;
-  animation: marquee 30s linear infinite;
-  width: max-content;
-}}
-
-@keyframes marquee {{
-  0% {{ transform: translateX(0); }}
-  100% {{ transform: translateX(-50%); }}
-}}
-
-.testimonial-card {{
-  flex-shrink: 0;
-  width: 320px;
-  background: var(--surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2rem;
-}}
-
-.testimonial-stars {{
-  color: #fbbf24;
-  letter-spacing: 2px;
+  line-height: 1;
   margin-bottom: 1rem;
-  font-size: 0.9rem;
 }}
-
-.testimonial-text {{
-  color: var(--dim);
-  font-size: 0.9rem;
-  line-height: 1.7;
-  margin-bottom: 1.25rem;
-  font-style: italic;
-}}
-
-.testimonial-author {{
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text);
-}}
-
-.testimonial-role {{
-  font-size: 0.75rem;
-  color: var(--dim);
-  margin-top: 2px;
-}}
+.review-stars {{ font-size: 2rem; color: var(--accent); margin-bottom: 0.5rem; }}
+.review-label {{ color: var(--dim); font-size: 1rem; }}
 
 /* ── GALLERY ── */
 .gallery-grid {{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 200px;
   gap: 1rem;
 }}
-
 .gallery-item {{
-  aspect-ratio: 4/3;
-  background: rgba(255,255,255,0.03);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
   color: var(--dim);
-  font-size: 0.85rem;
-  font-weight: 500;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: transform 0.3s, border-color 0.3s;
+  overflow: hidden;
 }}
-
-.gallery-item:hover {{
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  background: color-mix(in srgb, var(--primary) 3%, transparent);
-}}
-
+.gallery-item:hover {{ transform: scale(1.02); border-color: var(--primary); }}
 .gallery-item:first-child {{
   grid-column: span 2;
   grid-row: span 2;
 }}
 
-/* ── WORKING HOURS ── */
-.hours-section {{
-  position: relative;
-  z-index: 1;
-}}
-
+/* ── HOURS ── */
 .hours-card {{
   max-width: 500px;
   margin: 0 auto;
   background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
   padding: 2.5rem;
-  position: relative;
-  overflow: hidden;
 }}
-
-.hours-card::before {{
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 24px;
-  padding: 1px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, transparent), transparent 60%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}}
-
 .hours-row {{
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 0;
+  display: flex; justify-content: space-between;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.95rem;
 }}
-
-.hours-row:last-child {{
-  border-bottom: none;
-}}
-
-.hours-day {{
-  font-weight: 600;
-}}
-
-.hours-time {{
-  color: var(--dim);
-}}
-
-.hours-closed {{
-  color: color-mix(in srgb, var(--primary) 70%, #ff4444);
-}}
-
-/* ── MAP PLACEHOLDER ── */
-.map-placeholder {{
-  max-width: 800px;
-  margin: 2rem auto 0;
-  height: 280px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--dim);
-  gap: 10px;
-}}
-
-.map-placeholder .map-icon {{
-  font-size: 2.5rem;
-  opacity: 0.5;
-}}
+.hours-row:last-child {{ border-bottom: none; }}
+.hours-day {{ font-weight: 600; }}
+.hours-time {{ color: var(--dim); }}
+.hours-closed {{ color: #ef4444; }}
 
 /* ── LOCATION ── */
-.location-section {{
-  text-align: center;
-  position: relative;
-  z-index: 1;
-}}
-
-.location-box {{
-  display: inline-block;
+.location-section {{ text-align: center; }}
+.location-address {{ color: var(--dim); font-size: 1.1rem; margin-bottom: 1.5rem; }}
+.map-link {{
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.75rem 2rem;
   background: var(--surface);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2.5rem 3.5rem;
-  margin-top: 1.5rem;
-  position: relative;
-  overflow: hidden;
-}}
-
-.location-box::before {{
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 20px;
-  padding: 1px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, transparent), transparent 60%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}}
-
-.location-box .address {{
-  font-size: 1.1rem;
+  border: 1px solid var(--border-light);
   color: var(--text);
-  margin-bottom: 0.75rem;
-  font-weight: 500;
-}}
-
-.location-box .directions {{
-  color: var(--primary);
   text-decoration: none;
-  font-size: 0.95rem;
-  font-weight: 500;
-  transition: color 0.2s;
-}}
-
-.location-box .directions:hover {{
-  color: var(--secondary);
-}}
-
-/* ── FAQ ACCORDION ── */
-.faq-section {{
-  position: relative;
-  z-index: 1;
-}}
-
-.faq-list {{
-  max-width: 700px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}}
-
-.faq-list details {{
-  background: var(--surface);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}}
-
-.faq-list details[open] {{
-  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
-  box-shadow: 0 0 30px color-mix(in srgb, var(--primary) 5%, transparent);
-}}
-
-.faq-list summary {{
-  padding: 1.5rem 2rem;
+  border-radius: 100px;
   font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: color 0.2s;
+  transition: border-color 0.3s, transform 0.2s;
 }}
-
-.faq-list summary::-webkit-details-marker {{ display: none; }}
-
-.faq-list summary::after {{
-  content: '+';
-  font-size: 1.3rem;
-  color: var(--primary);
-  font-weight: 300;
-  transition: transform 0.3s ease;
-}}
-
-.faq-list details[open] summary::after {{
-  transform: rotate(45deg);
-}}
-
-.faq-list summary:hover {{
-  color: var(--accent);
-}}
-
-.faq-answer {{
-  padding: 0 2rem 1.5rem;
-  color: var(--dim);
-  font-size: 0.95rem;
-  line-height: 1.7;
-}}
-
-/* ── CONTACT BAR (sticky bottom) ── */
-.contact-bar {{
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(17,17,20,0.8);
-  backdrop-filter: blur(20px) saturate(1.5);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  border-top: 1px solid var(--border);
-  padding: 14px 20px;
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  z-index: 100;
-}}
-
-.btn {{
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 22px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border-radius: 12px;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
-  white-space: nowrap;
-}}
-
-.btn-phone {{
-  background: var(--primary);
-  color: #fff;
-}}
-
-.btn-phone:hover {{
-  background: var(--secondary);
-  transform: scale(1.02);
-}}
-
-.btn-whatsapp {{
-  background: var(--whatsapp);
-  color: #fff;
-}}
-
-.btn-whatsapp:hover {{
-  background: #1fb855;
-  transform: scale(1.02);
-}}
-
-.btn-email {{
-  background: var(--surface2);
-  color: var(--text);
-  border: 1px solid var(--border);
-}}
-
-.btn-email:hover {{
-  border-color: var(--primary);
-  transform: scale(1.02);
-}}
+.map-link:hover {{ border-color: var(--primary); transform: scale(1.02); }}
 
 /* ── FOOTER ── */
 footer {{
   border-top: 1px solid var(--border);
-  padding: 5rem 2rem 3rem;
-  position: relative;
-  z-index: 1;
-}}
-
-.footer-grid {{
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 3rem;
-  max-width: 900px;
-  margin: 0 auto 3rem;
-}}
-
-.footer-brand h3 {{
-  font-size: 1.1rem;
-  font-weight: 800;
-  margin-bottom: 0.75rem;
-  letter-spacing: -0.02em;
-}}
-
-.footer-brand p {{
-  color: var(--dim);
-  font-size: 0.85rem;
-  line-height: 1.7;
-  max-width: 280px;
-}}
-
-.footer-col h4 {{
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-  margin-bottom: 1rem;
-}}
-
-.footer-col a {{
-  display: block;
-  color: var(--dim);
-  text-decoration: none;
-  font-size: 0.85rem;
-  padding: 4px 0;
-  transition: color 0.2s;
-}}
-
-.footer-col a:hover {{
-  color: var(--accent);
-}}
-
-.footer-social {{
-  display: flex;
-  gap: 10px;
-  margin-top: 1rem;
-}}
-
-.footer-social a {{
-  width: 36px;
-  height: 36px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dim);
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}}
-
-.footer-social a:hover {{
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
-  color: var(--accent);
-}}
-
-.footer-bottom {{
+  padding: 2rem 0;
   text-align: center;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border);
   color: var(--dim);
   font-size: 0.8rem;
 }}
+footer .credit {{ margin-top: 0.5rem; opacity: 0.6; }}
 
-.credit {{
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  opacity: 0.5;
+/* ── CONTACT BAR ── */
+.contact-bar {{
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 1000;
+  padding: 0.75rem 1rem;
+  background: rgba(17,17,20,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-light);
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }}
+.contact-bar .btn {{
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}}
+.btn-phone {{
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+}}
+.btn-whatsapp {{
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: #fff;
+}}
+.btn-email {{
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+}}
+.contact-bar .btn:hover {{ transform: scale(1.05); box-shadow: 0 4px 20px rgba(0,0,0,0.3); }}
 
-/* ── ANIMATIONS ── */
-.fade-in {{
+/* ── REVEAL ── */
+.reveal {{
   opacity: 0;
   transform: translateY(30px);
-  transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }}
-
-.fade-in.visible {{
+.reveal.active {{
   opacity: 1;
-  transform: none;
+  transform: translateY(0);
 }}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {{
-  .hero {{
-    min-height: 75vh;
-    padding: 2rem 1.5rem;
-  }}
-  .hero h1 {{
-    font-size: clamp(2rem, 10vw, 3rem);
-  }}
-  .section {{
-    padding: 5rem 1.5rem;
-  }}
-  .features-grid {{
-    grid-template-columns: 1fr;
-  }}
-  .feature-card:first-child {{
-    grid-column: span 1;
-  }}
-  .gallery-grid {{
-    grid-template-columns: repeat(2, 1fr);
-  }}
-  .gallery-item:first-child {{
-    grid-column: span 2;
-    grid-row: span 1;
-  }}
-  .contact-bar {{
-    gap: 6px;
-    padding: 12px 12px;
-  }}
-  .btn {{
-    padding: 12px 16px;
-    font-size: 0.85rem;
-  }}
-  .location-box {{
-    padding: 2rem 1.5rem;
-    margin: 1rem;
-  }}
-  .footer-grid {{
-    grid-template-columns: 1fr;
-    gap: 2rem;
-  }}
-  .nav {{
-    left: 16px;
-    right: 16px;
-    transform: translateX(0) translateY(-80px);
-    border-radius: 20px;
-    padding: 8px 16px;
-  }}
-  .nav.visible {{
-    transform: translateX(0) translateY(0);
-  }}
-  .nav-links a:not(.nav-cta) {{
-    display: none;
-  }}
-  .hours-card {{
-    margin: 0 1rem;
-    padding: 2rem 1.5rem;
-  }}
-}}
-
-@media (min-width: 769px) {{
-  .contact-bar {{
-    max-width: 480px;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 20px;
-    border-radius: 18px;
-    border: 1px solid var(--border);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  }}
+  .features-grid {{ grid-template-columns: 1fr; }}
+  .feature-card:first-child {{ grid-column: span 1; }}
+  .gallery-grid {{ grid-template-columns: repeat(2, 1fr); grid-auto-rows: 150px; }}
+  .gallery-item:first-child {{ grid-column: span 2; grid-row: span 1; }}
+  .contact-bar {{ gap: 0.5rem; padding: 0.5rem; }}
+  .contact-bar .btn {{ padding: 0.5rem 1rem; font-size: 0.8rem; }}
 }}
 </style>
 </head>
 <body>
 
-<!-- FLOATING NAV -->
+<!-- NAV -->
 <nav class="nav" id="mainNav">
-  <div class="nav-logo">{business_name}</div>
-  <div class="nav-links">
-    <a href="#features">Hizmetler</a>
-    <a href="#gallery">Galeri</a>
-    <a href="#location">Konum</a>
-    <a href="tel:{phone}" class="nav-cta">&#128222; Ara</a>
+  <div class="nav-inner">
+    <div class="nav-logo">{business_name}</div>
+    <a href="tel:{phone}" class="nav-cta">&#128222; Hemen Ara</a>
   </div>
 </nav>
 
 <!-- HERO -->
-<section class="hero">
-  <div class="hero-category">{category}</div>
-  <h1>
-    <span class="hero-title-wrap"><span class="hero-title-inner"><span class="gradient-text">{business_name}</span></span></span>
-  </h1>
+<section class="hero" id="hero">
+  <div class="category-badge">{category}</div>
+  <h1 class="hero-title">{business_name}</h1>
   <div class="hero-rating">{stars_html}</div>
-  <div class="hero-review">{review_text}</div>
-  <a href="tel:{phone}" class="btn-cta">&#128222; Bizi Arayin</a>
+  <p class="hero-review-text">{review_text}</p>
+  <a href="tel:{phone}" class="hero-cta">&#128222; Hemen Arayin</a>
 </section>
 
 <!-- FEATURES -->
-<section class="section" id="features">
-  <h2 class="section-title fade-in">Hizmetlerimiz</h2>
-  <p class="section-sub fade-in">Size en iyi hizmeti sunmak icin buradayiz.</p>
-  <div class="features-grid">
-    {services_html}
+<section id="features">
+  <div class="container">
+    <div class="section-title reveal">Hizmetlerimiz</div>
+    <div class="section-sub reveal">Size en iyi deneyimi sunmak icin buradayiz</div>
+    <div class="features-grid">
+      {services_html}
+    </div>
   </div>
 </section>
 
 <!-- REVIEW HIGHLIGHT -->
-<section class="review-section">
-  <div class="section" style="padding-top:5rem;padding-bottom:5rem;">
-    <div class="fade-in">
-      <div class="review-big">{review_text}</div>
-      <div class="review-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="review-count">Google Degerlendirmeleri</div>
-    </div>
+<section class="review-section" id="reviews">
+  <div class="container">
+    <div class="review-big reveal">{stars_html}</div>
+    <div class="review-stars reveal">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+    <div class="review-label reveal">Google Degerlendirmeleri</div>
   </div>
 </section>
 
-<!-- TESTIMONIALS -->
-<div class="testimonials-wrap">
-  <div class="testimonials-track">
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Harika bir deneyimdi. Kesinlikle tavsiye ederim. Profesyonel ve ilgili bir ekip."</div>
-      <div class="testimonial-author">Mehmet Y.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Cok memnun kaldik. Kaliteli hizmet ve uygun fiyat. Tekrar tercih ederiz."</div>
-      <div class="testimonial-author">Ayse K.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</div>
-      <div class="testimonial-text">"Beklentilerimin uzerinde bir hizmet aldim. Personel cok ilgiliydi."</div>
-      <div class="testimonial-author">Ali R.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Uzun suredir geldim, her seferinde ayni kaliteyi aliyorum. Tesekkurler!"</div>
-      <div class="testimonial-author">Fatma S.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Harika bir deneyimdi. Kesinlikle tavsiye ederim. Profesyonel ve ilgili bir ekip."</div>
-      <div class="testimonial-author">Mehmet Y.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Cok memnun kaldik. Kaliteli hizmet ve uygun fiyat. Tekrar tercih ederiz."</div>
-      <div class="testimonial-author">Ayse K.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9734;</div>
-      <div class="testimonial-text">"Beklentilerimin uzerinde bir hizmet aldim. Personel cok ilgiliydi."</div>
-      <div class="testimonial-author">Ali R.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-    <div class="testimonial-card">
-      <div class="testimonial-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-      <div class="testimonial-text">"Uzun suredir geldim, her seferinde ayni kaliteyi aliyorum. Tesekkurler!"</div>
-      <div class="testimonial-author">Fatma S.</div>
-      <div class="testimonial-role">Google Yorumu</div>
-    </div>
-  </div>
-</div>
-
 <!-- GALLERY -->
-<section class="section" id="gallery">
-  <h2 class="section-title fade-in">Galeri</h2>
-  <p class="section-sub fade-in">Mekanimizdan ve hizmetlerimizden kareler.</p>
-  <div class="gallery-grid fade-in">
-    <div class="gallery-item">Foto 1</div>
-    <div class="gallery-item">Foto 2</div>
-    <div class="gallery-item">Foto 3</div>
-    <div class="gallery-item">Foto 4</div>
-    <div class="gallery-item">Foto 5</div>
-    <div class="gallery-item">Foto 6</div>
+<section id="gallery">
+  <div class="container">
+    <div class="section-title reveal">Galeri</div>
+    <div class="section-sub reveal">Mekanımızdan kareler</div>
+    <div class="gallery-grid">
+      <div class="gallery-item reveal">Foto 1</div>
+      <div class="gallery-item reveal">Foto 2</div>
+      <div class="gallery-item reveal">Foto 3</div>
+      <div class="gallery-item reveal">Foto 4</div>
+      <div class="gallery-item reveal">Foto 5</div>
+      <div class="gallery-item reveal">Foto 6</div>
+    </div>
   </div>
 </section>
 
 <!-- WORKING HOURS -->
-<section class="section hours-section">
-  <h2 class="section-title fade-in">Calisma Saatleri</h2>
-  <p class="section-sub fade-in">Sizi agirlamak icin sabirirsizlaniyoruz.</p>
-  <div class="hours-card fade-in">
-    <div class="hours-row">
-      <span class="hours-day">Pazartesi</span>
-      <span class="hours-time">09:00 — 22:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Sali</span>
-      <span class="hours-time">09:00 — 22:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Carsamba</span>
-      <span class="hours-time">09:00 — 22:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Persembe</span>
-      <span class="hours-time">09:00 — 22:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Cuma</span>
-      <span class="hours-time">09:00 — 23:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Cumartesi</span>
-      <span class="hours-time">10:00 — 23:00</span>
-    </div>
-    <div class="hours-row">
-      <span class="hours-day">Pazar</span>
-      <span class="hours-closed">Kapali</span>
+<section id="hours">
+  <div class="container">
+    <div class="section-title reveal" style="text-align:center;">Calisma Saatleri</div>
+    <div class="section-sub reveal" style="text-align:center;">Sizi agirlamak icin haziriz</div>
+    <div class="hours-card reveal">
+      <div class="hours-row">
+        <span class="hours-day">Pazartesi - Cuma</span>
+        <span class="hours-time">09:00 - 18:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="hours-day">Cumartesi</span>
+        <span class="hours-time">10:00 - 14:00</span>
+      </div>
+      <div class="hours-row">
+        <span class="hours-day">Pazar</span>
+        <span class="hours-time hours-closed">Kapali</span>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- LOCATION -->
-<section class="section location-section" id="location">
-  <h2 class="section-title fade-in">Konum</h2>
-  <div class="fade-in">
-    <div class="location-box">
-      <div class="address">&#128205; {address}</div>
-      <a class="directions" href="https://www.google.com/maps/search/{business_name}" target="_blank">
-        &#128506; Google Maps'te Ac
-      </a>
-    </div>
-    <div class="map-placeholder fade-in">
-      <div class="map-icon">&#128506;</div>
-      <span>Harita Gorunumu</span>
-    </div>
-  </div>
-</section>
-
-<!-- FAQ -->
-<section class="section faq-section">
-  <h2 class="section-title fade-in">Sik Sorulan Sorular</h2>
-  <p class="section-sub fade-in">Merak ettiklerinizin cevaplari.</p>
-  <div class="faq-list fade-in">
-    <details>
-      <summary>Randevu almam gerekiyor mu?</summary>
-      <div class="faq-answer">Randevusuz da gelebilirsiniz ancak yogun saatlerde bekleme olabilir. Telefonla randevu almanizi tavsiye ederiz.</div>
-    </details>
-    <details>
-      <summary>Otopark imkani var mi?</summary>
-      <div class="faq-answer">Isletmemizin yakininda otopark bulunmaktadir. Detayli bilgi icin bizi arayabilirsiniz.</div>
-    </details>
-    <details>
-      <summary>Odeme yontemleriniz nelerdir?</summary>
-      <div class="faq-answer">Nakit, kredi karti ve banka karti ile odeme yapabilirsiniz. Taksit secenekleri de mevcuttur.</div>
-    </details>
+<section class="location-section" id="location">
+  <div class="container">
+    <div class="section-title reveal">Konum</div>
+    <p class="location-address reveal">{address}</p>
+    <a href="https://www.google.com/maps/search/{business_name}+{address}" target="_blank" class="map-link reveal">
+      &#128205; Google Maps'te Ac
+    </a>
   </div>
 </section>
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-grid">
-    <div class="footer-brand">
-      <h3>{business_name}</h3>
-      <p>{category} alaninda kaliteli hizmet. {address}</p>
-      <div class="footer-social">
-        <a href="#" title="Instagram">&#9679;</a>
-        <a href="#" title="Facebook">&#9679;</a>
-        <a href="#" title="Google">&#9679;</a>
-      </div>
-    </div>
-    <div class="footer-col">
-      <h4>Hizli Erisim</h4>
-      <a href="#features">Hizmetler</a>
-      <a href="#gallery">Galeri</a>
-      <a href="#location">Konum</a>
-    </div>
-    <div class="footer-col">
-      <h4>Iletisim</h4>
-      <a href="tel:{phone}">{phone}</a>
-      <a href="mailto:{email}">{email}</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
+  <div class="container">
     <p>&copy; {year} {business_name}. Tum haklari saklidir.</p>
     <p class="credit">{agency_credit}</p>
   </div>
@@ -2664,36 +1316,36 @@ footer {{
   {email_html}
 </div>
 
-<!-- SCROLL ANIMATIONS + NAV -->
 <script>
-(function() {{
-  var els = document.querySelectorAll('.fade-in');
-  var nav = document.getElementById('mainNav');
+// Floating nav
+const nav = document.getElementById('mainNav');
+const hero = document.getElementById('hero');
+const obs1 = new IntersectionObserver((entries) => {{
+  entries.forEach(e => {{
+    if (!e.isIntersecting) nav.classList.add('visible');
+    else nav.classList.remove('visible');
+  }});
+}}, {{ threshold: 0.1 }});
+obs1.observe(hero);
 
-  if ('IntersectionObserver' in window) {{
-    var obs = new IntersectionObserver(function(entries) {{
-      entries.forEach(function(e, i) {{
-        if (e.isIntersecting) {{
-          e.target.style.transitionDelay = (i * 0.05) + 's';
-          e.target.classList.add('visible');
-          obs.unobserve(e.target);
-        }}
-      }});
-    }}, {{ threshold: 0.08 }});
-    els.forEach(function(el) {{ obs.observe(el); }});
-  }} else {{
-    els.forEach(function(el) {{ el.classList.add('visible'); }});
-  }}
-
-  window.addEventListener('scroll', function() {{
-    var st = window.pageYOffset || document.documentElement.scrollTop;
-    if (st > 300) {{
-      nav.classList.add('visible');
-    }} else {{
-      nav.classList.remove('visible');
+// Scroll reveals with stagger
+const reveals = document.querySelectorAll('.reveal');
+const revealObs = new IntersectionObserver((entries) => {{
+  entries.forEach(e => {{
+    if (e.isIntersecting) {{
+      e.target.classList.add('active');
+      revealObs.unobserve(e.target);
     }}
   }});
-}})();
+}}, {{ threshold: 0.1 }});
+
+reveals.forEach((el, i) => {{
+  const parent = el.parentElement;
+  const siblings = Array.from(parent.children).filter(c => c.classList.contains('reveal'));
+  const idx = siblings.indexOf(el);
+  el.style.transitionDelay = (idx * 0.1) + 's';
+  revealObs.observe(el);
+}});
 </script>
 </body>
 </html>'''

@@ -131,27 +131,32 @@ async def run_agent(agent_id: str, request: Request):
     if cfg.get("fal_key"):
         os.environ["FAL_KEY"] = cfg["fal_key"]
 
-    try:
+    import asyncio
+
+    def _run_agent():
         agent = get_agent_instance(agent_id)
         if agent_id == "scout" and params:
-            result = agent.run(
+            return agent.run(
                 query=params.get("query", ""),
                 location=params.get("location", ""),
                 limit=params.get("limit", 50),
             )
         elif agent_id == "auditor" and params:
-            result = agent.run(
+            return agent.run(
                 url=params.get("url", ""),
                 max_leads=params.get("max_leads", 10),
             )
         elif agent_id == "sitebuilder" and params:
-            result = agent.run(
+            return agent.run(
                 site_type=params.get("site_type", "agency"),
                 lead_index=params.get("lead_index", 0),
                 manual_data=params.get("manual_data", None),
             )
         else:
-            result = agent.run()
+            return agent.run()
+
+    try:
+        result = await asyncio.to_thread(_run_agent)
 
         AGENT_RESULTS[agent_id] = {
             "result": result,
@@ -316,11 +321,11 @@ Current config:
     stats = load_pipeline_stats()
     stats_summary = f"\nPipeline: {stats['leads_found']} leads found, {stats['leads_qualified']} qualified, {stats['hot']} hot, {stats['warm']} warm"
 
-    # Conversation history
-    if agent_id not in CHAT_HISTORIES:
-        CHAT_HISTORIES[agent_id] = []
-    history = CHAT_HISTORIES[agent_id]
-    history.append({"role": "user", "content": message})
+    # Shared conversation history (all agents share one timeline)
+    if "_shared" not in CHAT_HISTORIES:
+        CHAT_HISTORIES["_shared"] = []
+    history = CHAT_HISTORIES["_shared"]
+    history.append({"role": "user", "content": f"[to {agent_id}] {message}"})
 
     history_text = ""
     if len(history) > 1:
@@ -376,7 +381,9 @@ Rules:
 - If info is missing for an action, ask for it naturally — don't block completely.
 - When all config fields are set, stop asking setup questions and suggest next steps.
 - Keep the vibe: dark room, hacker terminal, but friendly and smart.
-- CRITICAL: Always read the conversation history carefully. When the user says short things like "benim için", "evet", "olsun", "yap" — they are continuing the previous topic. Never say you don't understand if context is in the history.
+- CRITICAL: Always read the conversation history carefully. When the user says "ok", "yap", "evet", "onaylıyorum", "olsun", "benim için", "tamam" — they are APPROVING or CONTINUING the previous topic. NEVER ask "what do you mean?" if the context is in the history. Just do it.
+- NEVER say "bu yeni bir sohbet oturumu" or "daha önce söylemedim" — the history IS there, read it.
+- When you proposed a plan and user says "ok yap" — execute it immediately via actions, don't ask again.
 
 User: {message}"""
 
@@ -414,10 +421,10 @@ User: {message}"""
             with open(config_dir / "user_profile.json", "w") as f:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
 
-    # Save to history
-    history.append({"role": "assistant", "content": response})
+    # Save to shared history
+    history.append({"role": "assistant", "content": f"[{agent_id}] {response}"})
     if len(history) > MAX_HISTORY * 2:
-        CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
+        CHAT_HISTORIES["_shared"] = history[-MAX_HISTORY * 2:]
 
     return JSONResponse({"response": response, "agent": agent_id, "actions": actions})
 
@@ -506,7 +513,9 @@ Rules:
 - If info is missing for an action, ask for it naturally — don't block completely.
 - When all config fields are set, stop asking setup questions and suggest next steps.
 - Keep the vibe: dark room, hacker terminal, but friendly and smart.
-- CRITICAL: Always read the conversation history carefully. When the user says short things like "benim için", "evet", "olsun", "yap" — they are continuing the previous topic. Never say you don't understand if context is in the history.
+- CRITICAL: Always read the conversation history carefully. When the user says "ok", "yap", "evet", "onaylıyorum", "olsun", "benim için", "tamam" — they are APPROVING or CONTINUING the previous topic. NEVER ask "what do you mean?" if the context is in the history. Just do it.
+- NEVER say "bu yeni bir sohbet oturumu" or "daha önce söylemedim" — the history IS there, read it.
+- When you proposed a plan and user says "ok yap" — execute it immediately via actions, don't ask again.
 
 User: {message}"""
 

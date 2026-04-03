@@ -38,6 +38,14 @@ AGENT_MODULES = {
     "pitch": "agents.pitch.agent:PitchAgent",
     "mentor": "agents.mentor.agent:MentorAgent",
     "sitebuilder": "agents.sitebuilder.agent:SiteBuilderAgent",
+    "designer": "agents.designer.agent:DesignerAgent",
+    "videomaker": "agents.videomaker.agent:VideoMakerAgent",
+    "content": "agents.content.agent:ContentAgent",
+    "presenter": "agents.presenter.agent:PresenterAgent",
+    "brandkit": "agents.brandkit.agent:BrandKitAgent",
+    "admanager": "agents.admanager.agent:AdManagerAgent",
+    "social": "agents.social.agent:SocialAgent",
+    "analytics": "agents.analytics.agent:AnalyticsAgent",
 }
 
 AGENT_RESULTS = {}
@@ -140,6 +148,7 @@ async def run_agent(agent_id: str, request: Request):
             result = agent.run(
                 site_type=params.get("site_type", "agency"),
                 lead_index=params.get("lead_index", 0),
+                manual_data=params.get("manual_data", None),
             )
         else:
             result = agent.run()
@@ -209,14 +218,67 @@ async def get_qualified_leads():
     return JSONResponse([])
 
 
+# --- Manual Lead Entry ---
+
+@app.post("/api/leads/manual")
+async def add_manual_lead(request: Request):
+    """Add a lead manually (not from scraping)."""
+    body = await request.json()
+    name = body.get("name", "")
+    if not name:
+        return JSONResponse({"error": "name required"}, status_code=400)
+
+    lead = {
+        "name": name,
+        "category": body.get("category", ""),
+        "phone": body.get("phone", ""),
+        "email": body.get("email", ""),
+        "website": body.get("website", ""),
+        "address": body.get("address", ""),
+        "rating": body.get("rating", 0),
+        "review_count": body.get("review_count", 0),
+        "description": body.get("description", ""),
+        "source": "manual",
+        "added_at": datetime.now().isoformat(),
+    }
+
+    # Save to raw leads
+    raw_dir = BASE_DIR / "data" / "leads" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    # Append to existing manual file or create new one
+    manual_file = raw_dir / "manual_leads.json"
+    if manual_file.exists():
+        with open(manual_file) as f:
+            data = json.load(f)
+    else:
+        data = {"query": "manual", "location": "", "scraped_at": datetime.now().isoformat(), "count": 0, "leads": []}
+
+    data["leads"].append(lead)
+    data["count"] = len(data["leads"])
+    with open(manual_file, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # Also auto-add to pipeline
+    slug = slugify(name)
+    stages_path = PIPELINE_DIR / "stages.json"
+    PIPELINE_DIR.mkdir(parents=True, exist_ok=True)
+    stages = _load_json(stages_path)
+    if slug not in stages:
+        stages[slug] = {"stage": "new", "updated_at": datetime.now().isoformat()}
+        _save_json(stages_path, stages)
+
+    return JSONResponse({"status": "ok", "lead": lead, "slug": slug})
+
+
 # --- Chat ---
 
 @app.post("/api/chat")
 async def chat_with_agent(request: Request):
-    """Chat with an agent. Mentor uses Claude CLI, others use context-based responses."""
+    """Smart chat — Claude CLI understands intents and returns actions."""
     body = await request.json()
     message = body.get("message", "")
-    agent_id = body.get("agent_id", "mentor")
+    agent_id = body.get("agent_id", "goat")
     agent_info = AGENTS.get(agent_id, {})
 
     # Mentor has its own answer method
@@ -224,37 +286,42 @@ async def chat_with_agent(request: Request):
         try:
             agent = get_agent_instance("mentor")
             response = agent.answer(message)
-            return JSONResponse({"response": response, "agent": agent_id})
+            return JSONResponse({"response": response, "agent": agent_id, "actions": []})
         except Exception as e:
-            return JSONResponse({"response": f"Mentor error: {e}", "agent": agent_id})
-
-    # For other agents, try Claude CLI with context
-    agent_data = ""
-    if agent_id in AGENT_RESULTS:
-        r = AGENT_RESULTS[agent_id]["result"]
-        agent_data = f"\nLatest data: {r.get('summary', '')}\nMetrics: {json.dumps(r.get('metrics', {}), default=str)}"
+            return JSONResponse({"response": f"Mentor error: {e}", "agent": agent_id, "actions": []})
 
     config = load_config()
-    agency_info = ""
+
+    # Build rich context
+    config_summary = ""
     if config:
-        agency_info = f"\nUser's agency: {config.get('agency_name', '')} | Niche: {config.get('niche', '')} | Location: {', '.join(config.get('target_cities', []))}"
+        config_summary = f"""
+Current config:
+- Agency: {config.get('agency_name', 'not set')}
+- Owner: {config.get('owner_name', 'not set')}
+- Niche: {config.get('niche', 'not set')}
+- Cities: {', '.join(config.get('target_cities', [])) or 'not set'}
+- Apify token: {'set' if config.get('apify_token') else 'not set'}
+- fal.ai key: {'set' if config.get('fal_key') else 'not set'}
+- Instantly key: {'set' if config.get('instantly_api_key') else 'not set'}"""
 
-    # goat orchestrator gets context about all agents
-    goat_extra = ""
-    if agent_id == "goat":
-        agent_list = "\n".join([f"- {k}: {v['name']} ({v['role']})" for k, v in AGENTS.items()])
-        available_results = "\n".join([f"- {k}: {v['result'].get('summary', 'done')}" for k, v in list(AGENT_RESULTS.items())[:10]])
-        goat_extra = f"\n\nYou are the master orchestrator. Agents:\n{agent_list}\n\nResults:\n{available_results or 'No agents run yet.'}"
+    # Agent results summary
+    results_summary = ""
+    if AGENT_RESULTS:
+        results_summary = "\nCompleted agent runs:"
+        for k, v in list(AGENT_RESULTS.items())[:10]:
+            results_summary += f"\n- {k}: {v['result'].get('summary', 'done')}"
 
-    # Build conversation history
+    # Pipeline stats
+    stats = load_pipeline_stats()
+    stats_summary = f"\nPipeline: {stats['leads_found']} leads found, {stats['leads_qualified']} qualified, {stats['hot']} hot, {stats['warm']} warm"
+
+    # Conversation history
     if agent_id not in CHAT_HISTORIES:
         CHAT_HISTORIES[agent_id] = []
     history = CHAT_HISTORIES[agent_id]
-
-    # Add current message to history
     history.append({"role": "user", "content": message})
 
-    # Format history for prompt
     history_text = ""
     if len(history) > 1:
         past = history[:-1][-MAX_HISTORY:]
@@ -262,37 +329,136 @@ async def chat_with_agent(request: Request):
             f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in past
         )
 
-    prompt = f"""You are {agent_info.get('name', agent_id)}, an AI agent for goat (agency-in-a-box platform).
-Your role: {agent_info.get('role', '')}
-{agency_info}{goat_extra}{agent_data}{history_text}
+    available_actions = """
+Available actions you can suggest (include as JSON at the END of your response, after <<<ACTIONS>>> marker):
+- {"action": "scout", "params": {"query": "...", "location": "..."}} — search for leads
+- {"action": "filter"} — score/qualify found leads
+- {"action": "audit", "params": {"url": "..."}} — audit a website
+- {"action": "pitch"} — generate proposals for hot leads
+- {"action": "outreach"} — create email campaigns
+- {"action": "site_agency"} — build agency landing page
+- {"action": "site_client", "params": {"manual_data": {"name": "...", "category": "...", "phone": "...", "email": "...", "address": "..."}}} — build client site
+- {"action": "save_config", "params": {"field": "value", ...}} — save config fields
+- {"action": "add_lead", "params": {"name": "...", "category": "...", "phone": "...", "email": "...", "website": "...", "address": "..."}} — add manual lead
+- {"action": "show_pipeline"} — show CRM pipeline
+- {"action": "show_leads"} — show lead list
+- {"action": "show_revenue"} — show revenue dashboard
 
-Be concise, actionable, specific. Answer in the same language as the user's message.
+CRITICAL: When the user asks you to DO something (add lead, build site, find leads, show pipeline, etc.), you MUST include the action JSON.
+Format: Write your conversational response first, then on a NEW LINE write exactly:
+<<<ACTIONS>>>[{"action": "...", "params": {...}}]
+
+Examples:
+- User: "Burhan'ı CRM'e ekle" → "Burhan'ı ekliyorum.\n<<<ACTIONS>>>[{\"action\": \"add_lead\", \"params\": {\"name\": \"Burhan\"}}]"
+- User: "müşteri bul İstanbul'da restoran" → "bakıyorum.\n<<<ACTIONS>>>[{\"action\": \"scout\", \"params\": {\"query\": \"restoran\", \"location\": \"İstanbul\"}}]"
+- User: "pipeline'ı göster" → "açıyorum.\n<<<ACTIONS>>>[{\"action\": \"show_pipeline\"}]"
+- User: "Esad" (during onboarding) → "merhaba Esad!\n<<<ACTIONS>>>[{\"action\": \"save_config\", \"params\": {\"owner_name\": \"Esad\"}}]"
+
+If no action needed (just chatting), do NOT include <<<ACTIONS>>>."""
+
+    prompt = f"""You are GOAT, the AI command center for an agency-in-a-box platform. You help the user run their automation agency through a terminal-style interface.
+{config_summary}{stats_summary}{results_summary}{history_text}
+
+{available_actions}
+
+Rules:
+- Be concise, conversational, Turkish. Talk like a smart co-founder, not a bot.
+- Short sentences, 1-3 lines max. No markdown headers. No bullet points unless listing data.
+- ONBOARDING: If config fields are missing (owner_name, agency_name, niche, target_cities), guide the user through setup naturally. Ask ONE thing at a time. When the user gives you info, save it immediately via save_config action. Example flow:
+  - User: "merhaba" → "selam! ben GOAT. adın ne?" (ask name)
+  - User: "Esad" → save owner_name, then "merhaba Esad. ajansının adı ne olsun?" (ask agency name)
+  - User: "sen seç" → pick a cool name for them, save it, move on to niche
+  - User: "bilmiyorum" → suggest options, let them pick or pick for them
+  - User: "bana site yap" during setup → acknowledge ("tamam yaparız"), but first finish setup, ask missing fields
+- If the user says "sen seç", "bilmiyorum", "anlamadın" etc., UNDERSTAND the intent. Don't repeat the same question robotically. Adapt.
+- When the user provides info during chat, ALWAYS extract and save via save_config action. For cities, parse comma-separated into a list.
+- If the user asks to do something (build site, find leads, etc.), acknowledge and suggest the action.
+- If info is missing for an action, ask for it naturally — don't block completely.
+- When all config fields are set, stop asking setup questions and suggest next steps.
+- Keep the vibe: dark room, hacker terminal, but friendly and smart.
 
 User: {message}"""
 
+    actions = []
     try:
         result = subprocess.run(
             ["claude", "-p", prompt, "--output-format", "text"],
             capture_output=True, text=True, timeout=120,
             cwd=str(BASE_DIR),
         )
-        response = result.stdout.strip() if result.stdout else f"[{agent_info.get('name', agent_id)}] Run the agent first to populate data."
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        # No Claude CLI — return contextual fallback
-        if agent_id in AGENT_RESULTS:
-            r = AGENT_RESULTS[agent_id]["result"]
-            response = (f"**{agent_info.get('name', agent_id)}** — {r.get('summary', 'Ready.')}\n\n"
-                        + "\n".join(f"- {rec}" for rec in r.get("recommendations", [])))
-        else:
-            response = f"**{agent_info.get('name', agent_id)}** ready. Hit RUN first to generate data."
+        response = result.stdout.strip() if result.stdout else "hazırım. ne yapmak istersin?"
 
-    # Save assistant response to history
+        # Parse actions from response
+        if "<<<ACTIONS>>>" in response:
+            parts = response.split("<<<ACTIONS>>>", 1)
+            response = parts[0].strip()
+            try:
+                actions = json.loads(parts[1].strip())
+                if not isinstance(actions, list):
+                    actions = [actions]
+            except (json.JSONDecodeError, IndexError):
+                actions = []
+
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        # No Claude CLI — smart fallback based on intent
+        response, actions = _smart_fallback(message, config, stats)
+
+    # Execute save_config actions immediately
+    for act in actions:
+        if act.get("action") == "save_config" and act.get("params"):
+            cfg = load_config()
+            cfg.update(act["params"])
+            config_dir = BASE_DIR / "data" / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            with open(config_dir / "user_profile.json", "w") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+    # Save to history
     history.append({"role": "assistant", "content": response})
-    # Trim history
     if len(history) > MAX_HISTORY * 2:
         CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
 
-    return JSONResponse({"response": response, "agent": agent_id})
+    return JSONResponse({"response": response, "agent": agent_id, "actions": actions})
+
+
+def _smart_fallback(message: str, config: dict, stats: dict):
+    """Fallback intent detection when Claude CLI is not available."""
+    msg = message.lower()
+    actions = []
+    response = ""
+
+    # Onboarding
+    if not config.get("agency_name"):
+        if any(w in msg for w in ["merhaba", "selam", "hey", "başla"]):
+            response = "hoş geldin! ajansını kuralım. adın ne?"
+        else:
+            response = f'"{message}" — güzel. devam edelim. ajansının adı ne olsun?'
+        return response, actions
+
+    # Intent detection
+    if any(w in msg for w in ["müşteri bul", "lead", "scout", "ara", "tara"]):
+        response = "lead taraması başlatıyorum."
+        actions = [{"action": "scout", "params": {}}]
+    elif any(w in msg for w in ["site yap", "site oluştur", "landing", "web"]):
+        if "ajans" in msg:
+            response = f"{config.get('agency_name', '')} için ajans sitesi oluşturuyorum."
+            actions = [{"action": "site_agency"}]
+        else:
+            response = "ne tür bir site? ajans sitesi mi, müşteri sitesi mi?"
+            actions = []
+    elif any(w in msg for w in ["puanla", "filtre", "score"]):
+        response = "leadleri puanlıyorum."
+        actions = [{"action": "filter"}]
+    elif any(w in msg for w in ["teklif", "pitch", "proposal"]):
+        response = "teklif hazırlıyorum."
+        actions = [{"action": "pitch"}]
+    elif any(w in msg for w in ["pipeline", "crm", "süreç"]):
+        response = "pipeline açılıyor."
+        actions = [{"action": "show_pipeline"}]
+    else:
+        response = f"anladım. şu an {stats['leads_found']} lead var, {stats['hot']} tanesi sıcak. ne yapmak istersin?"
+
+    return response, actions
 
 
 # --- Config ---

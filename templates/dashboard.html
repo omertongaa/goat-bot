@@ -263,6 +263,24 @@ body::before {
   background: var(--accent);
   box-shadow: 0 0 20px var(--glow-accent), 0 0 40px rgba(232,93,38,0.15);
 }
+.hdr-btn {
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.hdr-btn:hover {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(232,93,38,0.3);
+}
 .reset-btn {
   font-size: 11px;
   color: var(--dim);
@@ -403,6 +421,37 @@ body::before {
 @keyframes promptPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+.input-thinking {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.input-thinking.active {
+  opacity: 1;
+}
+.input-thinking::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: thinkDot 1.2s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--accent);
+}
+@keyframes thinkDot {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 /* ─── Right: Stats Panel ─── */
@@ -788,12 +837,14 @@ body::before {
       <span class="title">goat</span>
       <span id="headerClock"></span>
       <span class="sub" id="headerSub"></span>
+      <span class="hdr-btn" onclick="openCRM()" title="CRM Pipeline">◫ CRM</span>
       <span class="reset-btn" onclick="fullReset()" title="sıfırla">↺ sıfırla</span>
     </div>
     <div class="log" id="log"></div>
     <div class="input-area">
       <span class="prompt">&gt;</span>
       <input type="text" id="input" placeholder="" onkeydown="if(event.key==='Enter')handleInput()" autofocus>
+      <span class="input-thinking" id="inputThinking"></span>
     </div>
   </div>
 
@@ -877,6 +928,65 @@ body::before {
   </div>
   </div>
 </div>
+
+<!-- CRM Panel (fullscreen overlay) -->
+<div id="crmPanel" style="display:none;position:fixed;inset:0;z-index:999;background:var(--bg);overflow-y:auto;">
+  <div style="padding:20px;max-width:1400px;margin:0 auto;">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;font-family:'Space Mono',monospace;color:var(--text);">CRM PIPELINE</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:2px;">lead'leri sürükle veya tıkla</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="showAddLeadModal()" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;">+ LEAD EKLE</button>
+        <button onclick="closeCRM()" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--surface);color:var(--dim);border:1px solid var(--border);border-radius:4px;cursor:pointer;">✕ KAPAT</button>
+      </div>
+    </div>
+    <!-- Kanban Board -->
+    <div id="kanbanBoard" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:20px;min-height:70vh;"></div>
+  </div>
+</div>
+
+<!-- Lead Edit Modal -->
+<div id="leadEditModal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.7);display:none;justify-content:center;align-items:center;backdrop-filter:blur(4px);">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;width:420px;max-height:90vh;overflow-y:auto;font-family:'Space Mono',monospace;color:var(--text);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:14px;" id="leadEditTitle">Lead</div>
+      <button onclick="closeLeadModal()" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div id="leadEditForm"></div>
+  </div>
+</div>
+
+<style>
+.crm-col { flex:1;min-width:180px;max-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-direction:column; }
+.crm-col-header { font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:6px 8px;margin-bottom:8px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;font-family:'Space Mono',monospace; }
+.crm-col-body { flex:1;min-height:60px; }
+.crm-card { background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;font-family:'Space Mono',monospace; }
+.crm-card:hover { border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+.crm-card-name { font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px; }
+.crm-card-meta { font-size:9px;color:var(--dim);display:flex;gap:8px;flex-wrap:wrap; }
+.crm-card-score { display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;margin-left:auto; }
+.crm-badge { display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600; }
+.crm-hot { background:rgba(232,93,38,0.15);color:#e85d26; }
+.crm-warm { background:rgba(251,191,36,0.15);color:#fbbf24; }
+.crm-cold { background:rgba(96,165,250,0.15);color:#60a5fa; }
+.crm-input { width:100%;font-family:'Space Mono',monospace;font-size:11px;padding:7px 10px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);outline:none;margin-bottom:10px; }
+.crm-input:focus { border-color:var(--accent); }
+.crm-label { font-size:9px;color:var(--dim);margin-bottom:3px;text-transform:uppercase;letter-spacing:0.05em; }
+.crm-btn { font-family:'Space Mono',monospace;font-size:11px;padding:7px 14px;border:none;border-radius:4px;cursor:pointer;transition:all 0.2s; }
+.crm-btn-primary { background:var(--accent);color:#fff; }
+.crm-btn-primary:hover { background:#ff7a45; }
+.crm-btn-ghost { background:transparent;color:var(--dim);border:1px solid var(--border); }
+.crm-btn-ghost:hover { border-color:var(--accent);color:var(--text); }
+.crm-btn-danger { background:rgba(239,68,68,0.15);color:#ef4444; }
+.crm-btn-danger:hover { background:rgba(239,68,68,0.3); }
+.crm-notes { margin-top:12px;border-top:1px solid var(--border);padding-top:10px; }
+.crm-note { font-size:10px;color:var(--dim);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03); }
+.crm-note-date { font-size:8px;color:var(--faint); }
+@media(max-width:768px) { .crm-col { min-width:160px; } }
+</style>
 
 <!-- Setup Modal (hidden, triggered from narrative) -->
 <div style="display:none" id="setupModal">
@@ -1149,9 +1259,8 @@ function start() {
     gap();
     write('seni tanımıyorum henüz.', 'dim', 1200);
     gap();
-    write('adın ne?', 'accent', 1600);
-    onboardStep = 'name';
-    document.getElementById('input').placeholder = 'adını yaz...';
+    write('merhaba de, tanışalım.', 'accent', 1600);
+    document.getElementById('input').placeholder = 'bir şey yaz...';
   } else {
     gap();
     write(`${CFG.agency_name} başlatılıyor.`, 'accent', 600);
@@ -1290,6 +1399,11 @@ function doFilter() {
       action('→ pipeline\'ı göster', () => showPipeline());
       document.getElementById('headerSub').textContent = `${m.hot || 0} sıcak lead`;
       checkDone('chkFilter');
+    } else if (d.result && d.result.status === 'error') {
+      write('⚠ filtre çalışamadı — henüz lead yok.', 'yellow');
+      write('  önce Scout ile müşteri adaylarını bul.', 'dim indent');
+      gap();
+      action('→ müşteri adaylarını ara', () => doScout());
     } else {
       write('filter tamamlandı ama sonuç boş.', 'yellow');
       if (d.error) write(`  hata: ${d.error}`, 'red indent');
@@ -1398,141 +1512,21 @@ function handleInput() {
   if (!msg) return;
   el.value = '';
 
-  // ─── Onboarding Flow ───
+  // ─── Special Input Steps (API keys, notes, deals, manual forms) ───
   if (onboardStep) {
     write(`> ${msg}`, 'bright');
     lineDelay = 0;
 
-    if (onboardStep === 'name') {
-      onboardData.owner_name = msg;
-      gap();
-      write(`merhaba ${msg}.`, 'accent', 200);
-      gap();
-      write('ajansının adı ne olsun?', 'accent', 600);
-      onboardStep = 'agency';
-      el.placeholder = 'ajans adı...';
-      return;
-    }
-    if (onboardStep === 'agency') {
-      const unsure = msg.toLowerCase().match(/bilmiyorum|emin değilim|sence|ne önerirsin|karar veremedim|fikrim yok|\?$/);
-      if (unsure) {
-        gap();
-        write('ajans ismi basit ve akılda kalıcı olmalı. birkaç öneri:', 'dim', 200);
-        gap();
-        write('  [senin adın] Otomasyon', 'accent indent', 400);
-        write('  [niş] AI Ajansı (örn: Restoran AI)', 'accent indent', 500);
-        write('  kısa bir isim: Apex, Nexo, Akıl, Dijital Köprü', 'accent indent', 600);
-        gap();
-        write('bir isim yaz, sonra değiştirebilirsin.', 'dim', 800);
-        el.placeholder = 'ajans adı...';
-        return;
-      }
-      onboardData.agency_name = msg;
-      gap();
-      write(`"${msg}" — güzel isim.`, 'dim', 200);
-      gap();
-      write('hangi sektöre hizmet vereceksin?', 'accent', 500);
-      write('(örn: restoranlar, klinikler, oteller, e-ticaret)', 'faint', 700);
-      onboardStep = 'niche';
-      el.placeholder = 'sektör / niş...';
-      return;
-    }
-    if (onboardStep === 'niche') {
-      const unsure = msg.toLowerCase().match(/bilmiyorum|emin değilim|ne önerirsin|sence|karar veremedim|fikrim yok|yardım|help|öneri|tavsiye|\?$/);
-      if (unsure) {
-        gap();
-        write('sana birkaç öneri vereyim. bunlar en kolay başlanan nişler:', 'dim', 200);
-        gap();
-        write('  restoranlar — google yorum otomasyonu, sosyal medya', 'accent indent', 500);
-        write('  klinikler — randevu hatırlatma, hasta takibi', 'accent indent', 600);
-        write('  oteller — booking yanıtları, misafir iletişimi', 'accent indent', 700);
-        write('  e-ticaret — sipariş takibi, müşteri desteği', 'accent indent', 800);
-        write('  emlakçılar — lead takibi, otomatik ilan paylaşımı', 'accent indent', 900);
-        gap();
-        write('hangisini seçmek istersin?', 'accent', 1100);
-        el.placeholder = 'sektör seç...';
-        return;
-      }
-      onboardData.niche = msg;
-      gap();
-      write(`${msg} — iyi bir niş.`, 'dim', 200);
-      gap();
-      write('hangi şehirlerde müşteri arayalım?', 'accent', 500);
-      write('(virgülle ayır: Istanbul, Ankara, Izmir)', 'faint', 700);
-      onboardStep = 'cities';
-      el.placeholder = 'şehirler...';
-      return;
-    }
-    if (onboardStep === 'cities') {
-      const unsure = msg.toLowerCase().match(/bilmiyorum|emin değilim|sence|ne önerirsin|nerede|\?$/);
-      if (unsure) {
-        gap();
-        write('yaşadığın şehirle başla — müşterileri tanımak daha kolay.', 'dim', 200);
-        gap();
-        write('türkiye\'deki en büyük pazarlar:', 'dim', 400);
-        write('  Istanbul — en çok işletme, en çok fırsat', 'accent indent', 500);
-        write('  Ankara — devlet + özel sektör karışık', 'accent indent', 600);
-        write('  Izmir — turizm + gastronomi güçlü', 'accent indent', 700);
-        write('  Antalya — otel ve restoran yoğun', 'accent indent', 800);
-        gap();
-        write('bir veya birkaç şehir yaz.', 'dim', 1000);
-        el.placeholder = 'şehirler...';
-        return;
-      }
-      onboardData.target_cities = msg.split(',').map(s => s.trim()).filter(Boolean);
-      gap();
-      write('müşteri bulmak için Apify token gerekiyor.', 'dim', 200);
-      write('  → console.apify.com adresinden ücretsiz hesap aç.', 'faint', 400);
-      gap();
-      write('apify token\'ını yaz (atlamak için "atla" yaz):', 'accent', 600);
-      onboardStep = 'apify';
-      el.placeholder = 'apify_api_...';
-      return;
-    }
+    // API key inputs — these need exact handling
     if (onboardStep === 'apify') {
       if (msg.toLowerCase() !== 'atla' && msg.toLowerCase() !== 'skip') {
-        onboardData.apify_token = msg;
+        CFG.apify_token = msg;
+        const config = Object.assign({}, CFG, {apify_token: msg});
+        fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
         checkDone('chkApify');
-      }
-      onboardStep = null;
-
-      // Save config with all collected data
-      const config = {
-        agency_name: onboardData.agency_name,
-        owner_name: onboardData.owner_name,
-        niche: onboardData.niche,
-        target_cities: onboardData.target_cities,
-        target_industries: [onboardData.niche],
-      };
-      if (onboardData.apify_token) config.apify_token = onboardData.apify_token;
-      fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
-      Object.assign(CFG, config);
-
-      gap();
-      write('...', 'faint', 200);
-      gap();
-      write(`${config.agency_name} aktif.`, 'accent', 800);
-      write(`kurucu: ${config.owner_name}`, 'dim', 1000);
-      write(`niş: ${config.niche}`, 'dim', 1100);
-      write(`şehirler: ${config.target_cities.join(', ')}`, 'dim', 1200);
-      if (config.apify_token) write('apify: bağlandı.', 'green', 1300);
-
-      // Update office sign
-      office.sign = config.agency_name;
-      checkDone('chkSetup');
-
-      // Reveal stats
-      setTimeout(() => {
-        reveal('secAgency');
-        updateAgencyStats();
-      }, 1400);
-
-      // Continue to main flow
-      setTimeout(() => {
-        el.placeholder = 'bir şey yaz...';
-        postSetupSequence();
-      }, 1600);
-      return;
+        gap(); write('apify bağlandı.', 'green');
+      } else { gap(); write('apify atlandı.', 'dim'); }
+      onboardStep = null; el.placeholder = 'bir şey yaz...'; return;
     }
     if (onboardStep === 'instantly_key') {
       if (msg.toLowerCase() !== 'atla' && msg.toLowerCase() !== 'skip') {
@@ -1540,36 +1534,9 @@ function handleInput() {
         const config = Object.assign({}, CFG, {instantly_api_key: msg});
         fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
         checkDone('chkInstantly');
-        gap();
-        write('instantly.ai bağlandı.', 'green', 200);
-        gap();
-        write('şimdi kampanya oluşturabilirsin.', 'dim', 400);
-        gap();
-        action('→ email kampanyası oluştur', () => doOutreach(), 600);
-      } else {
-        gap();
-        write('instantly.ai atlandı. daha sonra ayarlayabilirsin.', 'dim', 200);
-      }
-      onboardStep = null;
-      el.placeholder = 'bir şey yaz...';
-      return;
-    }
-    if (onboardStep && onboardStep.startsWith('add_note_')) {
-      var noteSlug = onboardStep.replace('add_note_', '');
-      doAddNote(noteSlug, msg);
-      onboardStep = null;
-      document.getElementById('input').placeholder = 'bir şey yaz...';
-      return;
-    }
-    if (onboardStep && onboardStep.startsWith('create_deal_')) {
-      var parts = onboardStep.replace('create_deal_', '').split('_');
-      var dealSlug = parts[0];
-      var dealName = decodeURIComponent(parts.slice(1).join('_'));
-      var dealValue = parseInt(msg) || 0;
-      doCreateDeal(dealName || dealSlug, dealValue);
-      onboardStep = null;
-      document.getElementById('input').placeholder = 'bir şey yaz...';
-      return;
+        gap(); write('instantly.ai bağlandı.', 'green');
+      } else { gap(); write('instantly.ai atlandı.', 'dim'); }
+      onboardStep = null; el.placeholder = 'bir şey yaz...'; return;
     }
     if (onboardStep === 'fal_key') {
       if (msg.toLowerCase() !== 'atla' && msg.toLowerCase() !== 'skip') {
@@ -1577,36 +1544,44 @@ function handleInput() {
         const config = Object.assign({}, CFG, {fal_key: msg});
         fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)});
         checkDone('chkFal');
-        gap();
-        write('fal.ai bağlandı.', 'green', 200);
-        gap();
-        write('şimdi görsel oluşturabilirsin.', 'dim', 400);
-        gap();
-        action('→ reklam görseli oluştur', () => doCreative(), 600);
-      } else {
-        gap();
-        write('fal.ai atlandı. daha sonra ayarlayabilirsin.', 'dim', 200);
-      }
-      onboardStep = null;
-      el.placeholder = 'bir şey yaz...';
-      return;
+        gap(); write('fal.ai bağlandı.', 'green');
+      } else { gap(); write('fal.ai atlandı.', 'dim'); }
+      onboardStep = null; el.placeholder = 'bir şey yaz...'; return;
     }
+    // Note/deal inputs
+    if (onboardStep && onboardStep.startsWith('add_note_')) {
+      var noteSlug = onboardStep.replace('add_note_', '');
+      doAddNote(noteSlug, msg);
+      onboardStep = null; el.placeholder = 'bir şey yaz...'; return;
+    }
+    if (onboardStep && onboardStep.startsWith('create_deal_')) {
+      var parts = onboardStep.replace('create_deal_', '').split('_');
+      var dealSlug = parts[0];
+      var dealName = decodeURIComponent(parts.slice(1).join('_'));
+      doCreateDeal(dealName || dealSlug, parseInt(msg) || 0);
+      onboardStep = null; el.placeholder = 'bir şey yaz...'; return;
+    }
+    // Manual site builder steps
+    if (onboardStep && onboardStep.startsWith('site_')) {
+      if (handleManualSiteStep(msg)) return;
+    }
+    // Manual lead entry steps
+    if (onboardStep && onboardStep.startsWith('lead_')) {
+      if (handleManualLeadStep(msg)) return;
+    }
+    // Anything else in onboardStep — clear it and fall through to smart chat
+    onboardStep = null;
+    el.placeholder = 'bir şey yaz...';
   }
 
-  // Check for commands
+  // Quick local commands (no need to hit Claude for these)
   const cmd = msg.toLowerCase();
-  if (cmd === 'scout' || cmd === 'ara' || cmd === 'müşteri bul' || cmd === 'search') { doScout(); return; }
-  if (cmd === 'filter' || cmd === 'puanla' || cmd === 'filtrele' || cmd === 'score') { doFilter(); return; }
-  if (cmd === 'audit' || cmd === 'analiz' || cmd === 'auditor' || cmd === 'site analiz' || cmd === 'seo') { doAudit(); return; }
-  if (cmd === 'çalıştır' || cmd === 'run') { doScout(); return; }
   if (cmd === 'clear' || cmd === 'temizle') { log.innerHTML = ''; lineDelay=0; start(); return; }
   if (cmd === 'reset' || cmd === 'sıfırla') { fullReset(); return; }
-  if (cmd === 'leadler' || cmd === 'leads' || cmd === 'liste' || cmd === 'tablo') { showLeadTable(); return; }
-  if (cmd === 'pipeline' || cmd === 'süreç' || cmd === 'kanban') { showPipeline(); return; }
-  if (cmd === 'gelir' || cmd === 'revenue' || cmd === 'deals' || cmd === 'anlaşmalar') { showRevenue(); return; }
-  if (cmd === 'hatırlatıcılar' || cmd === 'reminders') { showReminders(); return; }
   if (cmd === 'yardım' || cmd === 'help' || cmd === 'komutlar') { showHelp(); return; }
-  if (cmd === 'zamanlar' || cmd === 'schedules') { showSchedules(); return; }
+  // setup/kur/ayarlar — just fall through to smart chat, Claude handles it
+
+  // Structured commands (exact format)
   if (cmd.match(/^not\s+(.+?)\s+(.+)$/)) {
     const m = cmd.match(/^not\s+(.+?)\s+(.+)$/);
     doAddNote(m[1], msg.match(/^not\s+\S+\s+(.+)$/i)[1]);
@@ -1629,28 +1604,14 @@ function handleInput() {
     doSchedule(agent, cron);
     return;
   }
-  if (cmd === 'site' || cmd === 'site oluştur' || cmd === 'landing page' || cmd === 'website') { showSiteOptions(); return; }
-  if (cmd === 'ajans sitesi' || cmd === 'agency site') { doSiteBuild('agency'); return; }
-  if (cmd === 'müşteri sitesi' || cmd === 'client site') { doSiteBuild('client'); return; }
-  if (cmd.match(/teklif|proposal|pitch/)) { doPitch(); return; }
-  if (cmd.match(/görsel|reklam|creative|banner|ad oluştur/)) { doCreative(); return; }
-  // Outreach intent detection
-  if (cmd.match(/outreach|ulaş|email|gönder|kampanya|instantly|iletişim kur|mesaj at|reach out|cold email|soğuk email/)) { doOutreach(); return; }
-  if (cmd === 'setup' || cmd === 'kur' || cmd === 'ayarlar') {
-    lineDelay = 0; gap();
-    write('adın ne?', 'accent');
-    onboardStep = 'name';
-    document.getElementById('input').placeholder = 'adını yaz...';
-    return;
-  }
 
-  // Chat with selected agent
+  // ─── Everything else → Smart Chat (Claude-powered) ───
   lineDelay = 0;
   write(`> ${msg}`, 'bright');
   botState('think');
-  botStat.textContent = 'düşünüyor';
+  showThinking('düşünüyor...');
 
-  const agent = sel || 'mentor';
+  const agent = sel || 'goat';
 
   fetch('/api/chat', {
     method: 'POST',
@@ -1658,8 +1619,11 @@ function handleInput() {
     body: JSON.stringify({message: msg, agent_id: agent})
   }).then(r => r.json()).then(d => {
     botState('success', 2000);
+    hideThinking();
     lineDelay = 0;
     gap();
+
+    // Render Claude's response
     let raw = d.response || 'yanıt yok.';
     raw = raw.replace(/\*\*(.+?)\*\*/g, '$1');
     raw = raw.replace(/\*(.+?)\*/g, '$1');
@@ -1675,11 +1639,85 @@ function handleInput() {
       else if (line.trim() === '') gap();
       else write(line, 'dim');
     });
+
+    // Execute actions returned by Claude
+    if (d.actions && d.actions.length > 0) {
+      gap();
+      d.actions.forEach(act => executeAction(act));
+    }
+
     agentOn(agent);
   }).catch(e => {
     botState('', 0);
+    hideThinking();
     write(`hata: ${e.message}`, 'red');
   });
+}
+
+function showThinking(text) {
+  const el = document.getElementById('inputThinking');
+  el.textContent = text || 'düşünüyor...';
+  el.classList.add('active');
+  document.getElementById('input').style.paddingRight = '120px';
+}
+
+function hideThinking() {
+  const el = document.getElementById('inputThinking');
+  el.classList.remove('active');
+  document.getElementById('input').style.paddingRight = '';
+}
+
+// ─── Action Executor — runs actions returned by smart chat ───
+function executeAction(act) {
+  const a = act.action;
+  const p = act.params || {};
+
+  if (a === 'scout') {
+    doScout(p.query, p.location);
+  } else if (a === 'filter') {
+    doFilter();
+  } else if (a === 'audit') {
+    doAudit(p.url);
+  } else if (a === 'pitch') {
+    doPitch();
+  } else if (a === 'outreach') {
+    doOutreach();
+  } else if (a === 'site_agency') {
+    doSiteBuild('agency');
+  } else if (a === 'site_client') {
+    if (p.manual_data) {
+      doSiteBuild('client', p.manual_data);
+    } else {
+      doSiteBuild('client');
+    }
+  } else if (a === 'save_config') {
+    // Already saved server-side, update local config
+    Object.assign(CFG, p);
+    if (p.agency_name && typeof office !== 'undefined') office.sign = p.agency_name;
+    if (p.agency_name) {
+      checkDone('chkSetup');
+      reveal('secAgency');
+      if (typeof updateAgencyStats === 'function') updateAgencyStats();
+    }
+  } else if (a === 'add_lead') {
+    fetch('/api/leads/manual', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(p)
+    }).then(r => r.json()).then(d => {
+      if (d.status === 'ok') {
+        write('✓ ' + (p.name || 'lead') + ' CRM\'e eklendi.', 'green');
+        gap();
+        action('→ CRM\'i aç', () => openCRM());
+      }
+    });
+  } else if (a === 'show_pipeline') {
+    showPipeline();
+  } else if (a === 'show_leads') {
+    showLeadTable();
+  } else if (a === 'show_revenue') {
+    showRevenue();
+  }
 }
 
 // ─── Setup ───
@@ -2295,6 +2333,96 @@ function doPitch() {
   });
 }
 
+// ─── Manual Lead Entry ───
+function showManualLeadForm() {
+  lineDelay = 0;
+  gap();
+  write('yeni müşteri adayı ekle:', 'accent');
+  gap();
+  window._manualLead = {};
+  write('işletme adı?', 'dim');
+  onboardStep = 'lead_name';
+  document.getElementById('input').placeholder = 'ör: Cafe Moda';
+}
+
+function handleManualLeadStep(msg) {
+  const ml = window._manualLead;
+  if (onboardStep === 'lead_name') {
+    ml.name = msg;
+    write('  → ' + msg, 'green indent');
+    write('kategori? (ör: restoran, klinik, kuaför)', 'dim');
+    onboardStep = 'lead_category';
+    document.getElementById('input').placeholder = 'ör: restoran';
+    return true;
+  }
+  if (onboardStep === 'lead_category') {
+    ml.category = msg;
+    write('  → ' + msg, 'green indent');
+    write('telefon? (boş = atla)', 'dim');
+    onboardStep = 'lead_phone';
+    document.getElementById('input').placeholder = 'ör: 0532 123 4567';
+    return true;
+  }
+  if (onboardStep === 'lead_phone') {
+    ml.phone = (msg === '-' || msg.trim() === '') ? '' : msg;
+    if (ml.phone) write('  → ' + ml.phone, 'green indent');
+    write('email? (boş = atla)', 'dim');
+    onboardStep = 'lead_email';
+    document.getElementById('input').placeholder = 'ör: info@cafe.com';
+    return true;
+  }
+  if (onboardStep === 'lead_email') {
+    ml.email = (msg === '-' || msg.trim() === '') ? '' : msg;
+    if (ml.email) write('  → ' + ml.email, 'green indent');
+    write('website? (boş = atla)', 'dim');
+    onboardStep = 'lead_website';
+    document.getElementById('input').placeholder = 'ör: cafemoda.com';
+    return true;
+  }
+  if (onboardStep === 'lead_website') {
+    ml.website = (msg === '-' || msg.trim() === '') ? '' : msg;
+    if (ml.website) write('  → ' + ml.website, 'green indent');
+    write('adres? (boş = atla)', 'dim');
+    onboardStep = 'lead_address';
+    document.getElementById('input').placeholder = 'ör: Kadıköy, İstanbul';
+    return true;
+  }
+  if (onboardStep === 'lead_address') {
+    ml.address = (msg === '-' || msg.trim() === '') ? '' : msg;
+    if (ml.address) write('  → ' + ml.address, 'green indent');
+    onboardStep = null;
+    document.getElementById('input').placeholder = 'bir şey yaz...';
+    gap();
+    write('müşteri ekleniyor...', 'accent');
+    botState('think');
+
+    fetch('/api/leads/manual', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(ml)
+    }).then(r => r.json()).then(d => {
+      botState('success', 2000);
+      lineDelay = 0;
+      gap();
+      if (d.status === 'ok') {
+        write('✓ ' + ml.name + ' eklendi.', 'green');
+        write('  pipeline\'a "new" olarak kaydedildi.', 'dim indent');
+        gap();
+        action('→ başka müşteri ekle', () => showManualLeadForm());
+        action('→ pipeline\'ı göster', () => showPipeline());
+        action('→ bu müşteri için site yap', () => doSiteBuild('client', ml));
+      } else {
+        write('hata: ' + (d.error || 'bilinmiyor'), 'red');
+      }
+    }).catch(e => {
+      botState('', 0);
+      write('hata: ' + e.message, 'red');
+    });
+    return true;
+  }
+  return false;
+}
+
 // ─── Site Builder ───
 function showSiteOptions() {
   lineDelay = 0;
@@ -2303,25 +2431,88 @@ function showSiteOptions() {
   gap();
   action('→ ajans sitesi (kendi siten)', () => doSiteBuild('agency'));
   action('→ müşteri sitesi (lead için)', () => doSiteBuild('client'));
+  action('→ manuel bilgi girerek site yap', () => showManualSiteForm());
 }
 
-function doSiteBuild(siteType) {
-  sel = 'sitebuilder';
+function showManualSiteForm() {
   lineDelay = 0;
   gap();
+  write('müşteri bilgilerini gir:', 'accent');
+  gap();
+  // Use onboardStep-style multi-step input
+  window._manualSite = {};
+  write('işletme adı nedir?', 'dim');
+  onboardStep = 'site_name';
+  document.getElementById('input').placeholder = 'ör: Güzellik Salonu Ayşe';
+}
+
+function handleManualSiteStep(msg) {
+  const ms = window._manualSite;
+  if (onboardStep === 'site_name') {
+    ms.name = msg;
+    write('  → ' + msg, 'green indent');
+    write('kategori? (ör: restoran, klinik, kuaför, otel)', 'dim');
+    onboardStep = 'site_category';
+    document.getElementById('input').placeholder = 'ör: kuaför';
+    return true;
+  }
+  if (onboardStep === 'site_category') {
+    ms.category = msg;
+    write('  → ' + msg, 'green indent');
+    write('telefon? (boş bırakabilirsin)', 'dim');
+    onboardStep = 'site_phone';
+    document.getElementById('input').placeholder = 'ör: 0532 123 4567';
+    return true;
+  }
+  if (onboardStep === 'site_phone') {
+    ms.phone = msg === '-' || msg === '' ? '' : msg;
+    if (ms.phone) write('  → ' + ms.phone, 'green indent');
+    write('email? (boş bırakabilirsin)', 'dim');
+    onboardStep = 'site_email';
+    document.getElementById('input').placeholder = 'ör: info@isletme.com';
+    return true;
+  }
+  if (onboardStep === 'site_email') {
+    ms.email = msg === '-' || msg === '' ? '' : msg;
+    if (ms.email) write('  → ' + ms.email, 'green indent');
+    write('adres? (boş bırakabilirsin)', 'dim');
+    onboardStep = 'site_address';
+    document.getElementById('input').placeholder = 'ör: Kadıköy, İstanbul';
+    return true;
+  }
+  if (onboardStep === 'site_address') {
+    ms.address = msg === '-' || msg === '' ? '' : msg;
+    if (ms.address) write('  → ' + ms.address, 'green indent');
+    onboardStep = null;
+    document.getElementById('input').placeholder = 'bir şey yaz...';
+    gap();
+    write('site oluşturuluyor: ' + ms.name, 'accent');
+    doSiteBuild('client', ms);
+    return true;
+  }
+  return false;
+}
+
+function doSiteBuild(siteType, manualData) {
+  sel = 'sitebuilder';
+  lineDelay = 0;
+  if (!manualData) { gap(); }
   if (siteType === 'agency') {
     write('SiteBuilder aktif. ajans siten oluşturuluyor...', 'accent');
-  } else {
+  } else if (!manualData) {
     write('SiteBuilder aktif. müşteri sitesi oluşturuluyor...', 'accent');
   }
   botState('think');
   botStat.textContent = 'site';
   officeSetWorking('sitebuilder', true);
 
+  const payload = {site_type: siteType};
+  if (manualData) payload.manual_data = manualData;
+
   fetch('/api/agent/sitebuilder/run', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({site_type: siteType})
+    body: JSON.stringify(payload)
   }).then(r => r.json()).then(d => {
     officeSetWorking('sitebuilder', false);
     botState('success', 2500);
@@ -2329,11 +2520,19 @@ function doSiteBuild(siteType) {
     lineDelay = 0;
     gap();
 
+    // Handle needs_input — no leads, offer manual entry
+    if (d.result && d.result.status === 'needs_input') {
+      write('⚠ puanlanmış lead yok — ama manuel bilgi girerek site yapabilirsin.', 'yellow');
+      gap();
+      action('→ manuel bilgi girerek site yap', () => showManualSiteForm());
+      action('→ önce müşteri adaylarını ara', () => doScout());
+      return;
+    }
+
     if (d.status === 'ok' && d.result) {
       write(d.result.summary || 'Site oluşturuldu.', 'bright');
       if (d.result.metrics) {
         const m = d.result.metrics;
-        if (m.site_path) write('  dosya: ' + m.site_path, 'dim indent');
         if (m.preview_url) write('  önizleme: ' + m.preview_url, 'green indent');
       }
       gap();
@@ -2646,40 +2845,7 @@ document.addEventListener('keydown', e => {
 const STAGE_TR = {new:'YENİ', contacted:'İLETİŞİM', meeting:'TOPLANTI', proposal_sent:'TEKLİF', closed:'KAPANDI', lost:'KAYBEDİLDİ'};
 
 function showPipeline() {
-  lineDelay = 0;
-  gap();
-  write('pipeline yükleniyor...', 'dim');
-
-  fetch('/api/pipeline').then(r=>r.json()).then(d => {
-    lineDelay = 0;
-    gap();
-    write('━━ PIPELINE ━━', 'bright');
-    gap();
-
-    const stageOrder = ['new','contacted','meeting','proposal_sent','closed','lost'];
-    const stageColors = {new:'dim', contacted:'blue', meeting:'yellow', proposal_sent:'accent', closed:'green', lost:'red'};
-    stageOrder.forEach(s => {
-      const leads = d.stages[s] || [];
-      if (leads.length === 0 && s !== 'new') return;
-      write(`  ${STAGE_TR[s]} (${leads.length})`, stageColors[s] || 'dim');
-      leads.forEach(l => {
-        const name = l.name || l.slug;
-        const scoreText = l.score ? ' — puan: ' + l.score : '';
-        write(`    ${name}${scoreText}`, 'dim indent');
-        action(`    → ${name} işlemleri`, () => showLeadActions(l.slug, name));
-      });
-    });
-
-    // Update pipeline stats panel
-    reveal('secPipelineStats');
-    document.getElementById('sNew').textContent = (d.counts.new || 0);
-    document.getElementById('sContacted').textContent = (d.counts.contacted || 0);
-    document.getElementById('sMeeting').textContent = (d.counts.meeting || 0);
-    document.getElementById('sProposal').textContent = (d.counts.proposal_sent || 0);
-    document.getElementById('sClosed').textContent = (d.counts.closed || 0);
-  }).catch(e => {
-    write('pipeline hatası: ' + e.message, 'red');
-  });
+  openCRM();
 }
 
 function showLeadActions(slug, name) {
@@ -2872,6 +3038,260 @@ function checkRemindersOnStartup() {
       });
     }
   }).catch(function() {});
+}
+
+// ═══════════════════════════════════════════
+// CRM PANEL
+// ═══════════════════════════════════════════
+
+const CRM_STAGES = [
+  {id:'new', name:'YENİ', color:'#8a8a9c', bg:'rgba(138,138,156,0.08)'},
+  {id:'contacted', name:'İLETİŞİM', color:'#60a5fa', bg:'rgba(96,165,250,0.08)'},
+  {id:'meeting', name:'TOPLANTI', color:'#fbbf24', bg:'rgba(251,191,36,0.08)'},
+  {id:'proposal_sent', name:'TEKLİF', color:'#e85d26', bg:'rgba(232,93,38,0.08)'},
+  {id:'closed', name:'KAZANILDI', color:'#34d399', bg:'rgba(52,211,153,0.08)'},
+  {id:'lost', name:'KAYBEDİLDİ', color:'#ef4444', bg:'rgba(239,68,68,0.08)'},
+];
+
+let crmData = null;
+
+function openCRM() {
+  document.getElementById('crmPanel').style.display = 'block';
+  loadCRMData();
+}
+
+function closeCRM() {
+  document.getElementById('crmPanel').style.display = 'none';
+}
+
+function loadCRMData() {
+  fetch('/api/pipeline').then(r=>r.json()).then(d => {
+    crmData = d;
+    renderKanban(d);
+  });
+}
+
+function renderKanban(data) {
+  const board = document.getElementById('kanbanBoard');
+  board.innerHTML = '';
+
+  CRM_STAGES.forEach(stage => {
+    const leads = data.stages[stage.id] || [];
+    const col = document.createElement('div');
+    col.className = 'crm-col';
+    col.innerHTML = `
+      <div class="crm-col-header" style="background:${stage.bg};color:${stage.color};">
+        ${stage.name}
+        <span style="font-size:10px;opacity:0.7;">${leads.length}</span>
+      </div>
+      <div class="crm-col-body" data-stage="${stage.id}"></div>
+    `;
+
+    const body = col.querySelector('.crm-col-body');
+
+    // Drop zone
+    body.addEventListener('dragover', e => { e.preventDefault(); body.style.background = stage.bg; });
+    body.addEventListener('dragleave', () => { body.style.background = ''; });
+    body.addEventListener('drop', e => {
+      e.preventDefault();
+      body.style.background = '';
+      const slug = e.dataTransfer.getData('text/plain');
+      if (slug) {
+        fetch('/api/leads/' + slug + '/stage', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({stage: stage.id})
+        }).then(() => loadCRMData());
+      }
+    });
+
+    leads.forEach(lead => {
+      const card = document.createElement('div');
+      card.className = 'crm-card';
+      card.draggable = true;
+      card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', lead.slug); });
+      card.addEventListener('click', () => openLeadEditor(lead));
+
+      const q = lead.qualification || '';
+      const qClass = q === 'hot' ? 'crm-hot' : q === 'warm' ? 'crm-warm' : 'crm-cold';
+      const qText = q === 'hot' ? 'SICAK' : q === 'warm' ? 'ILIK' : q === 'cold' ? 'SOĞUK' : '';
+
+      card.innerHTML = `
+        <div class="crm-card-name">${lead.name || lead.slug}</div>
+        <div class="crm-card-meta">
+          ${lead.email ? '<span>✉ ' + lead.email + '</span>' : ''}
+          ${lead.phone ? '<span>☎ ' + lead.phone + '</span>' : ''}
+          ${qText ? '<span class="crm-badge ' + qClass + '">' + qText + '</span>' : ''}
+          ${lead.score ? '<span class="crm-card-score" style="background:rgba(232,93,38,0.15);color:#e85d26;">' + lead.score + ' puan</span>' : ''}
+        </div>
+      `;
+      body.appendChild(card);
+    });
+
+    board.appendChild(col);
+  });
+}
+
+function openLeadEditor(lead) {
+  const modal = document.getElementById('leadEditModal');
+  modal.style.display = 'flex';
+  document.getElementById('leadEditTitle').textContent = lead.name || lead.slug;
+
+  const slug = lead.slug;
+  const form = document.getElementById('leadEditForm');
+
+  // Load notes
+  fetch('/api/leads/' + slug + '/notes').then(r=>r.json()).then(notes => {
+    form.innerHTML = `
+      <div class="crm-label">AD</div>
+      <input class="crm-input" id="le-name" value="${lead.name || ''}" readonly>
+      <div class="crm-label">EMAIL</div>
+      <input class="crm-input" id="le-email" value="${lead.email || ''}" placeholder="email@example.com">
+      <div class="crm-label">TELEFON</div>
+      <input class="crm-input" id="le-phone" value="${lead.phone || ''}" placeholder="+90 xxx xxx xx xx">
+      <div class="crm-label">WEBSİTE</div>
+      <input class="crm-input" id="le-website" value="${lead.website || ''}" placeholder="https://...">
+      <div class="crm-label">AŞAMA</div>
+      <select class="crm-input" id="le-stage">
+        ${CRM_STAGES.map(s => '<option value="' + s.id + '">' + s.name + '</option>').join('')}
+      </select>
+      <div style="display:flex;gap:8px;margin-top:4px;margin-bottom:16px;">
+        <button class="crm-btn crm-btn-primary" onclick="saveLeadEdit('${slug}')">KAYDET</button>
+        <button class="crm-btn crm-btn-ghost" onclick="closeLeadModal()">İPTAL</button>
+        <button class="crm-btn crm-btn-ghost" onclick="buildSiteForLead('${slug}', '${(lead.name||'').replace(/'/g,"\\'")}', '${(lead.phone||'')}', '${(lead.email||'')}')">🌐 SİTE YAP</button>
+      </div>
+      <div class="crm-label">NOT EKLE</div>
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <input class="crm-input" id="le-note" placeholder="not yaz..." style="margin-bottom:0;flex:1;">
+        <button class="crm-btn crm-btn-ghost" onclick="addNoteFromCRM('${slug}')">EKLE</button>
+      </div>
+      <div class="crm-label">ANLAŞMA OLUŞTUR</div>
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <input class="crm-input" id="le-deal-value" type="number" placeholder="değer (USD)" style="margin-bottom:0;flex:1;">
+        <button class="crm-btn crm-btn-ghost" onclick="addDealFromCRM('${slug}', '${(lead.name||'').replace(/'/g,"\\'")}')">OLUŞTUR</button>
+      </div>
+      <div class="crm-notes">
+        <div class="crm-label">NOTLAR (${notes.length})</div>
+        ${notes.length === 0 ? '<div style="font-size:10px;color:var(--dim);padding:8px 0;">henüz not yok.</div>' : ''}
+        ${notes.map(n => '<div class="crm-note"><span class="crm-note-date">' + (n.created_at||'').substring(0,10) + '</span> ' + n.text + '</div>').join('')}
+      </div>
+    `;
+
+    // Set current stage
+    if (crmData) {
+      CRM_STAGES.forEach(s => {
+        const leads = crmData.stages[s.id] || [];
+        if (leads.find(l => l.slug === slug)) {
+          document.getElementById('le-stage').value = s.id;
+        }
+      });
+    }
+  });
+}
+
+function closeLeadModal() {
+  document.getElementById('leadEditModal').style.display = 'none';
+}
+
+function saveLeadEdit(slug) {
+  const stage = document.getElementById('le-stage').value;
+  fetch('/api/leads/' + slug + '/stage', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({stage: stage})
+  }).then(() => {
+    closeLeadModal();
+    loadCRMData();
+  });
+}
+
+function addNoteFromCRM(slug) {
+  const text = document.getElementById('le-note').value.trim();
+  if (!text) return;
+  fetch('/api/leads/' + slug + '/note', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({text: text})
+  }).then(() => {
+    document.getElementById('le-note').value = '';
+    openLeadEditor(crmData ? findLeadInCRM(slug) : {slug: slug});
+  });
+}
+
+function addDealFromCRM(slug, name) {
+  const value = parseInt(document.getElementById('le-deal-value').value) || 0;
+  fetch('/api/deals', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({lead_name: name, value: value, currency: 'USD', status: 'proposal'})
+  }).then(r=>r.json()).then(d => {
+    if (d.status === 'ok') {
+      document.getElementById('le-deal-value').value = '';
+      alert('Anlaşma oluşturuldu: $' + value);
+    }
+  });
+}
+
+function buildSiteForLead(slug, name, phone, email) {
+  closeLeadModal();
+  closeCRM();
+  const data = {name: name, phone: phone, email: email};
+  lineDelay = 0; gap();
+  write(name + ' için site oluşturuluyor...', 'accent');
+  doSiteBuild('client', data);
+}
+
+function findLeadInCRM(slug) {
+  if (!crmData) return {slug: slug};
+  for (const stage of CRM_STAGES) {
+    const leads = crmData.stages[stage.id] || [];
+    const found = leads.find(l => l.slug === slug);
+    if (found) return found;
+  }
+  return {slug: slug};
+}
+
+function showAddLeadModal() {
+  const modal = document.getElementById('leadEditModal');
+  modal.style.display = 'flex';
+  document.getElementById('leadEditTitle').textContent = 'Yeni Lead Ekle';
+  const form = document.getElementById('leadEditForm');
+  form.innerHTML = `
+    <div class="crm-label">İŞLETME ADI *</div>
+    <input class="crm-input" id="nl-name" placeholder="ör: Cafe Moda">
+    <div class="crm-label">KATEGORİ</div>
+    <input class="crm-input" id="nl-category" placeholder="ör: restoran, klinik">
+    <div class="crm-label">TELEFON</div>
+    <input class="crm-input" id="nl-phone" placeholder="+90 xxx xxx xx xx">
+    <div class="crm-label">EMAIL</div>
+    <input class="crm-input" id="nl-email" placeholder="info@isletme.com">
+    <div class="crm-label">WEBSİTE</div>
+    <input class="crm-input" id="nl-website" placeholder="https://...">
+    <div class="crm-label">ADRES</div>
+    <input class="crm-input" id="nl-address" placeholder="Kadıköy, İstanbul">
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="crm-btn crm-btn-primary" onclick="saveNewLead()">EKLE</button>
+      <button class="crm-btn crm-btn-ghost" onclick="closeLeadModal()">İPTAL</button>
+    </div>
+  `;
+}
+
+function saveNewLead() {
+  const name = document.getElementById('nl-name').value.trim();
+  if (!name) { alert('İsim gerekli'); return; }
+  const data = {
+    name: name,
+    category: document.getElementById('nl-category').value.trim(),
+    phone: document.getElementById('nl-phone').value.trim(),
+    email: document.getElementById('nl-email').value.trim(),
+    website: document.getElementById('nl-website').value.trim(),
+    address: document.getElementById('nl-address').value.trim(),
+  };
+  fetch('/api/leads/manual', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  }).then(r=>r.json()).then(d => {
+    if (d.status === 'ok') {
+      closeLeadModal();
+      loadCRMData();
+    }
+  });
 }
 
 // ─── LAUNCH ───

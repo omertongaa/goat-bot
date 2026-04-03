@@ -20,19 +20,22 @@ class SiteBuilderAgent(BaseAgent):
     role = "Generates professional landing pages for your agency and clients"
     category = "delivery"
 
-    def run(self, site_type="agency", lead_index=0):
-        # type: (str, int) -> dict
+    def run(self, site_type="agency", lead_index=0, manual_data=None):
+        # type: (str, int, dict) -> dict
         """Generate a landing page.
 
         Args:
             site_type: 'agency' or 'client'
             lead_index: which hot lead to use (for client sites)
+            manual_data: optional dict with business info (name, category, phone, email, address etc.)
         """
         config = self.load_config()
 
         if site_type == "agency":
             return self._build_agency_site(config)
         elif site_type == "client":
+            if manual_data:
+                return self._build_client_site_manual(config, manual_data)
             return self._build_client_site(config, lead_index)
         else:
             return {
@@ -108,26 +111,81 @@ class SiteBuilderAgent(BaseAgent):
         self.save_output("sitebuilder_report.json", report)
         return report
 
+    def _build_client_site_manual(self, config, data):
+        # type: (dict, dict) -> dict
+        """Build a client landing page from manually provided data."""
+        lead_name = data.get("name", data.get("business_name", "İşletme"))
+        self.log("Building client site from manual data: " + lead_name)
+
+        lead = {
+            "name": lead_name,
+            "category": data.get("category", ""),
+            "phone": data.get("phone", ""),
+            "email": data.get("email", ""),
+            "address": data.get("address", ""),
+            "website": data.get("website", ""),
+            "rating": data.get("rating", 0),
+            "review_count": data.get("review_count", 0),
+        }
+
+        path = generate_client_site(lead, config, None)
+
+        if not path:
+            return {
+                "status": "error",
+                "summary": "Müşteri sitesi oluşturulamadı.",
+                "metrics": {},
+                "recommendations": [],
+            }
+
+        filename = Path(path).name
+        preview_url = "/site/" + filename
+
+        report = {
+            "status": "ok",
+            "summary": "{name} için müşteri sitesi oluşturuldu.".format(name=lead_name),
+            "metrics": {
+                "site_type": "client",
+                "site_path": path,
+                "filename": filename,
+                "preview_url": preview_url,
+                "lead_name": lead_name,
+                "source": "manual",
+            },
+            "recommendations": [
+                "Siteyi tarayıcıda önizleyin.",
+                "Müşteriye teklif ile birlikte gönderin.",
+            ],
+        }
+
+        self.save_output("sitebuilder_report.json", report)
+        return report
+
     def _build_client_site(self, config, lead_index=0):
         # type: (dict, int) -> dict
         """Build a client landing page from hot leads."""
         # Load qualified leads
         qual_dir = DATA_DIR / "leads" / "qualified"
-        if not qual_dir.exists():
+        if not qual_dir.exists() or not list(qual_dir.glob("*.json")):
             return {
-                "status": "error",
-                "summary": "Puanlanmis lead bulunamadi. Once Scout ve Filter calistirin.",
+                "status": "needs_input",
+                "summary": "Puanlanmış lead yok. Manuel bilgi girerek de site oluşturabilirsin.",
                 "metrics": {},
-                "recommendations": ["Scout ile lead arayin, Filter ile puanlayin."],
+                "recommendations": [
+                    "Scout ile lead ara, veya",
+                    "Manuel bilgi gir: işletme adı, kategori, telefon, email",
+                ],
+                "needs_manual": True,
             }
 
         files = sorted(qual_dir.glob("*.json"), reverse=True)
         if not files:
             return {
-                "status": "error",
-                "summary": "Puanlanmis lead dosyasi bulunamadi.",
+                "status": "needs_input",
+                "summary": "Puanlanmış lead dosyası bulunamadı. Manuel bilgi girebilirsin.",
                 "metrics": {},
-                "recommendations": ["Scout ile lead arayin."],
+                "recommendations": ["Scout ile lead ara veya manuel bilgi gir."],
+                "needs_manual": True,
             }
 
         with open(files[0]) as f:

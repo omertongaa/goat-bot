@@ -25,6 +25,8 @@ class FilterAgent(BaseAgent):
         "good_rating": 2,       # 3.5 - 4.5 range (room for improvement)
         "established": 2,       # 20+ reviews
         "high_reviews": 1,      # 50+ reviews
+        "weak_seo": 2,          # SEO score below 60 = opportunity
+        "no_analytics": 1,      # No Google Analytics = opportunity
     }
 
     def run(self) -> dict:
@@ -133,6 +135,22 @@ class FilterAgent(BaseAgent):
         if reviews >= 50:
             score += self.SCORING["high_reviews"]
             breakdown["high_reviews"] = self.SCORING["high_reviews"]
+
+        # Quick SEO check for leads with websites (bonus scoring)
+        if lead.get("website"):
+            try:
+                from services.site_auditor import check_seo, detect_tech_stack
+                seo = check_seo(lead["website"])
+                if seo.get("score", 100) < 60:
+                    score += self.SCORING["weak_seo"]
+                    breakdown["weak_seo"] = self.SCORING["weak_seo"]
+                tech = detect_tech_stack(lead["website"])
+                techs = tech.get("technologies", [])
+                if "Google Analytics" not in techs and "Google Tag Manager" not in techs:
+                    score += self.SCORING["no_analytics"]
+                    breakdown["no_analytics"] = self.SCORING["no_analytics"]
+            except Exception:
+                pass  # Don't fail scoring if audit fails
 
         return score, breakdown
 

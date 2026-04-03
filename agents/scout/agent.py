@@ -31,12 +31,34 @@ class ScoutAgent(BaseAgent):
 
         self.log(f"Searching for '{query}' in '{location}' (limit: {limit})...")
 
-        leads = scrape_google_maps(
-            query=query,
-            location=location,
-            max_results=limit,
-            log=self.log,
-        )
+        import os
+        used_fallback = False
+        has_apify = bool(os.environ.get("APIFY_TOKEN", "").strip())
+
+        if has_apify:
+            leads = scrape_google_maps(
+                query=query,
+                location=location,
+                max_results=limit,
+                log=self.log,
+            )
+        else:
+            leads = []
+
+        # Fallback: try free DuckDuckGo search if Apify unavailable
+        if not leads:
+            if not has_apify:
+                self.log("⚠ APIFY_TOKEN not set — using free search (limited results)")
+            else:
+                self.log("Apify returned no results, trying free search fallback...")
+            try:
+                from services.google_search import search_and_enrich
+                leads = search_and_enrich(query, location, min(limit, 20))
+                if leads:
+                    used_fallback = True
+                    self.log(f"Free search found {len(leads)} leads")
+            except Exception as e:
+                self.log(f"Free search fallback failed: {e}")
 
         if not leads:
             # Check for cached data
@@ -47,12 +69,12 @@ class ScoutAgent(BaseAgent):
             else:
                 return {
                     "status": "error",
-                    "summary": "No leads found. Check your APIFY_TOKEN in .env",
+                    "summary": "Lead bulunamadı. APIFY_TOKEN ayarlanmamış ve ücretsiz arama da sonuç döndüremedi.",
                     "metrics": {},
                     "leads": [],
                     "recommendations": [
-                        "Make sure APIFY_TOKEN is set in your .env file",
-                        "Get a free token at https://console.apify.com/account/integrations",
+                        "APIFY_TOKEN'ı .env dosyasına ekle (en iyi sonuçlar için — console.apify.com)",
+                        "Farklı bir arama terimi veya şehir dene",
                     ],
                 }
 
@@ -77,9 +99,13 @@ class ScoutAgent(BaseAgent):
         with_phone = sum(1 for l in leads if l.get("phone"))
         avg_rating = sum(l.get("rating", 0) for l in leads) / len(leads) if leads else 0
 
+        fallback_warning = ""
+        if used_fallback:
+            fallback_warning = " ⚠ Ücretsiz arama kullanıldı — daha iyi sonuçlar için APIFY_TOKEN ekle."
+
         results = {
             "status": "ok",
-            "summary": f"Found {len(leads)} businesses for '{query}' in {location or 'all locations'}",
+            "summary": f"Found {len(leads)} businesses for '{query}' in {location or 'all locations'}.{fallback_warning}",
             "metrics": {
                 "total_found": len(leads),
                 "with_email": with_email,
@@ -95,7 +121,7 @@ class ScoutAgent(BaseAgent):
                 f"Found {with_email} leads with email — ready for outreach",
                 f"{with_website} have websites — check for automation opportunities",
                 "Run Filter agent next to score and rank these leads",
-            ],
+            ] + (["⚠ Ücretsiz arama kullanıldı. Apify ile Google Maps verisi çok daha zengin (rating, yorum, kategori). console.apify.com'dan ücretsiz token al."] if used_fallback else []),
         }
 
         self.save_output("scout_leads_report.json", results)

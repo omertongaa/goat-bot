@@ -10,6 +10,7 @@ from pathlib import Path
 
 from agents.base import BaseAgent, DATA_DIR
 from services.image import generate_proposal_cover
+from services.pdf_generator import markdown_to_pdf
 
 
 class PitchAgent(BaseAgent):
@@ -51,6 +52,11 @@ class PitchAgent(BaseAgent):
         if cover_path:
             self.log(f"Kapak görseli: {cover_path}")
 
+        # Append audit data if available
+        audit_section = self._get_audit_section(lead)
+        if audit_section:
+            proposal += audit_section
+
         # Save proposal
         slug = lead.get("name", "lead").lower().replace(" ", "_")[:30]
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -60,15 +66,22 @@ class PitchAgent(BaseAgent):
             f.write(proposal)
         self.log(f"Teklif kaydedildi: {proposal_path}")
 
+        # Generate PDF
+        self.log("PDF oluşturuluyor...")
+        pdf_path = markdown_to_pdf(proposal, output_filename=f"{slug}_{timestamp}")
+        if pdf_path:
+            self.log(f"PDF hazır: {pdf_path}")
+
         results = {
             "status": "ok",
-            "summary": f"Teklif hazır: {lead.get('name', '?')} için {agency} proposal",
+            "summary": f"Teklif hazır: {lead.get('name', '?')} için {agency} proposal (MD + PDF)",
             "metrics": {
                 "lead_name": lead.get("name", "?"),
                 "lead_email": lead.get("email", "—"),
                 "lead_category": lead.get("category", "—"),
                 "lead_score": lead_data.get("score", 0),
                 "proposal_path": str(proposal_path),
+                "pdf_path": pdf_path,
                 "cover_image": cover_path,
             },
             "proposal": proposal,
@@ -190,6 +203,80 @@ Tarih: {today}
 
 İletişim: {owner} — {agency}
 """
+
+    def _get_audit_section(self, lead: dict) -> str:
+        """Load audit data for this lead and return a markdown section."""
+        website = lead.get("website", "")
+        if not website:
+            return ""
+
+        # Check for existing audit data
+        audit_dir = DATA_DIR / "audits"
+        if not audit_dir.exists():
+            # Run a quick audit
+            try:
+                from services.site_auditor import full_audit
+                report = full_audit(website)
+            except Exception:
+                return ""
+        else:
+            # Look for this site in existing audit files
+            report = None
+            for f in sorted(audit_dir.glob("*.json"), reverse=True):
+                with open(f) as fh:
+                    data = json.load(fh)
+                    # Single audit
+                    if data.get("url") and website in data.get("url", ""):
+                        report = data
+                        break
+                    # Batch audit
+                    for r in data.get("results", []):
+                        if website in r.get("website", ""):
+                            report = r.get("full_report", {})
+                            break
+                if report:
+                    break
+
+            if not report:
+                try:
+                    from services.site_auditor import full_audit
+                    report = full_audit(website)
+                except Exception:
+                    return ""
+
+        seo = report.get("seo", {})
+        broken = report.get("broken_links", {})
+        tech = report.get("tech_stack", {})
+
+        section = f"""
+
+---
+
+## Site Analiz Raporu
+
+> Bu rapor **{website}** için otomatik olarak oluşturulmuştur.
+
+### SEO Skoru: {seo.get('score', '?')}/100
+
+"""
+        issues = seo.get("issues", [])
+        if issues:
+            section += "| Seviye | Sorun |\n|--------|-------|\n"
+            for issue in issues:
+                level = {"critical": "🔴 Kritik", "warning": "🟡 Uyarı", "info": "ℹ️ Bilgi"}.get(
+                    issue.get("type", ""), issue.get("type", "")
+                )
+                section += f"| {level} | {issue.get('issue', '')} |\n"
+            section += "\n"
+
+        if broken.get("broken_count", 0) > 0:
+            section += f"### Kırık Linkler: {broken['broken_count']} adet\n\n"
+
+        if tech.get("technologies"):
+            section += f"### Teknoloji Altyapısı\n\n"
+            section += ", ".join(tech["technologies"]) + "\n\n"
+
+        return section
 
     def _load_hot_leads(self):
         """Load hot leads from latest qualified file."""

@@ -818,10 +818,12 @@ body::before {
       <div class="check-item" id="chkApify"><span class="chk">○</span> apify token</div>
       <div class="check-item" id="chkScout"><span class="chk">○</span> lead taraması</div>
       <div class="check-item" id="chkFilter"><span class="chk">○</span> lead puanlama</div>
+      <div class="check-item" id="chkAudit"><span class="chk">○</span> site analizi</div>
       <div class="check-item" id="chkInstantly"><span class="chk">○</span> instantly.ai</div>
       <div class="check-item" id="chkFal"><span class="chk">○</span> fal.ai</div>
       <div class="check-item" id="chkOutreach"><span class="chk">○</span> ilk kampanya</div>
       <div class="check-item" id="chkPitch"><span class="chk">○</span> ilk teklif</div>
+      <div class="check-item" id="chkSite"><span class="chk">○</span> ilk site</div>
     </div>
 
     <div class="stat-section hidden" id="secAgency">
@@ -854,6 +856,23 @@ body::before {
       <div class="stat-label">süreç</div>
       <div class="stat-row"><span class="k">aşama</span><span class="v green" id="sStage">—</span></div>
       <div class="stat-row"><span class="k">son çalışma</span><span class="v" id="sLastRun">hiç</span></div>
+    </div>
+
+    <div class="stat-section hidden" id="secPipelineStats">
+      <div class="stat-label">pipeline</div>
+      <div class="stat-row"><span class="k">yeni</span><span class="v" id="sNew">0</span></div>
+      <div class="stat-row"><span class="k">iletişim</span><span class="v blue" id="sContacted">0</span></div>
+      <div class="stat-row"><span class="k">toplantı</span><span class="v yellow" id="sMeeting">0</span></div>
+      <div class="stat-row"><span class="k">teklif</span><span class="v accent" id="sProposal">0</span></div>
+      <div class="stat-row"><span class="k">kapandı</span><span class="v green" id="sClosed">0</span></div>
+    </div>
+
+    <div class="stat-section hidden" id="secRevenue">
+      <div class="stat-label">gelir</div>
+      <div class="stat-row"><span class="k">kazanılan</span><span class="v green" id="sRevenue">$0</span></div>
+      <div class="stat-row"><span class="k">pipeline</span><span class="v accent" id="sPipeValue">$0</span></div>
+      <div class="stat-row"><span class="k">kazanma %</span><span class="v" id="sWinRate">0%</span></div>
+      <div class="stat-bar"><div class="stat-bar-fill green" id="barRevenue" style="width:0%"></div></div>
     </div>
   </div>
   </div>
@@ -897,12 +916,19 @@ const BOOT_LINES = [
   { text: '  [OK] goat     — ana orkestratör', cls: 'green', delay: 55 },
   { text: '  [OK] scout    — müşteri bulucu', cls: 'green', delay: 55 },
   { text: '  [OK] filter   — lead puanlayıcı', cls: 'green', delay: 55 },
-  { text: '  [OK] pitch    — teklif motoru', cls: 'green', delay: 55 },
+  { text: '  [OK] auditor  — site analizcisi', cls: 'green', delay: 55 },
+  { text: '  [OK] pitch    — teklif motoru + PDF', cls: 'green', delay: 55 },
   { text: '  [OK] outreach — kampanya yöneticisi', cls: 'green', delay: 55 },
   { text: '  [OK] mentor   — bilgi bankası', cls: 'green', delay: 55 },
+  { text: '  [OK] sitebuilder — site oluşturucu', cls: 'green', delay: 55 },
   { text: '', cls: '', delay: 60 },
   { text: 'Servisler yükleniyor...', cls: '', delay: 80 },
   { text: '  Apify tarayıcı ....... HAZIR', cls: '', delay: 70 },
+  { text: '  Google arama ......... HAZIR', cls: 'green', delay: 70 },
+  { text: '  Site auditor ......... HAZIR', cls: 'green', delay: 70 },
+  { text: '  PDF motoru ........... HAZIR', cls: 'green', delay: 70 },
+  { text: '  Zamanlayıcı .......... HAZIR', cls: 'green', delay: 70 },
+  { text: '  Site builder ......... HAZIR', cls: 'green', delay: 70 },
   { text: '  fal.ai görsel ........ HAZIR', cls: '', delay: 70 },
   { text: '  Instantly.ai email ... BEKLEMEDE', cls: '', delay: 70 },
   { text: '', cls: '', delay: 60 },
@@ -1138,6 +1164,8 @@ function start() {
   // Always reveal agents
   setTimeout(() => { reveal('secAgents'); }, 1500);
   setTimeout(() => { botEl.classList.remove('wave'); }, 2000);
+  // Check reminders on startup
+  setTimeout(() => { checkRemindersOnStartup(); }, 2500);
 }
 
 function postSetupSequence() {
@@ -1256,8 +1284,10 @@ function doFilter() {
       gap();
       write('sıcak leadler karanlıkta parlıyor.', 'dim');
       gap();
-      action('→ teklif hazırla', () => doPitch());
+      action('→ siteleri analiz et', () => doAudit());
+      action('→ teklif hazırla (MD + PDF)', () => doPitch());
       action('→ email kampanyası oluştur', () => doOutreach());
+      action('→ pipeline\'ı göster', () => showPipeline());
       document.getElementById('headerSub').textContent = `${m.hot || 0} sıcak lead`;
       checkDone('chkFilter');
     } else {
@@ -1316,6 +1346,16 @@ function doOutreach() {
       gap();
       write('kampanya TASLAK olarak kaydedildi.', 'yellow');
       write('  → instantly.ai panelinden aktif edebilirsin.', 'dim indent');
+      // Auto-move leads to contacted stage
+      fetch('/api/leads/qualified').then(r=>r.json()).then(function(leads) {
+        if (leads && leads.length > 0) {
+          leads.filter(function(l) { return l.qualification === 'hot'; }).forEach(function(l) {
+            var lName = l.name || l.title || '';
+            var lSlug = lName.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/[\s-]+/g,'-');
+            if (lSlug) fetch('/api/leads/' + lSlug + '/stage', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:'contacted'})});
+          });
+        }
+      }).catch(function(){});
       gap();
       action('→ teklif hazırla', () => doPitch());
       document.getElementById('headerSub').textContent = 'kampanya hazır';
@@ -1514,6 +1554,23 @@ function handleInput() {
       el.placeholder = 'bir şey yaz...';
       return;
     }
+    if (onboardStep && onboardStep.startsWith('add_note_')) {
+      var noteSlug = onboardStep.replace('add_note_', '');
+      doAddNote(noteSlug, msg);
+      onboardStep = null;
+      document.getElementById('input').placeholder = 'bir şey yaz...';
+      return;
+    }
+    if (onboardStep && onboardStep.startsWith('create_deal_')) {
+      var parts = onboardStep.replace('create_deal_', '').split('_');
+      var dealSlug = parts[0];
+      var dealName = decodeURIComponent(parts.slice(1).join('_'));
+      var dealValue = parseInt(msg) || 0;
+      doCreateDeal(dealName || dealSlug, dealValue);
+      onboardStep = null;
+      document.getElementById('input').placeholder = 'bir şey yaz...';
+      return;
+    }
     if (onboardStep === 'fal_key') {
       if (msg.toLowerCase() !== 'atla' && msg.toLowerCase() !== 'skip') {
         CFG.fal_key = msg;
@@ -1540,11 +1597,41 @@ function handleInput() {
   const cmd = msg.toLowerCase();
   if (cmd === 'scout' || cmd === 'ara' || cmd === 'müşteri bul' || cmd === 'search') { doScout(); return; }
   if (cmd === 'filter' || cmd === 'puanla' || cmd === 'filtrele' || cmd === 'score') { doFilter(); return; }
-  if (cmd === 'pipeline' || cmd === 'çalıştır' || cmd === 'run') { doScout(); return; }
+  if (cmd === 'audit' || cmd === 'analiz' || cmd === 'auditor' || cmd === 'site analiz' || cmd === 'seo') { doAudit(); return; }
+  if (cmd === 'çalıştır' || cmd === 'run') { doScout(); return; }
   if (cmd === 'clear' || cmd === 'temizle') { log.innerHTML = ''; lineDelay=0; start(); return; }
   if (cmd === 'reset' || cmd === 'sıfırla') { fullReset(); return; }
   if (cmd === 'leadler' || cmd === 'leads' || cmd === 'liste' || cmd === 'tablo') { showLeadTable(); return; }
+  if (cmd === 'pipeline' || cmd === 'süreç' || cmd === 'kanban') { showPipeline(); return; }
+  if (cmd === 'gelir' || cmd === 'revenue' || cmd === 'deals' || cmd === 'anlaşmalar') { showRevenue(); return; }
+  if (cmd === 'hatırlatıcılar' || cmd === 'reminders') { showReminders(); return; }
   if (cmd === 'yardım' || cmd === 'help' || cmd === 'komutlar') { showHelp(); return; }
+  if (cmd === 'zamanlar' || cmd === 'schedules') { showSchedules(); return; }
+  if (cmd.match(/^not\s+(.+?)\s+(.+)$/)) {
+    const m = cmd.match(/^not\s+(.+?)\s+(.+)$/);
+    doAddNote(m[1], msg.match(/^not\s+\S+\s+(.+)$/i)[1]);
+    return;
+  }
+  if (cmd.match(/^aşama\s+(\S+)\s+(\S+)$/)) {
+    const m = cmd.match(/^aşama\s+(\S+)\s+(\S+)$/);
+    doSetStage(m[1], m[2]);
+    return;
+  }
+  if (cmd.match(/^anlaşma\s+(.+?)\s+(\d+)$/)) {
+    const m = cmd.match(/^anlaşma\s+(.+?)\s+(\d+)$/);
+    doCreateDeal(m[1], parseInt(m[2]));
+    return;
+  }
+  if (cmd.match(/^zamanla\s/)) {
+    const parts = cmd.split(/\s+/);
+    const agent = parts[1] || 'goat';
+    const cron = parts[2] || 'daily';
+    doSchedule(agent, cron);
+    return;
+  }
+  if (cmd === 'site' || cmd === 'site oluştur' || cmd === 'landing page' || cmd === 'website') { showSiteOptions(); return; }
+  if (cmd === 'ajans sitesi' || cmd === 'agency site') { doSiteBuild('agency'); return; }
+  if (cmd === 'müşteri sitesi' || cmd === 'client site') { doSiteBuild('client'); return; }
   if (cmd.match(/teklif|proposal|pitch/)) { doPitch(); return; }
   if (cmd.match(/görsel|reklam|creative|banner|ad oluştur/)) { doCreative(); return; }
   // Outreach intent detection
@@ -1932,12 +2019,14 @@ function drawLockedDesk(cx, cy) {
 
 // ── Office Desk Positions ──
 const DESKS = {
-  goat:     { x: 20, y: 24, label: 'goat' },
-  scout:    { x: 45, y: 24, label: 'scout' },
-  filter:   { x: 70, y: 24, label: 'filter' },
-  mentor:   { x: 95, y: 24, label: 'mentor' },
-  outreach: { x: 120, y: 24, label: 'outreach' },
-  pitch:    { x: 145, y: 24, label: 'pitch' },
+  goat:     { x: 16, y: 24, label: 'goat' },
+  scout:    { x: 38, y: 24, label: 'scout' },
+  filter:   { x: 60, y: 24, label: 'filter' },
+  auditor:  { x: 82, y: 24, label: 'auditor' },
+  mentor:   { x: 104, y: 24, label: 'mentor' },
+  outreach: { x: 126, y: 24, label: 'outreach' },
+  pitch:       { x: 148, y: 24, label: 'pitch' },
+  sitebuilder: { x: 170, y: 24, label: 'site' },
 };
 
 const officeState = {
@@ -1967,7 +2056,7 @@ function renderOffice() {
   Object.entries(DESKS).forEach(([id, d]) => {
     const isActive = officeState.active.has(id);
     const isWorking = officeState.working.has(id);
-    const isLocked = ['outreach', 'pitch'].includes(id) && !isActive;
+    const isLocked = ['auditor', 'outreach', 'pitch', 'sitebuilder'].includes(id) && !isActive;
 
     if (isLocked) {
       drawLockedDesk(d.x, d.y);
@@ -1986,9 +2075,11 @@ function renderOffice() {
         const colors = {
           scout: { body: '#1a2a4a', eye: '#60a5fa' },
           filter: { body: '#3a2a1a', eye: '#fbbf24' },
+          auditor: { body: '#2a2a1a', eye: '#f59e0b' },
           mentor: { body: '#2a1a3a', eye: '#a78bfa' },
           outreach: { body: '#3a1a1a', eye: '#f87171' },
           pitch: { body: '#1a3a2a', eye: '#34d399' },
+          sitebuilder: { body: '#3a2a0a', eye: '#f59e0b' },
         };
         const c = colors[id] || { body: '#2a2a3a', eye: '#8a8a98' };
         drawAgent(d.x, d.y - 2, c.body, c.eye, d.label, isWorking);
@@ -2067,17 +2158,48 @@ function renderLeadTable(leads, isQualified) {
   write(`${leads.length} lead ${isQualified ? '(puanlanmış)' : '(ham)'}:`, 'bright');
   gap();
   if (isQualified) {
-    write('  PUAN  DURUM   İSİM                          EMAİL', 'faint');
-    write('  ' + '─'.repeat(70), 'faint');
-    leads.slice(0, 30).forEach(l => {
-      const score = String(l.score || 0).padStart(4);
-      const q = l.qualification || 'cold';
-      const qual = q.padEnd(6);
-      const name = (l.name || l.title || '—').padEnd(30).substring(0, 30);
-      const email = (l.email || '—').substring(0, 24);
-      const qualColor = q === 'hot' ? 'accent' : q === 'warm' ? 'yellow' : 'blue';
-      write(`  ${score}  ${qual} ${name} ${email}`, qualColor);
+    // Fetch pipeline stages to enrich table
+    fetch('/api/pipeline').then(r=>r.json()).then(function(pData) {
+      var stageMap = {};
+      Object.keys(pData.stages || {}).forEach(function(s) {
+        (pData.stages[s] || []).forEach(function(l) { stageMap[l.slug] = s; });
+      });
+      write('  PUAN  DURUM   AŞAMA     İSİM                       EMAİL', 'faint');
+      write('  ' + '─'.repeat(78), 'faint');
+      leads.slice(0, 30).forEach(function(l) {
+        var score = String(l.score || 0).padStart(4);
+        var q = l.qualification || 'cold';
+        var qual = q.padEnd(6);
+        var lName = l.name || l.title || '—';
+        var slug = lName.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/[\s-]+/g,'-');
+        var stageName = STAGE_TR[stageMap[slug] || 'new'] || 'YENİ';
+        var stageStr = stageName.padEnd(9).substring(0,9);
+        var nameStr = lName.padEnd(28).substring(0, 28);
+        var email = (l.email || '—').substring(0, 20);
+        var qualColor = q === 'hot' ? 'accent' : q === 'warm' ? 'yellow' : 'blue';
+        write('  ' + score + '  ' + qual + ' ' + stageStr + ' ' + nameStr + ' ' + email, qualColor);
+        action('    → ' + lName + ' işlemleri', (function(s, n) { return function() { showLeadActions(s, n); }; })(slug, lName));
+      });
+      if (leads.length > 30) write('  ... ve ' + (leads.length - 30) + ' lead daha', 'faint');
+      gap();
+      action('→ pipeline göster', function() { showPipeline(); });
+      action('→ teklif hazırla', function() { doPitch(); });
+      action('→ email kampanyası oluştur', function() { doOutreach(); });
+    }).catch(function() {
+      // Fallback without stages
+      write('  PUAN  DURUM   İSİM                          EMAİL', 'faint');
+      write('  ' + '─'.repeat(70), 'faint');
+      leads.slice(0, 30).forEach(function(l) {
+        var score = String(l.score || 0).padStart(4);
+        var q = l.qualification || 'cold';
+        var qual = q.padEnd(6);
+        var name = (l.name || l.title || '—').padEnd(30).substring(0, 30);
+        var email = (l.email || '—').substring(0, 24);
+        var qualColor = q === 'hot' ? 'accent' : q === 'warm' ? 'yellow' : 'blue';
+        write('  ' + score + '  ' + qual + ' ' + name + ' ' + email, qualColor);
+      });
     });
+    return; // async path handles the rest
   } else {
     write('  İSİM                              EMAİL                    TELEFON', 'faint');
     write('  ' + '─'.repeat(70), 'faint');
@@ -2090,6 +2212,7 @@ function renderLeadTable(leads, isQualified) {
   }
   if (leads.length > 30) write(`  ... ve ${leads.length - 30} lead daha`, 'faint');
   gap();
+  action('→ pipeline göster', () => showPipeline());
   action('→ teklif hazırla', () => doPitch());
   action('→ email kampanyası oluştur', () => doOutreach());
 }
@@ -2119,9 +2242,10 @@ function doPitch() {
       if (d.result.summary) write(d.result.summary, 'bright');
       if (d.result.metrics) {
         const m = d.result.metrics;
-        if (m.client) write(`  müşteri: ${m.client}`, 'dim indent');
-        if (m.email) write(`  email: ${m.email}`, 'dim indent');
-        if (m.score) write(`  puan: ${m.score}`, 'dim indent');
+        if (m.lead_name) write(`  müşteri: ${m.lead_name}`, 'dim indent');
+        if (m.lead_email) write(`  email: ${m.lead_email}`, 'dim indent');
+        if (m.lead_score) write(`  puan: ${m.lead_score}`, 'dim indent');
+        if (m.pdf_path) write(`  PDF oluşturuldu: ${m.pdf_path}`, 'green indent');
         if (m.cover_image) write(`  kapak görseli oluşturuldu.`, 'green indent');
       }
       if (d.result.proposal) {
@@ -2138,9 +2262,25 @@ function doPitch() {
         });
         write('─── SON ───', 'accent');
       }
+      // Auto-move lead to proposal_sent
+      if (d.result.metrics && d.result.metrics.lead_name) {
+        var pitchSlug = d.result.metrics.lead_name.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/[\s-]+/g,'-');
+        fetch('/api/leads/' + pitchSlug + '/stage', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stage:'proposal_sent'})});
+      }
       gap();
       action('→ email kampanyası oluştur', () => doOutreach());
+      action('→ müşteri sitesi oluştur', () => doSiteBuild('client'));
       action('→ reklam görseli oluştur', () => doCreative());
+      if (d.result.metrics && d.result.metrics.lead_name) {
+        action('→ anlaşma oluştur', () => {
+          lineDelay=0; gap();
+          write('anlaşma değerini yaz (örn: 500):', 'accent');
+          var pName = d.result.metrics.lead_name;
+          var pSlug = pName.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/[\s-]+/g,'-');
+          onboardStep = 'create_deal_' + pSlug + '_' + encodeURIComponent(pName);
+          document.getElementById('input').placeholder = 'değer (USD)...';
+        });
+      }
       checkDone('chkPitch');
     } else {
       write('pitch tamamlandı ama bir sorun oluştu.', 'yellow');
@@ -2152,6 +2292,68 @@ function doPitch() {
     lineDelay = 0;
     gap();
     write(`pitch hatası: ${e.message}`, 'red');
+  });
+}
+
+// ─── Site Builder ───
+function showSiteOptions() {
+  lineDelay = 0;
+  gap();
+  write('ne tür bir site oluşturmak istiyorsun?', 'accent');
+  gap();
+  action('→ ajans sitesi (kendi siten)', () => doSiteBuild('agency'));
+  action('→ müşteri sitesi (lead için)', () => doSiteBuild('client'));
+}
+
+function doSiteBuild(siteType) {
+  sel = 'sitebuilder';
+  lineDelay = 0;
+  gap();
+  if (siteType === 'agency') {
+    write('SiteBuilder aktif. ajans siten oluşturuluyor...', 'accent');
+  } else {
+    write('SiteBuilder aktif. müşteri sitesi oluşturuluyor...', 'accent');
+  }
+  botState('think');
+  botStat.textContent = 'site';
+  officeSetWorking('sitebuilder', true);
+
+  fetch('/api/agent/sitebuilder/run', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({site_type: siteType})
+  }).then(r => r.json()).then(d => {
+    officeSetWorking('sitebuilder', false);
+    botState('success', 2500);
+    agentOn('sitebuilder');
+    lineDelay = 0;
+    gap();
+
+    if (d.status === 'ok' && d.result) {
+      write(d.result.summary || 'Site oluşturuldu.', 'bright');
+      if (d.result.metrics) {
+        const m = d.result.metrics;
+        if (m.site_path) write('  dosya: ' + m.site_path, 'dim indent');
+        if (m.preview_url) write('  önizleme: ' + m.preview_url, 'green indent');
+      }
+      gap();
+      if (d.result.metrics && d.result.metrics.preview_url) {
+        action('→ siteyi tarayıcıda aç', () => { window.open(d.result.metrics.preview_url, '_blank'); });
+      }
+      if (siteType === 'agency') {
+        action('→ müşteri sitesi oluştur', () => doSiteBuild('client'));
+      }
+      checkDone('chkSite');
+    } else {
+      write('site oluşturulamadı.', 'yellow');
+      if (d.error) write('  hata: ' + d.error, 'red indent');
+    }
+  }).catch(e => {
+    officeSetWorking('sitebuilder', false);
+    botState('', 0);
+    lineDelay = 0;
+    gap();
+    write('site hatası: ' + e.message, 'red');
   });
 }
 
@@ -2207,25 +2409,161 @@ function doCreative() {
   });
 }
 
+// ─── Audit ───
+function doAudit() {
+  sel = 'auditor';
+  lineDelay = 0;
+  gap();
+  write('auditor aktif. lead siteleri analiz ediliyor...', 'accent');
+  write('SEO, kırık linkler, teknoloji altyapısı taranıyor.', 'dim');
+  botState('think');
+  botStat.textContent = 'analiz';
+  officeSetWorking('auditor', true);
+
+  fetch('/api/agent/auditor/run', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({})
+  }).then(r => r.json()).then(d => {
+    officeSetWorking('auditor', false);
+    botState('success', 2500);
+    agentOn('auditor');
+    lineDelay = 0;
+    gap();
+
+    if (d.status === 'ok' && d.result) {
+      const m = d.result.metrics || {};
+      write(`${m.total_audited || 0} site analiz edildi.`, 'bright');
+      write(`  ortalama SEO skoru: ${m.avg_seo_score || '?'}/100`, m.avg_seo_score < 60 ? 'accent indent' : 'green indent');
+      write(`  toplam kırık link: ${m.total_broken_links || 0}`, 'yellow indent');
+      write(`  toplam SEO sorunu: ${m.total_seo_issues || 0}`, 'yellow indent');
+      if (m.sites_below_60 > 0) {
+        write(`  ${m.sites_below_60} site 60 altında — bunlar fırsat!`, 'accent indent');
+      }
+
+      // Show top problematic leads
+      if (d.result.leads && d.result.leads.length > 0) {
+        gap();
+        write('━━ EN KÖTÜ SİTELER (en iyi fırsatlar) ━━', 'accent');
+        d.result.leads.slice(0, 5).forEach(l => {
+          const score = l.overall_score || '?';
+          const broken = l.broken_links || 0;
+          const techs = (l.tech_stack || []).join(', ') || '?';
+          const scoreColor = score < 40 ? 'red' : score < 60 ? 'yellow' : 'green';
+          write(`  ${l.lead_name}: skor ${score}/100, ${broken} kırık link`, scoreColor);
+          write(`    teknoloji: ${techs}`, 'faint indent');
+          if (l.critical_issues && l.critical_issues.length > 0) {
+            l.critical_issues.forEach(i => {
+              write(`    ! ${i.issue}`, 'red indent');
+            });
+          }
+        });
+      }
+
+      gap();
+      write('audit verileri teklif\'e otomatik eklenir.', 'dim');
+      gap();
+      action('→ teklif hazırla (audit dahil)', () => doPitch());
+      action('→ email kampanyası oluştur', () => doOutreach());
+      checkDone('chkAudit');
+    } else {
+      write('audit tamamlandı ama sonuç boş.', 'yellow');
+      if (d.error) write(`  hata: ${d.error}`, 'red indent');
+    }
+  }).catch(e => {
+    officeSetWorking('auditor', false);
+    botState('', 0);
+    lineDelay = 0;
+    gap();
+    write(`audit hatası: ${e.message}`, 'red');
+  });
+}
+
+// ─── Schedule ───
+function doSchedule(agentId, cron) {
+  agentId = agentId || 'goat';
+  cron = cron || 'daily';
+  lineDelay = 0;
+  gap();
+  write(`zamanlayıcı: ${agentId} her ${cron === 'daily' ? 'gün' : cron === 'hourly' ? 'saat' : cron === 'weekly' ? 'hafta' : cron} çalışacak.`, 'accent');
+
+  fetch('/api/schedules', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({agent_id: agentId, cron: cron})
+  }).then(r => r.json()).then(d => {
+    lineDelay = 0;
+    gap();
+    if (d.error) {
+      write(`zamanlama hatası: ${d.error}`, 'red');
+    } else {
+      write(`zamanlandı: ${d.name || agentId}`, 'green');
+      write(`  cron: ${d.cron}`, 'dim indent');
+    }
+  }).catch(e => {
+    write(`zamanlama hatası: ${e.message}`, 'red');
+  });
+}
+
+function showSchedules() {
+  lineDelay = 0;
+  gap();
+  write('aktif zamanlamalar yükleniyor...', 'dim');
+
+  fetch('/api/schedules').then(r => r.json()).then(schedules => {
+    lineDelay = 0;
+    gap();
+    if (!schedules || schedules.length === 0) {
+      write('henüz zamanlama yok.', 'yellow');
+      gap();
+      write('örnek: "zamanla scout daily" veya "zamanla goat weekly"', 'dim');
+    } else {
+      write(`${schedules.length} aktif zamanlama:`, 'bright');
+      gap();
+      schedules.forEach(s => {
+        write(`  ${s.agent_id} — ${s.cron_original || s.cron} (${s.name})`, 'accent');
+      });
+    }
+  });
+}
+
 // ─── Help ───
 function showHelp() {
   lineDelay = 0;
   gap();
   write('━━ KOMUTLAR ━━', 'bright');
   gap();
-  write('  ara / scout       müşteri adaylarını bul', 'accent');
-  write('  puanla / filter   leadleri puanla', 'yellow');
-  write('  leadler / tablo   lead tablosu göster', 'blue');
-  write('  email / ulaş      email kampanyası oluştur', 'green');
-  write('  teklif / pitch    müşteriye teklif hazırla', 'green');
-  write('  görsel / reklam   fal.ai ile görsel oluştur', 'dim');
+  write('  ara / scout         müşteri adaylarını bul', 'accent');
+  write('  puanla / filter     leadleri puanla', 'yellow');
+  write('  analiz / audit      lead sitelerini analiz et (SEO, linkler, tech)', 'yellow');
+  write('  leadler / tablo     lead tablosu göster', 'blue');
+  write('  email / ulaş        email kampanyası oluştur', 'green');
+  write('  teklif / pitch      müşteriye teklif hazırla (MD + PDF)', 'green');
+  write('  site / website      landing page oluştur', 'green');
+  write('  ajans sitesi        kendi ajans siten', 'green');
+  write('  müşteri sitesi      müşteri için site', 'green');
+  write('  görsel / reklam     fal.ai ile görsel oluştur', 'dim');
+  gap();
+  write('━━ CRM / PIPELINE ━━', 'bright');
+  write('  pipeline / süreç    lead pipeline göster', 'accent');
+  write('  gelir / revenue     gelir + anlaşmalar', 'green');
+  write('  hatırlatıcılar      yaklaşan hatırlatıcılar', 'yellow');
+  write('  not [lead] [metin]  leade not ekle', 'dim');
+  write('  aşama [lead] [aşama]  lead aşamasını değiştir', 'dim');
+  write('  anlaşma [lead] [değer]  yeni anlaşma oluştur', 'dim');
+  gap();
+  write('━━ OTOMASYON ━━', 'bright');
+  write('  zamanla [ajan] [sıklık]  ajan zamanlama (daily/hourly/weekly)', 'accent');
+  write('  zamanlar                 aktif zamanlamaları göster', 'dim');
+  gap();
+  write('━━ DİĞER ━━', 'bright');
   write('  ayarlar           ajans ayarları', 'dim');
   write('  temizle           ekranı temizle', 'dim');
   write('  sıfırla           her şeyi sıfırla', 'dim');
   write('  yardım            bu listeyi göster', 'dim');
   gap();
   write('━━ KISAYOLLAR ━━', 'bright');
-  write('  1 = scout  2 = filter  3 = outreach  4 = pitch  / = yaz', 'accent');
+  write('  1=scout 2=filter 3=audit 4=outreach 5=pitch 6=pipeline 7=revenue 8=site /=yaz', 'accent');
   gap();
   write('herhangi bir şey yaz — mentor sana cevap verir.', 'dim');
 }
@@ -2247,8 +2585,10 @@ if (CFG.fal_key) checkDone('chkFal');
 // Check agent results from backend
 fetch('/api/agent/scout/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run') checkDone('chkScout'); });
 fetch('/api/agent/filter/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run') checkDone('chkFilter'); });
+fetch('/api/agent/auditor/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run') checkDone('chkAudit'); });
 fetch('/api/agent/outreach/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run' && d.result?.status==='ok') checkDone('chkOutreach'); });
 fetch('/api/agent/pitch/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run') checkDone('chkPitch'); });
+fetch('/api/agent/sitebuilder/result').then(r=>r.json()).then(d=>{ if(d.status!=='not_run') checkDone('chkSite'); });
 
 // Hook into existing functions to update office
 const _origAgentOn = agentOn;
@@ -2257,8 +2597,10 @@ agentOn = function(id) {
   officeAddAgent(id);
   if (id === 'scout') checkDone('chkScout');
   if (id === 'filter') checkDone('chkFilter');
+  if (id === 'auditor') checkDone('chkAudit');
   if (id === 'outreach') checkDone('chkOutreach');
   if (id === 'pitch') checkDone('chkPitch');
+  if (id === 'sitebuilder') checkDone('chkSite');
 };
 
 const _origBotState2 = botState;
@@ -2289,13 +2631,267 @@ document.addEventListener('keydown', e => {
   if (e.key === '/') { e.preventDefault(); document.getElementById('input').focus(); }
   if (e.key === '1') { e.preventDefault(); doScout(); }
   if (e.key === '2') { e.preventDefault(); doFilter(); }
-  if (e.key === '3') { e.preventDefault(); doOutreach(); }
-  if (e.key === '4') { e.preventDefault(); doPitch(); }
+  if (e.key === '3') { e.preventDefault(); doAudit(); }
+  if (e.key === '4') { e.preventDefault(); doOutreach(); }
+  if (e.key === '5') { e.preventDefault(); doPitch(); }
+  if (e.key === '6') { e.preventDefault(); showPipeline(); }
+  if (e.key === '7') { e.preventDefault(); showRevenue(); }
+  if (e.key === '8') { e.preventDefault(); showSiteOptions(); }
   if (e.key === '?') { e.preventDefault(); showHelp(); }
 });
 
+// ═══════════════════════════════════════════
+// PIPELINE CRM
+// ═══════════════════════════════════════════
+const STAGE_TR = {new:'YENİ', contacted:'İLETİŞİM', meeting:'TOPLANTI', proposal_sent:'TEKLİF', closed:'KAPANDI', lost:'KAYBEDİLDİ'};
+
+function showPipeline() {
+  lineDelay = 0;
+  gap();
+  write('pipeline yükleniyor...', 'dim');
+
+  fetch('/api/pipeline').then(r=>r.json()).then(d => {
+    lineDelay = 0;
+    gap();
+    write('━━ PIPELINE ━━', 'bright');
+    gap();
+
+    const stageOrder = ['new','contacted','meeting','proposal_sent','closed','lost'];
+    const stageColors = {new:'dim', contacted:'blue', meeting:'yellow', proposal_sent:'accent', closed:'green', lost:'red'};
+    stageOrder.forEach(s => {
+      const leads = d.stages[s] || [];
+      if (leads.length === 0 && s !== 'new') return;
+      write(`  ${STAGE_TR[s]} (${leads.length})`, stageColors[s] || 'dim');
+      leads.forEach(l => {
+        const name = l.name || l.slug;
+        const scoreText = l.score ? ' — puan: ' + l.score : '';
+        write(`    ${name}${scoreText}`, 'dim indent');
+        action(`    → ${name} işlemleri`, () => showLeadActions(l.slug, name));
+      });
+    });
+
+    // Update pipeline stats panel
+    reveal('secPipelineStats');
+    document.getElementById('sNew').textContent = (d.counts.new || 0);
+    document.getElementById('sContacted').textContent = (d.counts.contacted || 0);
+    document.getElementById('sMeeting').textContent = (d.counts.meeting || 0);
+    document.getElementById('sProposal').textContent = (d.counts.proposal_sent || 0);
+    document.getElementById('sClosed').textContent = (d.counts.closed || 0);
+  }).catch(e => {
+    write('pipeline hatası: ' + e.message, 'red');
+  });
+}
+
+function showLeadActions(slug, name) {
+  lineDelay = 0;
+  gap();
+  write('━━ ' + name + ' ━━', 'bright');
+  gap();
+  action('→ iletişime geç', () => doSetStage(slug, 'contacted'));
+  action('→ toplantıya al', () => doSetStage(slug, 'meeting'));
+  action('→ teklif gönderildi', () => doSetStage(slug, 'proposal_sent'));
+  action('→ kapandı (kazanıldı)', () => doSetStage(slug, 'closed'));
+  action('→ kaybedildi', () => doSetStage(slug, 'lost'));
+  action('→ not ekle', () => {
+    lineDelay = 0; gap();
+    write('notu yaz:', 'accent');
+    onboardStep = 'add_note_' + slug;
+    document.getElementById('input').placeholder = 'not...';
+  });
+  action('→ anlaşma oluştur', () => {
+    lineDelay = 0; gap();
+    write('anlaşma değerini yaz (örn: 500):', 'accent');
+    onboardStep = 'create_deal_' + slug + '_' + encodeURIComponent(name);
+    document.getElementById('input').placeholder = 'değer (USD)...';
+  });
+  action('→ notları göster', () => showLeadNotes(slug, name));
+}
+
+function doSetStage(slug, stage) {
+  fetch('/api/leads/' + slug + '/stage', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({stage: stage})
+  }).then(r=>r.json()).then(d => {
+    lineDelay = 0; gap();
+    write(slug + ' → ' + STAGE_TR[stage], 'green');
+  }).catch(e => {
+    write('hata: ' + e.message, 'red');
+  });
+}
+
+function doAddNote(slug, text) {
+  fetch('/api/leads/' + slug + '/note', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({text: text})
+  }).then(r=>r.json()).then(d => {
+    lineDelay = 0; gap();
+    write('not eklendi: ' + text, 'green');
+  }).catch(e => {
+    write('hata: ' + e.message, 'red');
+  });
+}
+
+function showLeadNotes(slug, name) {
+  fetch('/api/leads/' + slug + '/notes').then(r=>r.json()).then(notes => {
+    lineDelay = 0; gap();
+    if (notes.length === 0) {
+      write(name + ' için henüz not yok.', 'dim');
+    } else {
+      write('━━ ' + name + ' NOTLARI ━━', 'bright');
+      notes.forEach(n => {
+        const date = n.created_at ? n.created_at.substring(0,10) : '';
+        write('  ' + date + ' — ' + n.text, 'dim');
+      });
+    }
+  });
+}
+
+function doCreateDeal(leadName, value) {
+  fetch('/api/deals', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({lead_name: leadName, value: value, currency: 'USD', service: '', status: 'proposal'})
+  }).then(r=>r.json()).then(d => {
+    lineDelay = 0; gap();
+    write('anlaşma oluşturuldu: ' + leadName + ' — $' + value, 'green');
+    refreshRevenueStats();
+  }).catch(e => {
+    write('hata: ' + e.message, 'red');
+  });
+}
+
+// ═══════════════════════════════════════════
+// REVENUE / DEALS
+// ═══════════════════════════════════════════
+
+function showRevenue() {
+  lineDelay = 0;
+  gap();
+  write('gelir verileri yükleniyor...', 'dim');
+
+  Promise.all([
+    fetch('/api/revenue/summary').then(r=>r.json()),
+    fetch('/api/deals').then(r=>r.json())
+  ]).then(function(results) {
+    var summary = results[0];
+    var deals = results[1];
+    lineDelay = 0;
+    gap();
+    write('━━ GELİR ━━', 'bright');
+    gap();
+    write('  toplam kazanılan: $' + (summary.total_won || 0).toLocaleString(), 'green');
+    write('  pipeline değeri:  $' + (summary.total_pipeline || 0).toLocaleString(), 'accent');
+    write('  açık anlaşmalar:  ' + (summary.open_deals || 0), 'dim');
+    write('  kazanma oranı:    ' + (summary.win_rate || 0) + '%', 'dim');
+    gap();
+
+    if (deals && deals.length > 0) {
+      write('  SON ANLAŞMALAR', 'bright');
+      deals.slice(-10).reverse().forEach(function(deal) {
+        var icon = deal.status === 'won' ? '✓' : deal.status === 'lost' ? '✗' : '○';
+        var color = deal.status === 'won' ? 'green' : deal.status === 'lost' ? 'red' : 'dim';
+        write('    ' + icon + ' ' + deal.lead_name + ' — $' + deal.value + '/ay (' + deal.status + ')', color);
+      });
+    } else {
+      write('  henüz anlaşma yok.', 'dim');
+      gap();
+      write('  "anlaşma [lead adı] [değer]" ile oluştur.', 'faint');
+    }
+
+    // Update stats panel
+    reveal('secRevenue');
+    document.getElementById('sRevenue').textContent = '$' + (summary.total_won || 0).toLocaleString();
+    document.getElementById('sPipeValue').textContent = '$' + (summary.total_pipeline || 0).toLocaleString();
+    document.getElementById('sWinRate').textContent = (summary.win_rate || 0) + '%';
+    var maxRev = Math.max(summary.total_won + summary.total_pipeline, 1);
+    document.getElementById('barRevenue').style.width = Math.min(100, summary.total_won / maxRev * 100) + '%';
+  }).catch(function(e) {
+    write('gelir hatası: ' + e.message, 'red');
+  });
+}
+
+function refreshRevenueStats() {
+  fetch('/api/revenue/summary').then(r=>r.json()).then(function(s) {
+    reveal('secRevenue');
+    document.getElementById('sRevenue').textContent = '$' + (s.total_won || 0).toLocaleString();
+    document.getElementById('sPipeValue').textContent = '$' + (s.total_pipeline || 0).toLocaleString();
+    document.getElementById('sWinRate').textContent = (s.win_rate || 0) + '%';
+  });
+}
+
+// ═══════════════════════════════════════════
+// REMINDERS
+// ═══════════════════════════════════════════
+
+function showReminders() {
+  lineDelay = 0;
+  gap();
+  fetch('/api/reminders').then(r=>r.json()).then(function(reminders) {
+    lineDelay = 0;
+    gap();
+    write('━━ HATIRLATICILAR ━━', 'bright');
+    gap();
+    if (!reminders || reminders.length === 0) {
+      write('  hatırlatıcı yok.', 'dim');
+      return;
+    }
+    var today = new Date().toISOString().substring(0, 10);
+    reminders.forEach(function(r) {
+      var due = r.due_date || '';
+      var diffDays = Math.ceil((new Date(due) - new Date(today)) / 86400000);
+      var prefix, color;
+      if (diffDays <= 0) {
+        prefix = '! BUGÜN:';
+        color = 'accent';
+      } else if (diffDays === 1) {
+        prefix = '○ yarın:';
+        color = 'yellow';
+      } else {
+        prefix = '○ ' + diffDays + ' gün:';
+        color = 'dim';
+      }
+      write('  ' + prefix + ' ' + (r.lead_name || r.lead_id) + ' — ' + r.text, color);
+    });
+  });
+}
+
+function checkRemindersOnStartup() {
+  fetch('/api/reminders').then(r=>r.json()).then(function(reminders) {
+    if (!reminders || reminders.length === 0) return;
+    var today = new Date().toISOString().substring(0, 10);
+    var due = reminders.filter(function(r) {
+      return r.due_date && r.due_date <= today;
+    });
+    if (due.length > 0) {
+      lineDelay = 0;
+      gap();
+      due.forEach(function(r) {
+        write('! hatırlatıcı: ' + (r.lead_name || r.lead_id) + ' — ' + r.text + ' (bugün!)', 'yellow');
+      });
+    }
+  }).catch(function() {});
+}
+
 // ─── LAUNCH ───
-runBootSequence();
+try {
+  runBootSequence();
+} catch(e) {
+  console.error('Boot error:', e);
+  // Force show the main world if boot fails
+  document.getElementById('bootOverlay').style.display = 'none';
+  document.getElementById('mainWorld').style.opacity = '1';
+  start();
+}
+// Safety: if boot takes too long, force show
+setTimeout(function() {
+  var overlay = document.getElementById('bootOverlay');
+  if (overlay && !overlay.classList.contains('hidden')) {
+    overlay.classList.add('hidden');
+    document.getElementById('mainWorld').style.opacity = '1';
+  }
+}, 15000);
 </script>
 </body>
 </html>

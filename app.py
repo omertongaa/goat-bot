@@ -3,10 +3,13 @@
 import importlib
 import json
 import os
+import re
 import subprocess
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -30,12 +33,16 @@ AGENT_MODULES = {
     "goat": "agents.goat.agent:GoatAgent",
     "scout": "agents.scout.agent:ScoutAgent",
     "filter": "agents.filter.agent:FilterAgent",
+    "auditor": "agents.auditor.agent:AuditorAgent",
     "outreach": "agents.outreach.agent:OutreachAgent",
     "pitch": "agents.pitch.agent:PitchAgent",
     "mentor": "agents.mentor.agent:MentorAgent",
+    "sitebuilder": "agents.sitebuilder.agent:SiteBuilderAgent",
 }
 
 AGENT_RESULTS = {}
+CHAT_HISTORIES = {}  # {agent_id: [{"role": "user"|"assistant", "content": str}, ...]}
+MAX_HISTORY = 20  # keep last 20 messages per agent
 
 
 def get_agent_instance(agent_id: str):
@@ -123,6 +130,16 @@ async def run_agent(agent_id: str, request: Request):
                 query=params.get("query", ""),
                 location=params.get("location", ""),
                 limit=params.get("limit", 50),
+            )
+        elif agent_id == "auditor" and params:
+            result = agent.run(
+                url=params.get("url", ""),
+                max_leads=params.get("max_leads", 10),
+            )
+        elif agent_id == "sitebuilder" and params:
+            result = agent.run(
+                site_type=params.get("site_type", "agency"),
+                lead_index=params.get("lead_index", 0),
             )
         else:
             result = agent.run()
@@ -229,9 +246,25 @@ async def chat_with_agent(request: Request):
         available_results = "\n".join([f"- {k}: {v['result'].get('summary', 'done')}" for k, v in list(AGENT_RESULTS.items())[:10]])
         goat_extra = f"\n\nYou are the master orchestrator. Agents:\n{agent_list}\n\nResults:\n{available_results or 'No agents run yet.'}"
 
+    # Build conversation history
+    if agent_id not in CHAT_HISTORIES:
+        CHAT_HISTORIES[agent_id] = []
+    history = CHAT_HISTORIES[agent_id]
+
+    # Add current message to history
+    history.append({"role": "user", "content": message})
+
+    # Format history for prompt
+    history_text = ""
+    if len(history) > 1:
+        past = history[:-1][-MAX_HISTORY:]
+        history_text = "\n\nConversation history:\n" + "\n".join(
+            f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in past
+        )
+
     prompt = f"""You are {agent_info.get('name', agent_id)}, an AI agent for goat (agency-in-a-box platform).
 Your role: {agent_info.get('role', '')}
-{agency_info}{goat_extra}{agent_data}
+{agency_info}{goat_extra}{agent_data}{history_text}
 
 Be concise, actionable, specific. Answer in the same language as the user's message.
 
@@ -244,20 +277,22 @@ User: {message}"""
             cwd=str(BASE_DIR),
         )
         response = result.stdout.strip() if result.stdout else f"[{agent_info.get('name', agent_id)}] Run the agent first to populate data."
-        return JSONResponse({"response": response, "agent": agent_id})
     except (FileNotFoundError, subprocess.TimeoutExpired):
         # No Claude CLI — return contextual fallback
         if agent_id in AGENT_RESULTS:
             r = AGENT_RESULTS[agent_id]["result"]
-            return JSONResponse({
-                "response": f"**{agent_info.get('name', agent_id)}** — {r.get('summary', 'Ready.')}\n\n"
-                            + "\n".join(f"- {rec}" for rec in r.get("recommendations", [])),
-                "agent": agent_id,
-            })
-        return JSONResponse({
-            "response": f"**{agent_info.get('name', agent_id)}** ready. Hit RUN first to generate data.",
-            "agent": agent_id,
-        })
+            response = (f"**{agent_info.get('name', agent_id)}** — {r.get('summary', 'Ready.')}\n\n"
+                        + "\n".join(f"- {rec}" for rec in r.get("recommendations", [])))
+        else:
+            response = f"**{agent_info.get('name', agent_id)}** ready. Hit RUN first to generate data."
+
+    # Save assistant response to history
+    history.append({"role": "assistant", "content": response})
+    # Trim history
+    if len(history) > MAX_HISTORY * 2:
+        CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
+
+    return JSONResponse({"response": response, "agent": agent_id})
 
 
 # --- Config ---
@@ -323,6 +358,413 @@ async def reset_all():
         reports.mkdir(parents=True, exist_ok=True)
 
     return JSONResponse({"status": "reset"})
+
+
+# --- Site Audit ---
+
+@app.post("/api/audit")
+async def audit_site(request: Request):
+    """Run SEO, broken link, and tech stack audit on a URL."""
+    body = await request.json()
+    url = body.get("url", "")
+    if not url:
+        return JSONResponse({"error": "URL required"}, status_code=400)
+
+    from services.site_auditor import full_audit
+    report = full_audit(url)
+    return JSONResponse({"status": "ok", "report": report})
+
+
+@app.get("/api/audit/lead/{lead_name}")
+async def audit_lead(lead_name: str):
+    """Audit a specific lead's website by lead name."""
+    from services.site_auditor import full_audit
+    # Find the lead
+    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    if not qual_dir.exists():
+        return JSONResponse({"error": "No qualified leads"}, status_code=404)
+    files = sorted(qual_dir.glob("*.json"), reverse=True)
+    if not files:
+        return JSONResponse({"error": "No qualified leads"}, status_code=404)
+    with open(files[0]) as f:
+        data = json.load(f)
+    for entry in data.get("leads", []):
+        lead = entry.get("lead", {})
+        if lead.get("name", "").lower() == lead_name.lower() and lead.get("website"):
+            report = full_audit(lead["website"])
+            return JSONResponse({"status": "ok", "lead": lead["name"], "report": report})
+    return JSONResponse({"error": "Lead not found or has no website"}, status_code=404)
+
+
+# --- PDF Proposals ---
+
+@app.post("/api/proposal/pdf")
+async def generate_proposal_pdf(request: Request):
+    """Convert a markdown proposal to PDF."""
+    body = await request.json()
+    md_path = body.get("path", "")
+    md_text = body.get("markdown", "")
+
+    from services.pdf_generator import markdown_to_pdf, proposal_file_to_pdf
+
+    if md_path:
+        pdf_path = proposal_file_to_pdf(md_path)
+    elif md_text:
+        pdf_path = markdown_to_pdf(md_text)
+    else:
+        return JSONResponse({"error": "Provide 'path' or 'markdown'"}, status_code=400)
+
+    if pdf_path:
+        return JSONResponse({"status": "ok", "pdf_path": pdf_path})
+    return JSONResponse({"status": "error", "message": "PDF generation failed"}, status_code=500)
+
+
+@app.post("/api/proposals/pdf/all")
+async def convert_all_proposals_to_pdf():
+    """Convert all existing markdown proposals to PDF."""
+    from services.pdf_generator import convert_all_proposals
+    paths = convert_all_proposals()
+    return JSONResponse({"status": "ok", "converted": len(paths), "paths": paths})
+
+
+# --- Google Search (Free Lead Discovery) ---
+
+@app.post("/api/search/google")
+async def google_search_leads(request: Request):
+    """Search Google for businesses (no API key needed)."""
+    body = await request.json()
+    query = body.get("query", "")
+    location = body.get("location", "")
+    limit = body.get("limit", 15)
+
+    if not query:
+        return JSONResponse({"error": "Query required"}, status_code=400)
+
+    from services.google_search import search_and_enrich
+    leads = search_and_enrich(query, location, limit)
+    return JSONResponse({"status": "ok", "count": len(leads), "leads": leads})
+
+
+# --- Scheduler ---
+
+@app.get("/api/schedules")
+async def get_schedules():
+    """List all scheduled agent runs."""
+    from services.scheduler import list_schedules
+    return JSONResponse(list_schedules())
+
+
+@app.post("/api/schedules")
+async def create_schedule(request: Request):
+    """Create a scheduled agent run."""
+    body = await request.json()
+    agent_id = body.get("agent_id", "")
+    cron = body.get("cron", "daily")
+    params = body.get("params", {})
+    name = body.get("name", "")
+
+    if not agent_id:
+        return JSONResponse({"error": "agent_id required"}, status_code=400)
+
+    from services.scheduler import add_schedule
+    result = add_schedule(agent_id, cron, params, name)
+    return JSONResponse(result)
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: str):
+    """Remove a scheduled agent run."""
+    from services.scheduler import remove_schedule
+    remove_schedule(schedule_id)
+    return JSONResponse({"status": "removed"})
+
+
+@app.get("/api/schedules/logs")
+async def get_schedule_logs():
+    """Get recent scheduled run logs."""
+    from services.scheduler import get_scheduled_run_logs
+    return JSONResponse(get_scheduled_run_logs())
+
+
+# --- Startup: start scheduler ---
+
+@app.on_event("startup")
+async def startup_event():
+    from services.scheduler import start_scheduler
+    start_scheduler()
+
+
+# ═══════════════════════════════════════════
+# PIPELINE / CRM
+# ═══════════════════════════════════════════
+
+PIPELINE_DIR = BASE_DIR / "data" / "pipeline"
+VALID_STAGES = ["new", "contacted", "meeting", "proposal_sent", "closed", "lost"]
+
+
+def slugify(name):
+    s = name.lower().strip()
+    s = re.sub(r'[^a-z0-9\s-]', '', s)
+    s = re.sub(r'[\s-]+', '-', s)
+    return s
+
+
+def _load_json(path, default=None):
+    if default is None:
+        default = {}
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return default
+
+
+def _save_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+@app.post("/api/leads/{lead_id}/stage")
+async def set_lead_stage(lead_id: str, request: Request):
+    body = await request.json()
+    stage = body.get("stage", "")
+    if stage not in VALID_STAGES:
+        return JSONResponse({"error": "Invalid stage. Valid: " + ", ".join(VALID_STAGES)}, status_code=400)
+    path = PIPELINE_DIR / "stages.json"
+    stages = _load_json(path)
+    stages[lead_id] = {"stage": stage, "updated_at": datetime.now().isoformat()}
+    _save_json(path, stages)
+    return JSONResponse({"status": "ok", "lead_id": lead_id, "stage": stage})
+
+
+@app.post("/api/leads/{lead_id}/note")
+async def add_lead_note(lead_id: str, request: Request):
+    body = await request.json()
+    text = body.get("text", "")
+    if not text:
+        return JSONResponse({"error": "text required"}, status_code=400)
+    path = PIPELINE_DIR / "notes.json"
+    notes = _load_json(path)
+    if lead_id not in notes:
+        notes[lead_id] = []
+    note = {"text": text, "created_at": datetime.now().isoformat(), "id": "note_" + uuid.uuid4().hex[:8]}
+    notes[lead_id].append(note)
+    _save_json(path, notes)
+    return JSONResponse({"status": "ok", "note": note})
+
+
+@app.get("/api/leads/{lead_id}/notes")
+async def get_lead_notes(lead_id: str):
+    path = PIPELINE_DIR / "notes.json"
+    notes = _load_json(path)
+    return JSONResponse(notes.get(lead_id, []))
+
+
+@app.get("/api/pipeline")
+async def get_pipeline():
+    stages_path = PIPELINE_DIR / "stages.json"
+    stages = _load_json(stages_path)
+
+    # Get qualified leads for enrichment
+    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    leads_by_name = {}
+    if qual_dir.exists():
+        files = sorted(qual_dir.glob("*.json"), reverse=True)
+        if files:
+            with open(files[0]) as f:
+                data = json.load(f)
+            for entry in data.get("leads", []):
+                lead = entry if "name" in entry else entry.get("lead", entry)
+                name = lead.get("name", lead.get("title", ""))
+                slug = slugify(name)
+                leads_by_name[slug] = {
+                    "name": name,
+                    "score": entry.get("score", lead.get("score", 0)),
+                    "qualification": entry.get("qualification", lead.get("qualification", "")),
+                    "email": lead.get("email", ""),
+                    "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""),
+                }
+                # Auto-create stage entry for leads not yet in pipeline
+                if slug not in stages:
+                    stages[slug] = {"stage": "new", "updated_at": datetime.now().isoformat()}
+
+    # Save auto-created entries
+    _save_json(stages_path, stages)
+
+    # Group by stage
+    grouped = {s: [] for s in VALID_STAGES}
+    for slug, info in stages.items():
+        stage = info.get("stage", "new")
+        lead_info = leads_by_name.get(slug, {"name": slug})
+        lead_info["slug"] = slug
+        lead_info["updated_at"] = info.get("updated_at", "")
+        grouped[stage].append(lead_info)
+
+    counts = {s: len(v) for s, v in grouped.items()}
+    return JSONResponse({"stages": grouped, "counts": counts})
+
+
+@app.post("/api/leads/{lead_id}/reminder")
+async def add_reminder(lead_id: str, request: Request):
+    body = await request.json()
+    text = body.get("text", "")
+    due_date = body.get("due_date", "")
+    if not text or not due_date:
+        return JSONResponse({"error": "text and due_date required"}, status_code=400)
+
+    path = PIPELINE_DIR / "reminders.json"
+    reminders = _load_json(path, [])
+    reminder = {
+        "lead_id": lead_id,
+        "lead_name": body.get("lead_name", lead_id),
+        "text": text,
+        "due_date": due_date,
+        "done": False,
+        "created_at": datetime.now().isoformat(),
+    }
+    reminders.append(reminder)
+    _save_json(path, reminders)
+    return JSONResponse({"status": "ok", "reminder": reminder})
+
+
+@app.get("/api/reminders")
+async def get_reminders():
+    path = PIPELINE_DIR / "reminders.json"
+    reminders = _load_json(path, [])
+    # Sort by due_date, filter out done
+    active = [r for r in reminders if not r.get("done", False)]
+    active.sort(key=lambda r: r.get("due_date", ""))
+    return JSONResponse(active)
+
+
+# ═══════════════════════════════════════════
+# DEALS / REVENUE
+# ═══════════════════════════════════════════
+
+VALID_DEAL_STATUS = ["proposal", "negotiation", "won", "lost"]
+
+
+@app.post("/api/deals")
+async def create_deal(request: Request):
+    body = await request.json()
+    lead_name = body.get("lead_name", "")
+    if not lead_name:
+        return JSONResponse({"error": "lead_name required"}, status_code=400)
+    deal = {
+        "id": "deal_" + uuid.uuid4().hex[:8],
+        "lead_name": lead_name,
+        "value": body.get("value", 0),
+        "currency": body.get("currency", "USD"),
+        "service": body.get("service", ""),
+        "status": body.get("status", "proposal"),
+        "created_at": datetime.now().isoformat(),
+        "closed_at": None,
+        "notes": body.get("notes", ""),
+    }
+    path = PIPELINE_DIR / "deals.json"
+    deals = _load_json(path, [])
+    deals.append(deal)
+    _save_json(path, deals)
+    return JSONResponse({"status": "ok", "deal": deal})
+
+
+@app.get("/api/deals")
+async def get_deals():
+    path = PIPELINE_DIR / "deals.json"
+    deals = _load_json(path, [])
+    return JSONResponse(deals)
+
+
+@app.put("/api/deals/{deal_id}")
+async def update_deal(deal_id: str, request: Request):
+    body = await request.json()
+    path = PIPELINE_DIR / "deals.json"
+    deals = _load_json(path, [])
+    for deal in deals:
+        if deal["id"] == deal_id:
+            for k in ["value", "currency", "service", "status", "notes", "lead_name"]:
+                if k in body:
+                    deal[k] = body[k]
+            if body.get("status") in ("won", "lost") and not deal.get("closed_at"):
+                deal["closed_at"] = datetime.now().isoformat()
+            _save_json(path, deals)
+            return JSONResponse({"status": "ok", "deal": deal})
+    return JSONResponse({"error": "Deal not found"}, status_code=404)
+
+
+@app.delete("/api/deals/{deal_id}")
+async def delete_deal(deal_id: str):
+    path = PIPELINE_DIR / "deals.json"
+    deals = _load_json(path, [])
+    deals = [d for d in deals if d["id"] != deal_id]
+    _save_json(path, deals)
+    return JSONResponse({"status": "ok"})
+
+
+@app.get("/api/revenue/summary")
+async def revenue_summary():
+    path = PIPELINE_DIR / "deals.json"
+    deals = _load_json(path, [])
+    total_won = sum(d.get("value", 0) for d in deals if d.get("status") == "won")
+    total_pipeline = sum(d.get("value", 0) for d in deals if d.get("status") in ("proposal", "negotiation"))
+    total_closed = len([d for d in deals if d.get("status") in ("won", "lost")])
+    total_won_count = len([d for d in deals if d.get("status") == "won"])
+    win_rate = round(total_won_count / total_closed * 100) if total_closed > 0 else 0
+    open_deals = len([d for d in deals if d.get("status") in ("proposal", "negotiation")])
+
+    # Monthly breakdown
+    monthly = {}
+    for d in deals:
+        if d.get("status") == "won" and d.get("closed_at"):
+            month = d["closed_at"][:7]
+            monthly[month] = monthly.get(month, 0) + d.get("value", 0)
+
+    return JSONResponse({
+        "total_won": total_won,
+        "total_pipeline": total_pipeline,
+        "win_rate": win_rate,
+        "open_deals": open_deals,
+        "total_deals": len(deals),
+        "monthly": monthly,
+        "currency": "USD",
+    })
+
+
+# ═══════════════════════════════════════════
+# GENERATED SITES
+# ═══════════════════════════════════════════
+
+@app.get("/api/sites")
+async def list_sites():
+    """List all generated site HTML files."""
+    sites_dir = BASE_DIR / "outputs" / "sites"
+    if not sites_dir.exists():
+        return JSONResponse([])
+    files = sorted(sites_dir.glob("*.html"), reverse=True)
+    result = []
+    for f in files:
+        result.append({
+            "filename": f.name,
+            "preview_url": "/site/" + f.name,
+            "size": f.stat().st_size,
+            "created": datetime.fromtimestamp(f.stat().st_ctime).isoformat(),
+        })
+    return JSONResponse(result)
+
+
+@app.get("/site/{filename}")
+async def serve_site(filename: str):
+    """Serve a generated site HTML file for preview."""
+    # Sanitize filename
+    if ".." in filename or "/" in filename:
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+    filepath = BASE_DIR / "outputs" / "sites" / filename
+    if not filepath.exists() or not filepath.suffix == ".html":
+        return HTMLResponse("<h1>Site not found</h1>", status_code=404)
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content)
 
 
 if __name__ == "__main__":

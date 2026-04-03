@@ -13,7 +13,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -325,8 +325,8 @@ Current config:
     history_text = ""
     if len(history) > 1:
         past = history[:-1][-MAX_HISTORY:]
-        history_text = "\n\nConversation history:\n" + "\n".join(
-            f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}" for m in past
+        history_text = "\n\nIMPORTANT — Full conversation so far (you MUST use this context to understand what the user is referring to):\n" + "\n".join(
+            f"{'User' if m['role'] == 'user' else 'You'}: {m['content']}" for m in past
         )
 
     available_actions = """
@@ -376,6 +376,7 @@ Rules:
 - If info is missing for an action, ask for it naturally — don't block completely.
 - When all config fields are set, stop asking setup questions and suggest next steps.
 - Keep the vibe: dark room, hacker terminal, but friendly and smart.
+- CRITICAL: Always read the conversation history carefully. When the user says short things like "benim için", "evet", "olsun", "yap" — they are continuing the previous topic. Never say you don't understand if context is in the history.
 
 User: {message}"""
 
@@ -419,6 +420,239 @@ User: {message}"""
         CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
 
     return JSONResponse({"response": response, "agent": agent_id, "actions": actions})
+
+
+def _build_chat_prompt(message: str, agent_id: str):
+    """Build the prompt used by both /api/chat and /api/chat/stream."""
+    config = load_config()
+
+    config_summary = ""
+    if config:
+        config_summary = f"""
+Current config:
+- Agency: {config.get('agency_name', 'not set')}
+- Owner: {config.get('owner_name', 'not set')}
+- Niche: {config.get('niche', 'not set')}
+- Cities: {', '.join(config.get('target_cities', [])) or 'not set'}
+- Apify token: {'set' if config.get('apify_token') else 'not set'}
+- fal.ai key: {'set' if config.get('fal_key') else 'not set'}
+- Instantly key: {'set' if config.get('instantly_api_key') else 'not set'}"""
+
+    results_summary = ""
+    if AGENT_RESULTS:
+        results_summary = "\nCompleted agent runs:"
+        for k, v in list(AGENT_RESULTS.items())[:10]:
+            results_summary += f"\n- {k}: {v['result'].get('summary', 'done')}"
+
+    stats = load_pipeline_stats()
+    stats_summary = f"\nPipeline: {stats['leads_found']} leads found, {stats['leads_qualified']} qualified, {stats['hot']} hot, {stats['warm']} warm"
+
+    if agent_id not in CHAT_HISTORIES:
+        CHAT_HISTORIES[agent_id] = []
+    history = CHAT_HISTORIES[agent_id]
+    history.append({"role": "user", "content": message})
+
+    history_text = ""
+    if len(history) > 1:
+        past = history[:-1][-MAX_HISTORY:]
+        history_text = "\n\nIMPORTANT — Full conversation so far (you MUST use this context to understand what the user is referring to):\n" + "\n".join(
+            f"{'User' if m['role'] == 'user' else 'You'}: {m['content']}" for m in past
+        )
+
+    available_actions = """
+Available actions you can suggest (include as JSON at the END of your response, after <<<ACTIONS>>> marker):
+- {"action": "scout", "params": {"query": "...", "location": "..."}} — search for leads
+- {"action": "filter"} — score/qualify found leads
+- {"action": "audit", "params": {"url": "..."}} — audit a website
+- {"action": "pitch"} — generate proposals for hot leads
+- {"action": "outreach"} — create email campaigns
+- {"action": "site_agency"} — build agency landing page
+- {"action": "site_client", "params": {"manual_data": {"name": "...", "category": "...", "phone": "...", "email": "...", "address": "..."}}} — build client site
+- {"action": "save_config", "params": {"field": "value", ...}} — save config fields
+- {"action": "add_lead", "params": {"name": "...", "category": "...", "phone": "...", "email": "...", "website": "...", "address": "..."}} — add manual lead
+- {"action": "show_pipeline"} — show CRM pipeline
+- {"action": "show_leads"} — show lead list
+- {"action": "show_revenue"} — show revenue dashboard
+
+CRITICAL: When the user asks you to DO something (add lead, build site, find leads, show pipeline, etc.), you MUST include the action JSON.
+Format: Write your conversational response first, then on a NEW LINE write exactly:
+<<<ACTIONS>>>[{"action": "...", "params": {...}}]
+
+Examples:
+- User: "Burhan'ı CRM'e ekle" → "Burhan'ı ekliyorum.\n<<<ACTIONS>>>[{\\"action\\": \\"add_lead\\", \\"params\\": {\\"name\\": \\"Burhan\\"}}]"
+- User: "müşteri bul İstanbul'da restoran" → "bakıyorum.\n<<<ACTIONS>>>[{\\"action\\": \\"scout\\", \\"params\\": {\\"query\\": \\"restoran\\", \\"location\\": \\"İstanbul\\"}}]"
+- User: "pipeline'ı göster" → "açıyorum.\n<<<ACTIONS>>>[{\\"action\\": \\"show_pipeline\\"}]"
+- User: "Esad" (during onboarding) → "merhaba Esad!\n<<<ACTIONS>>>[{\\"action\\": \\"save_config\\", \\"params\\": {\\"owner_name\\": \\"Esad\\"}}]"
+
+If no action needed (just chatting), do NOT include <<<ACTIONS>>>."""
+
+    prompt = f"""You are GOAT, the AI command center for an agency-in-a-box platform. You help the user run their automation agency through a terminal-style interface.
+{config_summary}{stats_summary}{results_summary}{history_text}
+
+{available_actions}
+
+Rules:
+- Be concise, conversational, Turkish. Talk like a smart co-founder, not a bot.
+- Short sentences, 1-3 lines max. No markdown headers. No bullet points unless listing data.
+- ONBOARDING: If config fields are missing (owner_name, agency_name, niche, target_cities), guide the user through setup naturally. Ask ONE thing at a time. When the user gives you info, save it immediately via save_config action. Example flow:
+  - User: "merhaba" → "selam! ben GOAT. adın ne?" (ask name)
+  - User: "Esad" → save owner_name, then "merhaba Esad. ajansının adı ne olsun?" (ask agency name)
+  - User: "sen seç" → pick a cool name for them, save it, move on to niche
+  - User: "bilmiyorum" → suggest options, let them pick or pick for them
+  - User: "bana site yap" during setup → acknowledge ("tamam yaparız"), but first finish setup, ask missing fields
+- If the user says "sen seç", "bilmiyorum", "anlamadın" etc., UNDERSTAND the intent. Don't repeat the same question robotically. Adapt.
+- When the user provides info during chat, ALWAYS extract and save via save_config action. For cities, parse comma-separated into a list.
+- If the user asks to do something (build site, find leads, etc.), acknowledge and suggest the action.
+- If info is missing for an action, ask for it naturally — don't block completely.
+- When all config fields are set, stop asking setup questions and suggest next steps.
+- Keep the vibe: dark room, hacker terminal, but friendly and smart.
+- CRITICAL: Always read the conversation history carefully. When the user says short things like "benim için", "evet", "olsun", "yap" — they are continuing the previous topic. Never say you don't understand if context is in the history.
+
+User: {message}"""
+
+    return prompt, config, stats
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: Request):
+    """Streaming chat — sends SSE events as Claude generates text."""
+    body = await request.json()
+    message = body.get("message", "")
+    agent_id = body.get("agent_id", "goat")
+
+    # Mentor has its own answer method — no streaming
+    if agent_id == "mentor":
+        try:
+            agent = get_agent_instance("mentor")
+            response = agent.answer(message)
+            async def mentor_gen():
+                yield f"data: {json.dumps({'text': response})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'actions': []})}\n\n"
+            return StreamingResponse(mentor_gen(), media_type="text/event-stream")
+        except Exception as e:
+            async def err_gen():
+                yield f"data: {json.dumps({'text': f'Mentor error: {e}'})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'actions': []})}\n\n"
+            return StreamingResponse(err_gen(), media_type="text/event-stream")
+
+    prompt, config, stats = _build_chat_prompt(message, agent_id)
+
+    async def stream_generator():
+        import asyncio
+        full_response = ""
+        try:
+            proc = subprocess.Popen(
+                ["claude", "-p", prompt, "--output-format", "text"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=str(BASE_DIR),
+            )
+
+            buffer = ""
+            while True:
+                chunk = proc.stdout.read(20)  # read small chunks
+                if not chunk:
+                    break
+                buffer += chunk
+                full_response += chunk
+
+                # Don't stream the <<<ACTIONS>>> part
+                if "<<<ACTIONS>>>" in buffer:
+                    visible = buffer.split("<<<ACTIONS>>>")[0]
+                    if visible:
+                        yield f"data: {json.dumps({'text': visible})}\n\n"
+                    buffer = ""
+                    # Read the rest silently
+                    rest = proc.stdout.read()
+                    if rest:
+                        full_response += rest
+                    break
+                else:
+                    yield f"data: {json.dumps({'text': buffer})}\n\n"
+                    buffer = ""
+
+                await asyncio.sleep(0)
+
+            # If there's remaining buffer (no ACTIONS marker hit)
+            if buffer:
+                yield f"data: {json.dumps({'text': buffer})}\n\n"
+
+            proc.wait(timeout=5)
+
+            # Parse actions
+            actions = []
+            if "<<<ACTIONS>>>" in full_response:
+                parts = full_response.split("<<<ACTIONS>>>", 1)
+                response_text = parts[0].strip()
+                try:
+                    actions = json.loads(parts[1].strip())
+                    if not isinstance(actions, list):
+                        actions = [actions]
+                except (json.JSONDecodeError, IndexError):
+                    actions = []
+            else:
+                response_text = full_response.strip()
+
+            # Execute save_config actions immediately
+            for act in actions:
+                if act.get("action") == "save_config" and act.get("params"):
+                    cfg = load_config()
+                    cfg.update(act["params"])
+                    config_dir = BASE_DIR / "data" / "config"
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                    with open(config_dir / "user_profile.json", "w") as f_cfg:
+                        json.dump(cfg, f_cfg, indent=2, ensure_ascii=False)
+
+            # Save to history
+            history = CHAT_HISTORIES.get(agent_id, [])
+            history.append({"role": "assistant", "content": response_text})
+            if len(history) > MAX_HISTORY * 2:
+                CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
+
+            yield f"data: {json.dumps({'done': True, 'actions': actions})}\n\n"
+
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+            # Fallback
+            response, actions = _smart_fallback(message, config, stats)
+            yield f"data: {json.dumps({'text': response})}\n\n"
+
+            # Execute save_config actions
+            for act in actions:
+                if act.get("action") == "save_config" and act.get("params"):
+                    cfg = load_config()
+                    cfg.update(act["params"])
+                    config_dir = BASE_DIR / "data" / "config"
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                    with open(config_dir / "user_profile.json", "w") as f_cfg:
+                        json.dump(cfg, f_cfg, indent=2, ensure_ascii=False)
+
+            history = CHAT_HISTORIES.get(agent_id, [])
+            history.append({"role": "assistant", "content": response})
+            if len(history) > MAX_HISTORY * 2:
+                CHAT_HISTORIES[agent_id] = history[-MAX_HISTORY * 2:]
+
+            yield f"data: {json.dumps({'done': True, 'actions': actions})}\n\n"
+
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+
+# --- Activity Timeline ---
+
+@app.get("/api/activity")
+async def get_activity():
+    """Return last 20 agent runs sorted by timestamp desc."""
+    entries = []
+    for agent_id, data in AGENT_RESULTS.items():
+        result = data.get("result", {})
+        entries.append({
+            "agent_id": agent_id,
+            "status": data.get("status", "unknown"),
+            "summary": result.get("summary", str(result.get("error", "done")))[:120],
+            "timestamp": data.get("timestamp", ""),
+        })
+    entries.sort(key=lambda x: x["timestamp"], reverse=True)
+    return JSONResponse(entries[:20])
 
 
 def _smart_fallback(message: str, config: dict, stats: dict):
@@ -511,11 +745,15 @@ async def reset_all():
     AGENT_RESULTS = {}
 
     # Delete data files
-    for sub in ["config", "leads/raw", "leads/qualified", "campaigns", "proposals"]:
+    for sub in ["config", "leads/raw", "leads/qualified", "campaigns", "proposals", "pipeline", "audits", "logs"]:
         p = BASE_DIR / "data" / sub
         if p.exists():
             shutil.rmtree(p)
             p.mkdir(parents=True, exist_ok=True)
+
+    # Clear chat histories
+    global CHAT_HISTORIES
+    CHAT_HISTORIES = {}
 
     # Delete reports
     reports = BASE_DIR / "outputs" / "reports"
@@ -931,6 +1169,109 @@ async def serve_site(filename: str):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content)
+
+
+# ═══════════════════════════════════════════
+# CSV EXPORT + PDF BUNDLE
+# ═══════════════════════════════════════════
+
+@app.get("/api/export/leads/csv")
+async def export_leads_csv():
+    """Export qualified leads as CSV download."""
+    import csv
+    import io
+
+    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    leads = []
+    if qual_dir.exists():
+        files = sorted(qual_dir.glob("*.json"), reverse=True)
+        if files:
+            with open(files[0]) as f:
+                data = json.load(f)
+            for entry in data.get("leads", []):
+                lead = entry.get("lead", entry)
+                leads.append({
+                    "name": lead.get("name", ""),
+                    "email": lead.get("email", ""),
+                    "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""),
+                    "score": entry.get("score", lead.get("score", 0)),
+                    "qualification": entry.get("qualification", lead.get("qualification", "")),
+                    "category": lead.get("category", ""),
+                    "address": lead.get("address", ""),
+                })
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["name", "email", "phone", "website", "score", "qualification", "category", "address"])
+    writer.writeheader()
+    writer.writerows(leads)
+
+    from fastapi.responses import Response
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=leads.csv"},
+    )
+
+
+@app.get("/api/export/leads/raw/csv")
+async def export_raw_leads_csv():
+    """Export raw leads as CSV download."""
+    import csv
+    import io
+
+    raw_dir = BASE_DIR / "data" / "leads" / "raw"
+    leads = []
+    if raw_dir.exists():
+        files = sorted(raw_dir.glob("*.json"), reverse=True)
+        if files:
+            with open(files[0]) as f:
+                data = json.load(f)
+            for lead in data.get("leads", []):
+                leads.append({
+                    "name": lead.get("name", ""),
+                    "email": lead.get("email", ""),
+                    "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""),
+                    "score": lead.get("score", 0),
+                    "qualification": lead.get("qualification", ""),
+                    "category": lead.get("category", ""),
+                    "address": lead.get("address", ""),
+                })
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["name", "email", "phone", "website", "score", "qualification", "category", "address"])
+    writer.writeheader()
+    writer.writerows(leads)
+
+    from fastapi.responses import Response
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=raw_leads.csv"},
+    )
+
+
+@app.get("/api/export/proposals/zip")
+async def export_proposals_zip():
+    """Bundle all proposal PDFs into a zip download."""
+    import zipfile
+    import io
+
+    proposals_dir = BASE_DIR / "outputs" / "proposals"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if proposals_dir.exists():
+            for f in proposals_dir.iterdir():
+                if f.is_file():
+                    zf.write(f, f.name)
+
+    from fastapi.responses import Response
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=proposals.zip"},
+    )
 
 
 if __name__ == "__main__":

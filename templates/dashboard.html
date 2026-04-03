@@ -263,18 +263,25 @@ body::before {
   background: var(--accent);
   box-shadow: 0 0 20px var(--glow-accent), 0 0 40px rgba(232,93,38,0.15);
 }
+.hdr-btns {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
 .hdr-btn {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--accent);
   cursor: pointer;
-  padding: 5px 10px;
-  border: 1px solid var(--accent);
+  padding: 4px 8px;
+  border: 1px solid rgba(232,93,38,0.3);
   border-radius: 4px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   font-family: 'Space Mono', monospace;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 .hdr-btn:hover {
   color: #fff;
@@ -282,10 +289,10 @@ body::before {
   box-shadow: 0 0 12px rgba(232,93,38,0.3);
 }
 .reset-btn {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--dim);
   cursor: pointer;
-  padding: 5px 10px;
+  padding: 4px 8px;
   border: 1px solid var(--faint);
   border-radius: 4px;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -812,6 +819,35 @@ body::before {
   pointer-events: none;
   z-index: 99;
 }
+
+/* ─── Activity Timeline ─── */
+#activityTimeline {
+  position: fixed; bottom: 16px; right: 16px; z-index: 200;
+  width: 200px; font-family: 'IBM Plex Mono', monospace;
+}
+#activityTimeline .at-toggle {
+  background: #18181c; border: 1px solid #2a2a30; border-radius: 6px;
+  padding: 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  color: #8a8a98; font-size: 10px; transition: border-color 0.2s;
+}
+#activityTimeline .at-toggle:hover { border-color: #e85d26; }
+#activityTimeline .at-toggle .at-dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; flex-shrink: 0; }
+#activityTimeline .at-toggle .at-dot.err { background: #ef4444; }
+#activityTimeline .at-cards {
+  display: none; flex-direction: column; gap: 4px; margin-bottom: 6px;
+  max-height: 320px; overflow-y: auto;
+}
+#activityTimeline.expanded .at-cards { display: flex; }
+#activityTimeline .at-card {
+  background: #111114; border: 1px solid #1e1e24; border-radius: 4px;
+  padding: 6px 8px; font-size: 10px; color: #8a8a98; line-height: 1.3;
+}
+#activityTimeline .at-card .at-agent { color: #e8e8e8; font-weight: 600; }
+#activityTimeline .at-card .at-time { color: #555; font-size: 9px; float: right; }
+#activityTimeline .at-card .at-status { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+#activityTimeline .at-card .at-status.ok { background: #34d399; }
+#activityTimeline .at-card .at-status.fail { background: #ef4444; }
+#activityTimeline .at-card .at-summary { display: block; margin-top: 2px; color: #6a6a78; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -837,13 +873,17 @@ body::before {
       <span class="title">goat</span>
       <span id="headerClock"></span>
       <span class="sub" id="headerSub"></span>
-      <span class="hdr-btn" onclick="openCRM()" title="CRM Pipeline">◫ CRM</span>
-      <span class="reset-btn" onclick="fullReset()" title="sıfırla">↺ sıfırla</span>
+      <div class="hdr-btns">
+        <span class="hdr-btn" onclick="openCRM()" title="CRM Pipeline">◫ CRM</span>
+        <span class="hdr-btn" onclick="showAnalytics()" title="Analiz Paneli">📊 ANALİZ</span>
+        <span class="hdr-btn" id="sfxToggle" onclick="SFX.toggle()" title="ses aç/kapa">🔊</span>
+        <span class="reset-btn" onclick="fullReset()" title="sıfırla">↺</span>
+      </div>
     </div>
     <div class="log" id="log"></div>
     <div class="input-area">
       <span class="prompt">&gt;</span>
-      <input type="text" id="input" placeholder="" onkeydown="if(event.key==='Enter')handleInput()" autofocus>
+      <input type="text" id="input" placeholder="" onkeydown="if(event.key==='Enter')handleInput(); else SFX.type();" autofocus>
       <span class="input-thinking" id="inputThinking"></span>
     </div>
   </div>
@@ -948,6 +988,47 @@ body::before {
   </div>
 </div>
 
+<!-- Analytics Panel (fullscreen overlay) -->
+<div id="analyticsPanel" style="display:none;position:fixed;inset:0;z-index:999;background:var(--bg);overflow-y:auto;">
+  <div style="padding:20px;max-width:1400px;margin:0 auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;font-family:'Space Mono',monospace;color:var(--text);">ANALİZ PANELİ</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:2px;">lead funnel &middot; agent durumu &middot; gelir</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="window.location.href='/api/export/leads/csv'" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--green);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700;">CSV İNDİR</button>
+        <button onclick="window.location.href='/api/export/leads/raw/csv'" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--blue);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700;">HAM CSV</button>
+        <button onclick="window.location.href='/api/export/proposals/zip'" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--purple);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700;">PDF PAKETİ İNDİR</button>
+        <button onclick="closeAnalytics()" style="font-family:'Space Mono',monospace;font-size:11px;padding:6px 14px;background:var(--surface);color:var(--dim);border:1px solid var(--border);border-radius:4px;cursor:pointer;">✕ KAPAT</button>
+      </div>
+    </div>
+    <!-- Quick Stats -->
+    <div id="analyticsStats" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;"></div>
+    <!-- Charts Row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Lead Funnel</div>
+        <div id="funnelChart"></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Pipeline Dağılımı</div>
+        <div id="pipelineChart" style="display:flex;align-items:center;justify-content:center;min-height:200px;"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Agent Durumu</div>
+        <div id="agentGrid"></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:12px;font-family:'Space Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Aylık Gelir</div>
+        <div id="revenueChart" style="min-height:200px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Lead Edit Modal -->
 <div id="leadEditModal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.7);display:none;justify-content:center;align-items:center;backdrop-filter:blur(4px);">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;width:420px;max-height:90vh;overflow-y:auto;font-family:'Space Mono',monospace;color:var(--text);">
@@ -986,7 +1067,75 @@ body::before {
 .crm-note { font-size:10px;color:var(--dim);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03); }
 .crm-note-date { font-size:8px;color:var(--faint); }
 @media(max-width:768px) { .crm-col { min-width:160px; } }
+
+/* ═══════════════════════════════════════════
+   COMMAND PALETTE (⌘K)
+   ═══════════════════════════════════════════ */
+#cmdPaletteOverlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: none; justify-content: center; align-items: flex-start;
+  padding-top: 18vh;
+  animation: cmdFadeIn 0.15s ease;
+}
+#cmdPaletteOverlay.open { display: flex; }
+@keyframes cmdFadeIn { from { opacity:0 } to { opacity:1 } }
+#cmdPalette {
+  width: 520px; max-width: 94vw;
+  background: rgba(14,14,19,0.88);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 60px rgba(0,0,0,0.6), 0 0 40px rgba(232,93,38,0.06);
+  overflow: hidden;
+  animation: cmdSlideIn 0.18s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes cmdSlideIn { from { opacity:0; transform:translateY(-12px) scale(0.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+#cmdInput {
+  width: 100%; padding: 14px 18px;
+  font-family: 'Space Mono', monospace; font-size: 14px;
+  background: transparent; border: none; border-bottom: 1px solid var(--border);
+  color: var(--text); outline: none;
+}
+#cmdInput::placeholder { color: var(--faint); }
+#cmdResults {
+  max-height: 380px; overflow-y: auto; padding: 6px 0;
+}
+#cmdResults::-webkit-scrollbar { width: 4px; }
+#cmdResults::-webkit-scrollbar-thumb { background: var(--faint); border-radius: 4px; }
+.cmd-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 18px; cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+.cmd-row.active, .cmd-row:hover {
+  background: rgba(232,93,38,0.08);
+  border-left-color: var(--accent);
+}
+.cmd-row .cmd-icon { font-size: 16px; width: 24px; text-align: center; flex-shrink: 0; }
+.cmd-row .cmd-body { flex: 1; min-width: 0; }
+.cmd-row .cmd-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.cmd-row .cmd-label mark { background: none; color: var(--accent); font-weight: 700; }
+.cmd-row .cmd-desc { font-size: 10px; color: var(--dim); }
+.cmd-row .cmd-hint { font-size: 9px; color: var(--faint); flex-shrink: 0; font-family: 'Space Mono', monospace;
+  border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+.cmd-empty { text-align: center; padding: 24px; color: var(--faint); font-size: 11px; }
+#cmdFooter {
+  display: flex; gap: 16px; padding: 8px 18px;
+  border-top: 1px solid var(--border); font-size: 9px; color: var(--faint);
+}
+#cmdFooter kbd { font-family: inherit; border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
 </style>
+
+<!-- Command Palette (⌘K / Ctrl+K) -->
+<div id="cmdPaletteOverlay" onclick="if(event.target===this)closeCmdPalette()">
+  <div id="cmdPalette">
+    <input id="cmdInput" type="text" placeholder="komut ara..." autocomplete="off" spellcheck="false">
+    <div id="cmdResults"></div>
+    <div id="cmdFooter"><span><kbd>↑↓</kbd> gezin</span><span><kbd>↵</kbd> çalıştır</span><span><kbd>esc</kbd> kapat</span></div>
+  </div>
+</div>
 
 <!-- Setup Modal (hidden, triggered from narrative) -->
 <div style="display:none" id="setupModal">
@@ -1078,6 +1227,7 @@ function runBootSequence() {
     const t = elapsed;
     setTimeout(() => {
       lineEls[i].classList.add('show');
+      SFX.tick();
       // Update progress bar
       const pct = Math.min(100, (t / totalTime) * 100);
       barFill.style.width = pct + '%';
@@ -1132,6 +1282,50 @@ const log = document.getElementById('log');
 const botEl = document.getElementById('bot');
 const botStat = document.getElementById('botStatus');
 let lineDelay = 0;
+
+// ─── Sound Effects (Web Audio API) ───
+const SFX = (() => {
+  let ctx = null;
+  let muted = false;
+  function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(freq, dur, gain, type='square') {
+    if (muted) return;
+    try {
+      const c = getCtx();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = gain;
+      g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + dur);
+      o.connect(g);
+      g.connect(c.destination);
+      o.start(c.currentTime);
+      o.stop(c.currentTime + dur);
+    } catch(e) {}
+  }
+  return {
+    get muted() { return muted; },
+    set muted(v) { muted = v; },
+    toggle() {
+      muted = !muted;
+      document.getElementById('sfxToggle').textContent = muted ? '🔇' : '🔊';
+    },
+    type()    { tone(800, 0.04, 0.03); },
+    tick()    { tone(600, 0.05, 0.04); },
+    blip()    { tone(1200, 0.08, 0.06, 'sine'); },
+    success() {
+      if (muted) return;
+      tone(800, 0.1, 0.06, 'sine');
+      setTimeout(() => tone(1200, 0.15, 0.07, 'sine'), 100);
+    },
+    error()   { tone(150, 0.15, 0.06, 'sawtooth'); },
+  };
+})();
 
 // ─── Typing Animation Engine ───
 const TYPE_SPEED = 12; // ms per character
@@ -1188,6 +1382,7 @@ function write(text, cls='', delay=0) {
   const d = lineDelay + delay;
   lineDelay += 80;
   setTimeout(() => {
+    if (cls.includes('red')) SFX.error();
     const el = document.createElement('div');
     el.className = 'log-line ' + cls;
 
@@ -1243,6 +1438,7 @@ function botState(state, dur) {
   const stateNames = {think:'işliyor',success:'tamam',wave:'selamlıyor','':'beklemede'};
   botStat.textContent = stateNames[state] || state || 'beklemede';
   botStat.className = 'bot-status' + (state ? ' on' : '');
+  if (state === 'success') SFX.success();
   if (dur) setTimeout(() => { botEl.className = 'bot'; botStat.textContent = 'beklemede'; botStat.className = 'bot-status'; }, dur);
 }
 
@@ -1613,6 +1809,137 @@ function handleInput() {
 
   const agent = sel || 'goat';
 
+  // Use regular chat (more reliable than streaming)
+  fallbackChat(msg, agent);
+}
+
+function renderChatResponse(raw) {
+  raw = raw.replace(/\*\*(.+?)\*\*/g, '$1');
+  raw = raw.replace(/\*(.+?)\*/g, '$1');
+  raw = raw.replace(/`(.+?)`/g, '$1');
+  raw = raw.replace(/^>\s?/gm, '');
+  const lines = raw.split('\n');
+  lines.forEach(line => {
+    if (line.startsWith('#')) write(line.replace(/^#+\s*/, ''), 'bright');
+    else if (line.startsWith('- ') || line.startsWith('* ')) write('  ' + line.replace(/^[-*]\s*/, '→ '), 'dim indent');
+    else if (line.match(/^\d+\.\s/)) write('  ' + line, 'dim indent');
+    else if (line.startsWith('|')) return;
+    else if (line.match(/^---+$/)) return;
+    else if (line.trim() === '') gap();
+    else write(line, 'dim');
+  });
+}
+
+function streamChat(msg, agent) {
+  // Create a streaming line element for typewriter effect
+  gap();
+  const streamEl = document.createElement('div');
+  streamEl.className = 'log-line dim';
+  log.appendChild(streamEl);
+
+  let fullText = '';
+  let charQueue = '';
+  let typeTimer = null;
+
+  function typeNextChar() {
+    if (charQueue.length > 0) {
+      const ch = charQueue[0];
+      charQueue = charQueue.slice(1);
+      if (ch === '\n') {
+        // Start a new line element
+        const newEl = document.createElement('div');
+        newEl.className = 'log-line dim';
+        log.appendChild(newEl);
+        streamEl._current = newEl;
+      } else {
+        const target = streamEl._current || streamEl;
+        target.textContent += ch;
+      }
+      log.scrollTop = log.scrollHeight;
+      typeTimer = setTimeout(typeNextChar, 18);
+    } else {
+      typeTimer = null;
+    }
+  }
+
+  function enqueueText(text) {
+    charQueue += text;
+    if (!typeTimer) typeNextChar();
+  }
+
+  fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: msg, agent_id: agent})
+  }).then(response => {
+    if (!response.ok) throw new Error('Stream failed');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+
+    function read() {
+      reader.read().then(({done, value}) => {
+        if (done) {
+          // If stream ends without done event, finalize
+          botState('success', 2000);
+          hideThinking();
+          agentOn(agent);
+          return;
+        }
+        sseBuffer += decoder.decode(value, {stream: true});
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.done) {
+              // Flush remaining chars quickly
+              if (charQueue.length > 0) {
+                const target = streamEl._current || streamEl;
+                target.textContent += charQueue;
+                charQueue = '';
+              }
+              if (typeTimer) { clearTimeout(typeTimer); typeTimer = null; }
+              botState('success', 2000);
+              hideThinking();
+              if (data.actions && data.actions.length > 0) {
+                gap();
+                data.actions.forEach(act => executeAction(act));
+              }
+              agentOn(agent);
+              refreshActivity();
+              return;
+            }
+            if (data.text) {
+              // Clean markdown
+              let t = data.text;
+              t = t.replace(/\*\*(.+?)\*\*/g, '$1');
+              t = t.replace(/\*(.+?)\*/g, '$1');
+              t = t.replace(/`(.+?)`/g, '$1');
+              t = t.replace(/^>\s?/gm, '');
+              enqueueText(t);
+              fullText += t;
+            }
+          } catch(e) {}
+        }
+        read();
+      }).catch(err => {
+        // Stream read error — fallback
+        botState('', 0);
+        hideThinking();
+        fallbackChat(msg, agent);
+      });
+    }
+    read();
+  }).catch(() => {
+    // Fetch failed — fallback to non-streaming
+    fallbackChat(msg, agent);
+  });
+}
+
+function fallbackChat(msg, agent) {
   fetch('/api/chat', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -1622,30 +1949,11 @@ function handleInput() {
     hideThinking();
     lineDelay = 0;
     gap();
-
-    // Render Claude's response
-    let raw = d.response || 'yanıt yok.';
-    raw = raw.replace(/\*\*(.+?)\*\*/g, '$1');
-    raw = raw.replace(/\*(.+?)\*/g, '$1');
-    raw = raw.replace(/`(.+?)`/g, '$1');
-    raw = raw.replace(/^>\s?/gm, '');
-    const lines = raw.split('\n');
-    lines.forEach(line => {
-      if (line.startsWith('#')) write(line.replace(/^#+\s*/, ''), 'bright');
-      else if (line.startsWith('- ') || line.startsWith('* ')) write('  ' + line.replace(/^[-*]\s*/, '→ '), 'dim indent');
-      else if (line.match(/^\d+\.\s/)) write('  ' + line, 'dim indent');
-      else if (line.startsWith('|')) return;
-      else if (line.match(/^---+$/)) return;
-      else if (line.trim() === '') gap();
-      else write(line, 'dim');
-    });
-
-    // Execute actions returned by Claude
+    renderChatResponse(d.response || 'yanıt yok.');
     if (d.actions && d.actions.length > 0) {
       gap();
       d.actions.forEach(act => executeAction(act));
     }
-
     agentOn(agent);
   }).catch(e => {
     botState('', 0);
@@ -1665,6 +1973,7 @@ function hideThinking() {
   const el = document.getElementById('inputThinking');
   el.classList.remove('active');
   document.getElementById('input').style.paddingRight = '';
+  SFX.blip();
 }
 
 // ─── Action Executor — runs actions returned by smart chat ───
@@ -1772,15 +2081,15 @@ window.addEventListener('resize', resizeCanvas);
 
 // Colors
 const C = {
-  floor: '#0e0e12', floorLine: '#141418', wall: '#18181e', wallTop: '#1e1e26',
-  desk: '#2a2530', deskTop: '#342e3a', deskLeg: '#1e1a24',
-  monitor: '#0a0a0e', monitorFrame: '#2a2a34', screenOff: '#0c0c10',
-  screenOn: '#1a3a28', screenAccent: '#e85d26', screenGreen: '#2a6a4a',
-  chair: '#22202a', chairSeat: '#2e2a36',
-  plant: '#1a3a28', plantPot: '#3a3028', plantLeaf: '#2a6a3a',
-  lamp: '#3a3028', lampLight: 'rgba(242,107,58,0.04)',
-  botBody: '#1e1e26', botHead: '#24242e', botEye: '#e85d26', botEyeGreen: '#34d399',
-  agentBody: '#1a2a3a', agentHead: '#2a3a4a',
+  floor: '#14141a', floorLine: '#1e1e26', wall: '#1a1a24', wallTop: '#28283a',
+  desk: '#3a3448', deskTop: '#4a4258', deskLeg: '#2e2838',
+  monitor: '#12121a', monitorFrame: '#3a3a4a', screenOff: '#16161e',
+  screenOn: '#2a5a3a', screenAccent: '#ff6b2b', screenGreen: '#3a8a5a',
+  chair: '#32303e', chairSeat: '#3e3a4a',
+  plant: '#2a5a3a', plantPot: '#5a4a38', plantLeaf: '#3a8a4a',
+  lamp: '#5a4a38', lampLight: 'rgba(242,107,58,0.06)',
+  botBody: '#3a3a4e', botHead: '#4a4a5e', botEye: '#ff6b2b', botEyeGreen: '#4ade80',
+  agentBody: '#2a3a5a', agentHead: '#3a4a6a',
 };
 
 // Office state
@@ -1959,112 +2268,204 @@ function drawChair(cx, cy) {
   px(cx + 1, cy + 3, 1, 1, C.chair);
 }
 
-// ── Draw Bot Character ──
+// ── Draw Bot Character (GOAT — main mascot) ──
 function drawBot(cx, cy, eyeColor, frame) {
-  const bob = Math.sin(Date.now() / 500 + cx) > 0.5 ? -1 : 0;
+  const bob = Math.sin(Date.now() / 600 + cx) * 0.8;
   const by = cy + bob;
-  px(cx - 2, by + 2, 5, 5, C.botBody);
+  const blink = Math.sin(Date.now() / 2000 + cx * 7) > 0.92;
+  // Body (rounded)
+  px(cx - 2, by + 2, 5, 4, C.botBody);
+  px(cx - 1, by + 1, 3, 1, C.botBody);
+  // Head (bigger, rounder)
   px(cx - 3, by - 4, 7, 5, C.botHead);
+  px(cx - 2, by - 5, 5, 1, C.botHead);
+  // Face screen
   px(cx - 2, by - 3, 5, 3, '#0a0a0e');
-  px(cx - 1, by - 2, 1, 1, eyeColor || C.botEye);
-  px(cx + 1, by - 2, 1, 1, eyeColor || C.botEye);
-  // Eye glow - enhanced
+  // Eyes (blink!)
+  if (!blink) {
+    px(cx - 1, by - 2, 1, 1, eyeColor || C.botEye);
+    px(cx + 1, by - 2, 1, 1, eyeColor || C.botEye);
+  } else {
+    px(cx - 1, by - 1, 1, 1, eyeColor || C.botEye);
+    px(cx + 1, by - 1, 1, 1, eyeColor || C.botEye);
+  }
+  // Mouth (smile)
+  px(cx - 1, by - 0, 3, 1, '#1a1a2a');
+  px(cx, by - 0, 1, 1, eyeColor || C.botEye);
+  // Eye glow
   ctx.fillStyle = (eyeColor || C.botEye);
-  ctx.globalAlpha = 0.2;
-  ctx.fillRect((cx - 2) * PX, (by - 3) * PX, 5 * PX, 3 * PX);
-  ctx.globalAlpha = 0.06;
-  ctx.fillRect((cx - 4) * PX, (by - 5) * PX, 9 * PX, 7 * PX);
+  ctx.globalAlpha = 0.15;
+  ctx.fillRect((cx - 3) * PX, (by - 4) * PX, 7 * PX, 5 * PX);
   ctx.globalAlpha = 1;
-  px(cx, by - 6, 1, 2, '#3a3a48');
+  // Antenna
+  px(cx, by - 6, 1, 1, '#3a3a48');
   px(cx, by - 7, 1, 1, C.botEye);
-  // Antenna glow
   ctx.fillStyle = C.botEye;
-  ctx.globalAlpha = 0.15 + Math.sin(Date.now() / 400) * 0.1;
+  ctx.globalAlpha = 0.2 + Math.sin(Date.now() / 400) * 0.15;
   ctx.beginPath();
-  ctx.arc(cx * PX, (by - 7) * PX, PX * 2, 0, Math.PI * 2);
+  ctx.arc(cx * PX, (by - 7) * PX, PX * 2.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  px(cx - 3, by + 3, 1, 3, '#3a3a48');
-  px(cx + 3, by + 3, 1, 3, '#3a3a48');
+  // Arms
+  px(cx - 3, by + 2, 1, 2, '#3a3a48');
+  px(cx + 3, by + 2, 1, 2, '#3a3a48');
+  // Legs
+  px(cx - 1, by + 6, 1, 1, '#3a3a48');
+  px(cx + 1, by + 6, 1, 1, '#3a3a48');
+  // Coffee mug next to bot!
+  px(cx + 5, by + 4, 2, 2, '#5a4a3a');
+  px(cx + 7, by + 4, 1, 1, '#5a4a3a');
+  // Steam from coffee
+  if (Math.sin(Date.now() / 800 + cx) > 0) {
+    ctx.fillStyle = '#8a8a9c';
+    ctx.globalAlpha = 0.15;
+    ctx.fillRect((cx + 5) * PX, (by + 2) * PX, 1 * PX, 1 * PX);
+    ctx.fillRect((cx + 6) * PX, (by + 1) * PX, 1 * PX, 1 * PX);
+    ctx.globalAlpha = 1;
+  }
+  // Label
   if (frame && frame.label) {
     ctx.fillStyle = eyeColor || C.botEye;
-    ctx.globalAlpha = 0.7;
-    ctx.font = `${PX * 2}px 'Space Mono', monospace`;
+    ctx.globalAlpha = 0.8;
+    ctx.font = `bold ${PX * 2.2}px 'Space Mono', monospace`;
     ctx.textAlign = 'center';
     ctx.fillText(frame.label, cx * PX, (by + 11) * PX);
     ctx.globalAlpha = 1;
   }
 }
 
-// ── Draw Agent Character ──
+// ── Draw Agent Character (cute pixel person) ──
 function drawAgent(cx, cy, color, eyeColor, label, working) {
-  const bob = working ? (Math.sin(Date.now() / 300 + cx) > 0.3 ? -1 : 0) : 0;
+  const t = Date.now() / 1000;
+  const bob = working ? Math.sin(t * 4 + cx) * 1.2 : Math.sin(t * 0.8 + cx * 3) * 0.4;
   const by = cy + bob;
+  const blink = Math.sin(t * 0.5 + cx * 11) > 0.9;
+  // Body
   ctx.fillStyle = color;
   ctx.fillRect((cx - 2) * PX, (by + 2) * PX, 5 * PX, 4 * PX);
-  ctx.fillRect((cx - 2) * PX, (by - 2) * PX, 5 * PX, 4 * PX);
+  ctx.fillRect((cx - 1) * PX, (by + 1) * PX, 3 * PX, 1 * PX);
+  // Head (rounder)
+  ctx.fillRect((cx - 2) * PX, (by - 3) * PX, 5 * PX, 4 * PX);
+  ctx.fillRect((cx - 1) * PX, (by - 4) * PX, 3 * PX, 1 * PX);
+  // Face
+  ctx.fillStyle = '#18182a';
+  ctx.fillRect((cx - 1) * PX, (by - 2) * PX, 3 * PX, 2 * PX);
+  // Eyes
   ctx.fillStyle = eyeColor;
-  ctx.fillRect((cx - 1) * PX, (by - 1) * PX, 1 * PX, 1 * PX);
-  ctx.fillRect((cx + 1) * PX, (by - 1) * PX, 1 * PX, 1 * PX);
-  // Eye glow - enhanced
+  if (!blink) {
+    ctx.fillRect((cx - 1) * PX, (by - 2) * PX, 1 * PX, 1 * PX);
+    ctx.fillRect((cx + 1) * PX, (by - 2) * PX, 1 * PX, 1 * PX);
+  } else {
+    ctx.fillRect((cx - 1) * PX, (by - 1) * PX, 1 * PX, 1 * PX);
+    ctx.fillRect((cx + 1) * PX, (by - 1) * PX, 1 * PX, 1 * PX);
+  }
+  // Eye glow
   ctx.fillStyle = eyeColor;
-  ctx.globalAlpha = 0.15;
-  ctx.fillRect((cx - 2) * PX, (by - 2) * PX, 5 * PX, 4 * PX);
+  ctx.globalAlpha = 0.12;
+  ctx.fillRect((cx - 2) * PX, (by - 3) * PX, 5 * PX, 4 * PX);
   ctx.globalAlpha = 1;
+  // Arms
+  ctx.fillStyle = color;
+  ctx.fillRect((cx - 3) * PX, (by + 2) * PX, 1 * PX, 2 * PX);
+  ctx.fillRect((cx + 3) * PX, (by + 2) * PX, 1 * PX, 2 * PX);
+  // Legs
   ctx.fillStyle = '#2a2a38';
-  ctx.fillRect((cx - 3) * PX, (by + 3) * PX, 1 * PX, 2 * PX);
-  ctx.fillRect((cx + 3) * PX, (by + 3) * PX, 1 * PX, 2 * PX);
+  ctx.fillRect((cx - 1) * PX, (by + 6) * PX, 1 * PX, 1 * PX);
+  ctx.fillRect((cx + 1) * PX, (by + 6) * PX, 1 * PX, 1 * PX);
+  // Working animation — typing dots + thought bubble
+  if (working) {
+    // Thought bubble
+    ctx.fillStyle = '#1e1e28';
+    ctx.globalAlpha = 0.85;
+    const bw = 5, bh = 3;
+    ctx.fillRect((cx - bw/2) * PX, (by - 8) * PX, bw * PX, bh * PX);
+    // Bubble tail
+    ctx.fillRect((cx) * PX, (by - 5) * PX, 1 * PX, 1 * PX);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = eyeColor;
+    ctx.font = `${PX * 1.8}px 'Space Mono', monospace`;
+    ctx.textAlign = 'center';
+    const dots = '.'.repeat(Math.floor(t * 3) % 4);
+    ctx.fillText(dots, cx * PX, (by - 5.8) * PX);
+    // Arms move when working
+    ctx.fillStyle = color;
+    const armOff = Math.sin(t * 6) > 0 ? 1 : 0;
+    ctx.fillRect((cx - 3) * PX, (by + 2 + armOff) * PX, 1 * PX, 1 * PX);
+    ctx.fillRect((cx + 3) * PX, (by + 2 - armOff) * PX, 1 * PX, 1 * PX);
+  }
+  // Label
   if (label) {
     ctx.fillStyle = eyeColor;
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 0.7;
     ctx.font = `${PX * 2}px 'Space Mono', monospace`;
     ctx.textAlign = 'center';
     ctx.fillText(label, cx * PX, (by + 10) * PX);
     ctx.globalAlpha = 1;
   }
-  if (working) {
-    ctx.fillStyle = '#1e1e26';
-    ctx.fillRect((cx - 4) * PX, (by - 6) * PX, 9 * PX, 3 * PX);
-    ctx.fillStyle = eyeColor;
-    ctx.globalAlpha = 0.8;
-    ctx.font = `${PX * 1.5}px 'Space Mono', monospace`;
-    ctx.fillText('...', cx * PX, (by - 4) * PX);
-    ctx.globalAlpha = 1;
-  }
 }
 
-// ── Draw Plant ──
+// ── Draw Plant (fuller) ──
 function drawPlant(cx, cy) {
+  // Pot
   px(cx, cy + 2, 3, 3, C.plantPot);
+  px(cx - 1, cy + 2, 5, 1, '#4a3a2a');
+  // Leaves
   px(cx + 1, cy + 1, 1, 1, C.plant);
   px(cx, cy, 1, 1, C.plantLeaf);
   px(cx + 2, cy, 1, 1, C.plantLeaf);
   px(cx + 1, cy - 1, 1, 1, C.plantLeaf);
+  px(cx - 1, cy - 1, 1, 1, '#1a4a28');
+  px(cx + 3, cy - 1, 1, 1, '#1a4a28');
+  px(cx + 1, cy - 2, 1, 1, '#2a7a4a');
+  // Subtle leaf sway
+  if (Math.sin(Date.now() / 1500) > 0.3) {
+    px(cx, cy - 2, 1, 1, '#1a5a2a');
+  }
 }
 
-// ── Draw Locked Desk ──
+// ── Draw Locked Desk (sleeping agent with zzz) ──
 function drawLockedDesk(cx, cy) {
   drawDesk(cx, cy, true, '#0c0c10');
-  ctx.strokeStyle = '#2a2a34';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo((cx - 1) * PX, (cy - 4) * PX);
-  ctx.lineTo((cx + 2) * PX, (cy - 2) * PX);
-  ctx.moveTo((cx + 2) * PX, (cy - 4) * PX);
-  ctx.lineTo((cx - 1) * PX, (cy - 2) * PX);
-  ctx.stroke();
+  // Sleeping agent silhouette
+  ctx.fillStyle = '#2a2a3a';
+  ctx.fillRect((cx - 2) * PX, (cy - 3) * PX, 5 * PX, 4 * PX);
+  ctx.fillRect((cx - 2) * PX, (cy + 2) * PX, 5 * PX, 3 * PX);
+  // Closed eyes
+  ctx.fillStyle = '#3a3a4a';
+  ctx.fillRect((cx - 1) * PX, (cy - 1) * PX, 1 * PX, 1 * PX);
+  ctx.fillRect((cx + 1) * PX, (cy - 1) * PX, 1 * PX, 1 * PX);
+  // Zzz animation
+  const t = Date.now() / 1000;
+  ctx.fillStyle = '#5a5a6a';
+  ctx.globalAlpha = 0.4 + Math.sin(t + cx) * 0.2;
+  ctx.font = `${PX * 1.5}px 'Space Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText('z', (cx + 3) * PX, (cy - 4 + Math.sin(t * 1.5) * 0.5) * PX);
+  ctx.globalAlpha = 0.25;
+  ctx.fillText('z', (cx + 4.5) * PX, (cy - 6 + Math.sin(t * 1.2) * 0.5) * PX);
+  ctx.globalAlpha = 1;
 }
 
 // ── Office Desk Positions ──
 const DESKS = {
+  // Row 1 — core pipeline
   goat:     { x: 16, y: 24, label: 'goat' },
   scout:    { x: 38, y: 24, label: 'scout' },
   filter:   { x: 60, y: 24, label: 'filter' },
   auditor:  { x: 82, y: 24, label: 'auditor' },
-  mentor:   { x: 104, y: 24, label: 'mentor' },
+  pitch:    { x: 104, y: 24, label: 'pitch' },
   outreach: { x: 126, y: 24, label: 'outreach' },
-  pitch:       { x: 148, y: 24, label: 'pitch' },
+  mentor:   { x: 148, y: 24, label: 'mentor' },
   sitebuilder: { x: 170, y: 24, label: 'site' },
+  // Row 2 — creative & marketing
+  designer:    { x: 192, y: 24, label: 'design' },
+  content:     { x: 214, y: 24, label: 'content' },
+  brandkit:    { x: 236, y: 24, label: 'brand' },
+  presenter:   { x: 258, y: 24, label: 'present' },
+  videomaker:  { x: 280, y: 24, label: 'video' },
+  admanager:   { x: 302, y: 24, label: 'ads' },
+  social:      { x: 324, y: 24, label: 'social' },
+  analytics:   { x: 346, y: 24, label: 'analiz' },
 };
 
 const officeState = {
@@ -2086,15 +2487,57 @@ function renderOffice() {
 
   drawFloor();
 
-  // Plants
-  drawPlant(8, 28);
-  drawPlant(canvas.width / PX - 10, 28);
+  // Plants (more of them!)
+  drawPlant(6, 28);
+  drawPlant(canvas.width / PX - 8, 28);
+  if (canvas.width > 600) {
+    drawPlant(canvas.width / PX / 2 - 2, 28);
+    drawPlant(canvas.width / PX / 3, 28);
+    drawPlant(canvas.width / PX * 2 / 3, 28);
+  }
+
+  // Wall clock
+  const clockX = canvas.width / 2;
+  const clockY = PX * 8;
+  ctx.strokeStyle = '#2a2a34';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(clockX, clockY, PX * 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#e85d26';
+  ctx.globalAlpha = 0.5;
+  const sec = new Date().getSeconds();
+  const handAngle = (sec / 60) * Math.PI * 2 - Math.PI / 2;
+  ctx.beginPath();
+  ctx.moveTo(clockX, clockY);
+  ctx.lineTo(clockX + Math.cos(handAngle) * PX * 3, clockY + Math.sin(handAngle) * PX * 3);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Whiteboard on wall
+  const wbX = PX * 12;
+  const wbY = PX * 4;
+  ctx.fillStyle = '#1a1a22';
+  ctx.fillRect(wbX, wbY, PX * 20, PX * 10);
+  ctx.strokeStyle = '#2a2a34';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(wbX, wbY, PX * 20, PX * 10);
+  ctx.fillStyle = '#e85d26';
+  ctx.globalAlpha = 0.3;
+  ctx.font = `${PX * 1.5}px 'Space Mono', monospace`;
+  ctx.textAlign = 'left';
+  ctx.fillText('TODO', wbX + PX, wbY + PX * 3);
+  ctx.fillStyle = '#34d399';
+  ctx.fillText('✓ scout', wbX + PX, wbY + PX * 5.5);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText('○ filter', wbX + PX, wbY + PX * 7.5);
+  ctx.globalAlpha = 1;
 
   // Desks and agents
   Object.entries(DESKS).forEach(([id, d]) => {
     const isActive = officeState.active.has(id);
     const isWorking = officeState.working.has(id);
-    const isLocked = ['auditor', 'outreach', 'pitch', 'sitebuilder'].includes(id) && !isActive;
+    const isLocked = !['goat','scout','filter','mentor'].includes(id) && !isActive;
 
     if (isLocked) {
       drawLockedDesk(d.x, d.y);
@@ -2111,13 +2554,21 @@ function renderOffice() {
         drawBot(d.x, d.y - 2, eyeC, {label: d.label});
       } else {
         const colors = {
-          scout: { body: '#1a2a4a', eye: '#60a5fa' },
-          filter: { body: '#3a2a1a', eye: '#fbbf24' },
-          auditor: { body: '#2a2a1a', eye: '#f59e0b' },
-          mentor: { body: '#2a1a3a', eye: '#a78bfa' },
-          outreach: { body: '#3a1a1a', eye: '#f87171' },
-          pitch: { body: '#1a3a2a', eye: '#34d399' },
-          sitebuilder: { body: '#3a2a0a', eye: '#f59e0b' },
+          scout: { body: '#2a4a7a', eye: '#7abfff' },
+          filter: { body: '#5a4a2a', eye: '#ffd24a' },
+          auditor: { body: '#4a4a2a', eye: '#ffb82b' },
+          mentor: { body: '#4a2a6a', eye: '#c4a5ff' },
+          outreach: { body: '#5a2a2a', eye: '#ff8a8a' },
+          pitch: { body: '#2a5a3a', eye: '#4ade80' },
+          sitebuilder: { body: '#5a3a1a', eye: '#ffb82b' },
+          designer: { body: '#6a3a1a', eye: '#ffb82b' },
+          content: { body: '#4a4a2a', eye: '#ffd24a' },
+          brandkit: { body: '#5a2a4a', eye: '#ff6eb4' },
+          presenter: { body: '#2a3a6a', eye: '#7abfff' },
+          videomaker: { body: '#5a2a2a', eye: '#ff8a8a' },
+          admanager: { body: '#5a3a2a', eye: '#ff6eb4' },
+          social: { body: '#4a2a5a', eye: '#ff6eb4' },
+          analytics: { body: '#2a2a5a', eye: '#a78bfa' },
         };
         const c = colors[id] || { body: '#2a2a3a', eye: '#8a8a98' };
         drawAgent(d.x, d.y - 2, c.body, c.eye, d.label, isWorking);
@@ -2152,6 +2603,81 @@ function renderOffice() {
 }
 
 renderOffice();
+
+// ─── Interactive Office — click/hover on agent desks ───
+let officeTooltip = null;
+
+function getDeskAtPos(mx, my) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const cx = (mx - rect.left) * sx;
+  const cy = (my - rect.top) * sy;
+  const radius = PX * 12;
+  for (const [id, d] of Object.entries(DESKS)) {
+    const dx = d.x * PX - cx;
+    const dy = d.y * PX - cy;
+    if (Math.sqrt(dx*dx + dy*dy) < radius) return id;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const id = getDeskAtPos(e.clientX, e.clientY);
+  canvas.style.cursor = id ? 'pointer' : 'default';
+  officeTooltip = id ? { id } : null;
+  let tip = document.getElementById('officeTip');
+  if (!id) { if (tip) tip.style.opacity = '0'; return; }
+  const d = DESKS[id];
+  const rect = canvas.getBoundingClientRect();
+  const sx = rect.width / canvas.width;
+  const tipX = d.x * PX * sx + rect.left;
+  const tipY = d.y * PX * sx + rect.top - 24;
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'officeTip';
+    tip.style.cssText = 'position:fixed;pointer-events:none;background:#1a1a24;color:#e8e8e8;font-family:"Space Mono",monospace;font-size:11px;padding:3px 8px;border:1px solid #2a2a34;border-radius:3px;z-index:100;white-space:nowrap;transition:opacity 0.15s;';
+    document.body.appendChild(tip);
+  }
+  tip.textContent = d.label;
+  tip.style.left = tipX + 'px';
+  tip.style.top = tipY + 'px';
+  tip.style.opacity = '1';
+});
+
+canvas.addEventListener('mouseleave', () => {
+  canvas.style.cursor = 'default';
+  officeTooltip = null;
+  const tip = document.getElementById('officeTip');
+  if (tip) tip.style.opacity = '0';
+});
+
+canvas.addEventListener('click', (e) => {
+  const id = getDeskAtPos(e.clientX, e.clientY);
+  if (!id) return;
+  const isActive = officeState.active.has(id);
+  const isLocked = !['goat','scout','filter','mentor'].includes(id) && !isActive;
+  if (isLocked) return;
+  sel = id;
+  SFX.tick();
+  // Update visual indicator only — no chat log pollution
+  document.getElementById('headerSub').textContent = id + ' seçili';
+});
+
+canvas.addEventListener('dblclick', (e) => {
+  const id = getDeskAtPos(e.clientX, e.clientY);
+  if (!id) return;
+  if (!officeState.active.has(id)) return;
+  const runners = { scout: doScout, filter: doFilter, pitch: doPitch, outreach: doOutreach, auditor: doAudit, mentor: () => { sel='mentor'; write('mentor dinliyor. aşağıya yaz.', 'green'); } };
+  if (runners[id]) {
+    runners[id]();
+  } else {
+    officeSetWorking(id, true);
+    fetch(`/api/agent/${id}/run`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' })
+      .then(r => r.json()).then(() => { officeSetWorking(id, false); lineDelay=0; gap(); write(`${id} tamamlandı.`, 'green'); botState('success', 2500); })
+      .catch(err => { officeSetWorking(id, false); lineDelay=0; gap(); write(`${id} hatası: ${err.message}`, 'red'); });
+  }
+});
 
 // ─── Reset ───
 function fullReset() {
@@ -3294,6 +3820,18 @@ function saveNewLead() {
   });
 }
 
+// ═══ COMMAND PALETTE ═══
+const CMD_ITEMS=[{icon:'🔍',label:'Scout',desc:'Müşteri bul',hint:'agent',action:doScout},{icon:'⚡',label:'Filter',desc:'Lead puanla',hint:'agent',action:doFilter},{icon:'🔎',label:'Auditor',desc:'Site analiz',hint:'agent',action:doAudit},{icon:'📝',label:'Pitch',desc:'Teklif hazırla',hint:'agent',action:doPitch},{icon:'📧',label:'Outreach',desc:'Email kampanya',hint:'agent',action:doOutreach},{icon:'🌐',label:'SiteBuilder',desc:'Site oluştur',hint:'agent',action:showSiteOptions},{icon:'🎨',label:'Designer',desc:'Görsel tasarla',hint:'agent',action:()=>{fetch('/api/agent/designer/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Designer bitti.')})}},{icon:'✍️',label:'Content',desc:'İçerik yaz',hint:'agent',action:()=>{fetch('/api/agent/content/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Content bitti.')})}},{icon:'💎',label:'BrandKit',desc:'Marka kimliği',hint:'agent',action:()=>{fetch('/api/agent/brandkit/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('BrandKit bitti.')})}},{icon:'📊',label:'Analytics',desc:'Pazar analizi',hint:'agent',action:()=>{fetch('/api/agent/analytics/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Analytics bitti.')})}},{icon:'📋',label:'CRM Pipeline',desc:'Müşteri takibi',hint:'görünüm',action:openCRM},{icon:'📑',label:'Lead Tablosu',desc:'Tüm leadler',hint:'görünüm',action:showLeadTable},{icon:'💰',label:'Gelir Dashboard',desc:'Gelir takibi',hint:'görünüm',action:showRevenue},{icon:'🔔',label:'Hatırlatıcılar',desc:'Yaklaşan görevler',hint:'görünüm',action:showReminders},{icon:'⏰',label:'Zamanlamalar',desc:'Otomatik çalıştırma',hint:'görünüm',action:showSchedules},{icon:'➕',label:'Lead Ekle',desc:'Manuel lead ekle',hint:'aksiyon',action:showManualLeadForm},{icon:'🏗️',label:'Site Yap',desc:'Manuel site oluştur',hint:'aksiyon',action:showManualSiteForm},{icon:'⚙️',label:'Ayarlar',desc:'Konfigürasyon',hint:'aksiyon',action:showSetup},{icon:'🗑️',label:'Sıfırla',desc:'Tüm veriyi sil',hint:'aksiyon',action:fullReset},{icon:'❓',label:'Yardım',desc:'Kullanım rehberi',hint:'aksiyon',action:showHelp},{icon:'🧹',label:'Temizle',desc:'Log temizle',hint:'aksiyon',action:()=>{const log=document.getElementById('log');if(log)log.innerHTML=''}}];
+let cmdActiveIdx=0,cmdFiltered=[...CMD_ITEMS];
+function openCmdPalette(){document.getElementById('cmdPaletteOverlay').classList.add('open');const inp=document.getElementById('cmdInput');inp.value='';cmdActiveIdx=0;cmdFiltered=[...CMD_ITEMS];renderCmdResults();setTimeout(()=>inp.focus(),30)}
+function closeCmdPalette(){document.getElementById('cmdPaletteOverlay').classList.remove('open')}
+function fuzzyMatch(text,query){text=text.toLowerCase();query=query.toLowerCase();let ti=0,qi=0,indices=[];while(ti<text.length&&qi<query.length){if(text[ti]===query[qi]){indices.push(ti);qi++}ti++}return qi===query.length?indices:null}
+function highlightMatch(text,indices){if(!indices)return text;let r='',s=new Set(indices);for(let i=0;i<text.length;i++)r+=s.has(i)?'<mark>'+text[i]+'</mark>':text[i];return r}
+function renderCmdResults(){const box=document.getElementById('cmdResults');if(!cmdFiltered.length){box.innerHTML='<div class="cmd-empty">sonuç yok</div>';return}const shown=cmdFiltered.slice(0,10),q=document.getElementById('cmdInput').value.trim();box.innerHTML=shown.map((it,i)=>{const lbl=q?highlightMatch(it.label,fuzzyMatch(it.label,q)):it.label;return`<div class="cmd-row${i===cmdActiveIdx?' active':''}" data-idx="${i}"><span class="cmd-icon">${it.icon}</span><div class="cmd-body"><div class="cmd-label">${lbl}</div><div class="cmd-desc">${it.desc}</div></div><span class="cmd-hint">${it.hint}</span></div>`}).join('');box.querySelectorAll('.cmd-row').forEach(r=>r.addEventListener('click',()=>cmdRunItem(+r.dataset.idx)))}
+function cmdRunItem(idx){const it=cmdFiltered[idx];if(it){closeCmdPalette();it.action()}}
+document.addEventListener('keydown',function(e){const isOpen=document.getElementById('cmdPaletteOverlay').classList.contains('open');if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();isOpen?closeCmdPalette():openCmdPalette();return}if(!isOpen)return;if(e.key==='Escape'){e.preventDefault();closeCmdPalette();return}if(e.key==='ArrowDown'){e.preventDefault();cmdActiveIdx=Math.min(cmdActiveIdx+1,Math.min(cmdFiltered.length,10)-1);renderCmdResults();return}if(e.key==='ArrowUp'){e.preventDefault();cmdActiveIdx=Math.max(cmdActiveIdx-1,0);renderCmdResults();return}if(e.key==='Enter'){e.preventDefault();cmdRunItem(cmdActiveIdx);return}});
+document.getElementById('cmdInput').addEventListener('input',function(){const q=this.value.trim().toLowerCase();if(!q){cmdFiltered=[...CMD_ITEMS]}else{cmdFiltered=CMD_ITEMS.filter(it=>fuzzyMatch(it.label+' '+it.desc,q)).sort((a,b)=>(a.label.toLowerCase().startsWith(q)?0:1)-(b.label.toLowerCase().startsWith(q)?0:1))}cmdActiveIdx=0;renderCmdResults()});
+
 // ─── LAUNCH ───
 try {
   runBootSequence();
@@ -3312,6 +3850,113 @@ setTimeout(function() {
     document.getElementById('mainWorld').style.opacity = '1';
   }
 }, 15000);
+
+// ═══════════════════════════════════════════
+// ACTIVITY TIMELINE
+// ═══════════════════════════════════════════
+function relativeTime(iso) {
+  if (!iso) return '';
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return 'az önce';
+  if (diff < 3600) return Math.floor(diff/60) + 'dk önce';
+  if (diff < 86400) return Math.floor(diff/3600) + 'sa önce';
+  return Math.floor(diff/86400) + 'g önce';
+}
+
+function refreshActivity() {
+  fetch('/api/activity').then(r=>r.json()).then(items => {
+    const cards = document.getElementById('atCards');
+    if (!cards) return;
+    cards.innerHTML = '';
+    if (items.length === 0) {
+      cards.innerHTML = '<div class="at-card" style="color:#555">henüz aktivite yok</div>';
+      return;
+    }
+    // Update toggle dot
+    const dot = document.querySelector('#activityTimeline .at-dot');
+    const latest = items[0];
+    if (dot) dot.className = 'at-dot' + (latest.status === 'error' ? ' err' : '');
+
+    // Update toggle text
+    const label = document.getElementById('atLabel');
+    if (label) label.textContent = items.length + ' aktivite';
+
+    items.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'at-card';
+      card.innerHTML =
+        '<span class="at-status ' + (it.status==='success'?'ok':'fail') + '"></span>' +
+        '<span class="at-agent">' + it.agent_id + '</span>' +
+        '<span class="at-time">' + relativeTime(it.timestamp) + '</span>' +
+        '<span class="at-summary">' + (it.summary||'').substring(0,80) + '</span>';
+      cards.appendChild(card);
+    });
+  }).catch(()=>{});
+}
+
+// Initial load + auto-refresh every 30s
+refreshActivity();
+setInterval(refreshActivity, 30000);
 </script>
+
+<!-- Activity Timeline Widget -->
+<div id="activityTimeline">
+  <div class="at-cards" id="atCards"></div>
+  <div class="at-toggle" onclick="this.parentElement.classList.toggle('expanded'); refreshActivity();">
+    <span class="at-dot"></span>
+    <span id="atLabel">aktivite</span>
+  </div>
+</div>
+
+<script>
+// ANALYTICS PANEL
+function showAnalytics(){document.getElementById('analyticsPanel').style.display='block';loadAnalyticsData();}
+function closeAnalytics(){document.getElementById('analyticsPanel').style.display='none';}
+async function loadAnalyticsData(){
+  var r=await Promise.all([
+    fetch('/api/leads').then(function(x){return x.json()}).catch(function(){return []}),
+    fetch('/api/leads/qualified').then(function(x){return x.json()}).catch(function(){return []}),
+    fetch('/api/revenue/summary').then(function(x){return x.json()}).catch(function(){return {}}),
+    fetch('/api/pipeline').then(function(x){return x.json()}).catch(function(){return {counts:{},stages:{}}}),
+    fetch('/api/deals').then(function(x){return x.json()}).catch(function(){return []}),
+  ]);
+  var rawLeads=Array.isArray(r[0])?r[0]:[],qualLeads=Array.isArray(r[1])?r[1]:[],rev=r[2]||{},pipe=r[3]||{};
+  var totalLeads=rawLeads.length,qualified=qualLeads.length;
+  var hot=qualLeads.filter(function(l){return(l.qualification||(l.lead||{}).qualification)==='hot'}).length;
+  var withEmail=qualLeads.filter(function(l){return!!((l.lead||{}).email||l.email||'')}).length;
+  var outreachReady=qualLeads.filter(function(l){var q=l.qualification||(l.lead||{}).qualification||'',e=(l.lead||{}).email||l.email||'';return(q==='hot'||q==='warm')&&e}).length;
+  // Quick Stats
+  var se=document.getElementById('analyticsStats');
+  var sc=[{label:'Toplam Lead',value:totalLeads,color:'var(--text)'},{label:'Sıcak Lead',value:hot,color:'var(--accent)'},{label:'Kazanma Oranı',value:(rev.win_rate||0)+'%',color:'var(--green)'},{label:'Toplam Gelir',value:'$'+(rev.total_won||0).toLocaleString(),color:'var(--green)'},{label:'Aktif Agent',value:Object.keys(window._aRes||{}).length,color:'var(--blue)'}];
+  se.innerHTML=sc.map(function(s){return'<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;"><div style="font-size:28px;font-weight:700;color:'+s.color+';font-family:\'Space Mono\',monospace;">'+s.value+'</div><div style="font-size:9px;color:var(--dim);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">'+s.label+'</div></div>'}).join('');
+  // Funnel
+  var fs=[{label:'Toplam Lead',value:totalLeads,color:'var(--blue)'},{label:'Qualified',value:qualified,color:'var(--purple)'},{label:'Hot',value:hot,color:'var(--accent)'},{label:'E-posta Var',value:withEmail,color:'var(--yellow)'},{label:'Outreach',value:outreachReady,color:'var(--green)'}];
+  var mF=Math.max(totalLeads,1),bH=28,bG=8,fH=fs.length*(bH+bG),fW=500;
+  var fS='<svg width="100%" viewBox="0 0 '+fW+' '+fH+'" xmlns="http://www.w3.org/2000/svg">';
+  fs.forEach(function(s,i){var y=i*(bH+bG),w=Math.max((s.value/mF)*(fW-140),4);fS+='<rect x="120" y="'+y+'" width="'+w+'" height="'+bH+'" rx="4" fill="'+s.color+'" opacity="0.8"/><text x="115" y="'+(y+bH/2+4)+'" text-anchor="end" fill="#8a8a9c" font-size="10" font-family="Space Mono,monospace">'+s.label+'</text><text x="'+(125+w)+'" y="'+(y+bH/2+4)+'" fill="#ededf0" font-size="11" font-weight="700" font-family="Space Mono,monospace">'+s.value+'</text>'});
+  fS+='</svg>';document.getElementById('funnelChart').innerHTML=fS;
+  // Donut
+  var cn=pipe.counts||{},sC={new:'#60a5fa',contacted:'#fbbf24',meeting:'#a78bfa',proposal_sent:'#e85d26',closed:'#34d399',lost:'#f87171'},sL={new:'Yeni',contacted:'İletişim',meeting:'Toplantı',proposal_sent:'Teklif',closed:'Kapandı',lost:'Kayıp'};
+  var pT=0;Object.keys(cn).forEach(function(k){pT+=cn[k]});if(!pT)pT=1;
+  var dS='<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">',sA=-90;
+  Object.keys(cn).forEach(function(st){var c=cn[st];if(!c)return;var ang=(c/pT)*360,eA=sA+ang,rd=80,cx=100,cy=100;var x1=cx+rd*Math.cos(sA*Math.PI/180),y1=cy+rd*Math.sin(sA*Math.PI/180),x2=cx+rd*Math.cos(eA*Math.PI/180),y2=cy+rd*Math.sin(eA*Math.PI/180);dS+='<path d="M'+cx+','+cy+' L'+x1+','+y1+' A'+rd+','+rd+' 0 '+(ang>180?1:0)+',1 '+x2+','+y2+' Z" fill="'+(sC[st]||'#555')+'" opacity="0.85"/>';sA=eA});
+  var rT=0;Object.keys(cn).forEach(function(k){rT+=cn[k]});
+  dS+='<circle cx="100" cy="100" r="50" fill="var(--surface)"/><text x="100" y="96" text-anchor="middle" fill="#ededf0" font-size="22" font-weight="700" font-family="Space Mono,monospace">'+rT+'</text><text x="100" y="114" text-anchor="middle" fill="#8a8a9c" font-size="9" font-family="Space Mono,monospace">LEAD</text></svg>';
+  var lg='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">';
+  Object.keys(cn).forEach(function(st){var c=cn[st];if(!c)return;lg+='<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--dim);font-family:\'Space Mono\',monospace;"><span style="width:8px;height:8px;border-radius:2px;background:'+(sC[st]||'#555')+';display:inline-block;"></span>'+(sL[st]||st)+' ('+c+')</div>'});
+  lg+='</div>';document.getElementById('pipelineChart').innerHTML=dS+lg;
+  // Agent Grid
+  var al=['scout','filter','auditor','pitch','outreach','mentor','sitebuilder','goat'],aR=window._aRes||{};
+  var aH='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+  al.forEach(function(id){var ar=aR[id],dot='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);"></span>',tm='çalışmadı';if(ar){var cl=ar.status==='success'?'var(--green)':'var(--red)';dot='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+cl+';"></span>';try{tm=new Date(ar.timestamp).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}catch(e){}}aH+='<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:\'Space Mono\',monospace;font-size:11px;color:var(--text);">'+dot+'<span>'+id+'</span><span style="margin-left:auto;font-size:9px;color:var(--dim);">'+tm+'</span></div>'});
+  aH+='</div>';document.getElementById('agentGrid').innerHTML=aH;
+  // Revenue
+  var mo=rev.monthly||{},mos=Object.keys(mo).sort(),rE=document.getElementById('revenueChart');
+  if(!mos.length){rE.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--dim);font-size:12px;font-family:\'Space Mono\',monospace;">henüz gelir verisi yok</div>'}
+  else{var mxR=Math.max.apply(null,mos.map(function(m){return mo[m]}).concat([1])),cW=500,cH=180,bW=Math.min(40,(cW-40)/mos.length-8);var rS='<svg width="100%" viewBox="0 0 '+cW+' '+cH+'" xmlns="http://www.w3.org/2000/svg">';mos.forEach(function(m,i){var v=mo[m],h=(v/mxR)*(cH-40),x=40+i*(bW+8),y=cH-20-h;rS+='<rect x="'+x+'" y="'+y+'" width="'+bW+'" height="'+h+'" rx="3" fill="var(--green)" opacity="0.8"/><text x="'+(x+bW/2)+'" y="'+(cH-4)+'" text-anchor="middle" fill="#8a8a9c" font-size="8" font-family="Space Mono,monospace">'+m.slice(5)+'</text><text x="'+(x+bW/2)+'" y="'+(y-4)+'" text-anchor="middle" fill="#ededf0" font-size="9" font-weight="700" font-family="Space Mono,monospace">$'+v+'</text>'});rS+='</svg>';rE.innerHTML=rS}
+}
+try{window._aRes=JSON.parse('{{ results | tojson | safe }}')}catch(e){window._aRes={}}
+</script>
+
 </body>
 </html>

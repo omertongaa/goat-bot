@@ -38,6 +38,16 @@ AGENT_MODULES = {
     "pitch": "agents.pitch.agent:PitchAgent",
     "mentor": "agents.mentor.agent:MentorAgent",
     "sitebuilder": "agents.sitebuilder.agent:SiteBuilderAgent",
+    # --- New Agents ---
+    "designer": "agents.designer.agent:DesignerAgent",
+    "videomaker": "agents.videomaker.agent:VideoMakerAgent",
+    "admanager": "agents.admanager.agent:AdManagerAgent",
+    "analytics": "agents.analytics.agent:AnalyticsAgent",
+    "content": "agents.content.agent:ContentAgent",
+    "presenter": "agents.presenter.agent:PresenterAgent",
+    "social": "agents.social.agent:SocialAgent",
+    "brandkit": "agents.brandkit.agent:BrandKitAgent",
+    "mcphub": "agents.mcphub.agent:MCPHubAgent",
 }
 
 AGENT_RESULTS = {}
@@ -140,6 +150,73 @@ async def run_agent(agent_id: str, request: Request):
             result = agent.run(
                 site_type=params.get("site_type", "agency"),
                 lead_index=params.get("lead_index", 0),
+            )
+        elif agent_id == "designer" and params:
+            result = agent.run(
+                design_type=params.get("design_type", "social_post"),
+                business_name=params.get("business_name", ""),
+                platform=params.get("platform", "instagram"),
+                theme=params.get("theme", ""),
+                text=params.get("text", ""),
+            )
+        elif agent_id == "videomaker" and params:
+            result = agent.run(
+                video_type=params.get("video_type", "reels"),
+                business_name=params.get("business_name", ""),
+                topic=params.get("topic", ""),
+                target_audience=params.get("target_audience", ""),
+                count=params.get("count", 3),
+            )
+        elif agent_id == "admanager" and params:
+            result = agent.run(
+                platform=params.get("platform", "meta"),
+                campaign_type=params.get("campaign_type", "lead_gen"),
+                budget=params.get("budget", "1000"),
+                business_name=params.get("business_name", ""),
+                target_audience=params.get("target_audience", ""),
+            )
+        elif agent_id == "analytics" and params:
+            result = agent.run(
+                analysis_type=params.get("analysis_type", "competitor"),
+                target=params.get("target", ""),
+                industry=params.get("industry", ""),
+                location=params.get("location", ""),
+            )
+        elif agent_id == "content" and params:
+            result = agent.run(
+                content_type=params.get("content_type", "blog"),
+                topic=params.get("topic", ""),
+                tone=params.get("tone", "profesyonel"),
+                language=params.get("language", "tr"),
+                platform=params.get("platform", ""),
+                count=params.get("count", 1),
+            )
+        elif agent_id == "presenter" and params:
+            result = agent.run(
+                template=params.get("template", "pitch_deck"),
+                topic=params.get("topic", ""),
+                business_name=params.get("business_name", ""),
+                audience=params.get("audience", ""),
+            )
+        elif agent_id == "social" and params:
+            result = agent.run(
+                action=params.get("action", "strategy"),
+                platform=params.get("platform", "instagram"),
+                business_name=params.get("business_name", ""),
+                niche=params.get("niche", ""),
+            )
+        elif agent_id == "brandkit" and params:
+            result = agent.run(
+                business_name=params.get("business_name", ""),
+                industry=params.get("industry", ""),
+                style=params.get("style", "modern"),
+                values=params.get("values", ""),
+            )
+        elif agent_id == "mcphub" and params:
+            result = agent.run(
+                action=params.get("action", "list"),
+                tool_id=params.get("tool_id", ""),
+                category=params.get("category", ""),
             )
         else:
             result = agent.run()
@@ -765,6 +842,239 @@ async def serve_site(filename: str):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content)
+
+
+# ═══════════════════════════════════════════
+# PRESENTATIONS
+# ═══════════════════════════════════════════
+
+@app.get("/api/presentations")
+async def list_presentations():
+    """List all generated presentations."""
+    pres_dir = BASE_DIR / "outputs" / "presentations"
+    if not pres_dir.exists():
+        return JSONResponse([])
+    files = sorted(pres_dir.glob("*.html"), reverse=True)
+    result = []
+    for f in files:
+        result.append({
+            "filename": f.name,
+            "preview_url": "/presentation/" + f.name,
+            "size": f.stat().st_size,
+            "created": datetime.fromtimestamp(f.stat().st_ctime).isoformat(),
+        })
+    return JSONResponse(result)
+
+
+@app.get("/presentation/{filename}")
+async def serve_presentation(filename: str):
+    """Serve a generated presentation HTML file."""
+    if ".." in filename or "/" in filename:
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+    filepath = BASE_DIR / "outputs" / "presentations" / filename
+    if not filepath.exists() or not filepath.suffix == ".html":
+        return HTMLResponse("<h1>Presentation not found</h1>", status_code=404)
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content)
+
+
+# ═══════════════════════════════════════════
+# BRAND KIT
+# ═══════════════════════════════════════════
+
+@app.get("/api/brandkit")
+async def get_brand_kit():
+    """Get the latest brand kit."""
+    kit_dir = BASE_DIR / "data" / "brandkit"
+    if not kit_dir.exists():
+        return JSONResponse({"status": "empty"})
+    files = sorted(kit_dir.glob("*.json"), reverse=True)
+    if files:
+        with open(files[0]) as f:
+            return JSONResponse(json.load(f))
+    return JSONResponse({"status": "empty"})
+
+
+@app.get("/brandkit/{filename}")
+async def serve_brand_board(filename: str):
+    """Serve a generated brand board HTML file."""
+    if ".." in filename or "/" in filename:
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+    filepath = BASE_DIR / "outputs" / "brandkit" / filename
+    if not filepath.exists() or not filepath.suffix == ".html":
+        return HTMLResponse("<h1>Brand board not found</h1>", status_code=404)
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content)
+
+
+# ═══════════════════════════════════════════
+# MCP HUB
+# ═══════════════════════════════════════════
+
+@app.get("/api/mcp/tools")
+async def list_mcp_tools(category: str = ""):
+    """List available MCP tools."""
+    from services.mcp_registry import list_tools
+    tools = list_tools(category or None)
+    return JSONResponse({"status": "ok", "tools": tools, "count": len(tools)})
+
+
+@app.get("/api/mcp/tools/{tool_id}")
+async def get_mcp_tool(tool_id: str):
+    """Get MCP tool details and config."""
+    from services.mcp_registry import get_tool_config, MCP_CATALOG
+    tool = MCP_CATALOG.get(tool_id)
+    if not tool:
+        return JSONResponse({"error": "Tool not found"}, status_code=404)
+    config = get_tool_config(tool_id)
+    return JSONResponse({"status": "ok", "tool": tool, "config": config})
+
+
+@app.post("/api/mcp/install")
+async def install_mcp_tool(request: Request):
+    """Install (save config for) an MCP tool."""
+    body = await request.json()
+    tool_ids = body.get("tool_ids", [])
+    if not tool_ids:
+        return JSONResponse({"error": "tool_ids required"}, status_code=400)
+    from services.mcp_registry import save_installed_tools
+    installed = save_installed_tools(tool_ids)
+    return JSONResponse({"status": "ok", "installed": len(installed)})
+
+
+@app.get("/api/mcp/installed")
+async def get_installed_mcp():
+    """Get installed MCP tools."""
+    path = BASE_DIR / "data" / "mcp" / "installed.json"
+    if path.exists():
+        with open(path) as f:
+            return JSONResponse(json.load(f))
+    return JSONResponse({})
+
+
+@app.get("/api/mcp/config")
+async def generate_mcp_config():
+    """Generate full MCP config from installed tools."""
+    from services.mcp_registry import generate_full_config
+    path = BASE_DIR / "data" / "mcp" / "installed.json"
+    if not path.exists():
+        return JSONResponse({"mcpServers": {}})
+    with open(path) as f:
+        installed = json.load(f)
+    config = generate_full_config(list(installed.keys()))
+    return JSONResponse(config)
+
+
+@app.post("/api/mcp/search")
+async def search_mcp_tools(request: Request):
+    """Search MCP tools by keyword."""
+    body = await request.json()
+    query = body.get("query", "")
+    if not query:
+        return JSONResponse({"error": "query required"}, status_code=400)
+    from services.mcp_registry import search_tools
+    results = search_tools(query)
+    return JSONResponse({"status": "ok", "results": results, "count": len(results)})
+
+
+# ═══════════════════════════════════════════
+# ANALYTICS
+# ═══════════════════════════════════════════
+
+@app.get("/api/analytics/dashboard")
+async def analytics_dashboard():
+    """Get full analytics dashboard data."""
+    from services.analytics_engine import gather_pipeline_metrics, calculate_conversion_funnel
+    metrics = gather_pipeline_metrics()
+    funnel = calculate_conversion_funnel()
+    return JSONResponse({"metrics": metrics, "funnel": funnel})
+
+
+@app.get("/api/analytics/funnel")
+async def analytics_funnel():
+    """Get conversion funnel data."""
+    from services.analytics_engine import calculate_conversion_funnel
+    return JSONResponse(calculate_conversion_funnel())
+
+
+@app.get("/api/analytics/summary")
+async def analytics_summary():
+    """Get weekly performance summary."""
+    from services.analytics_engine import generate_weekly_summary
+    return JSONResponse(generate_weekly_summary())
+
+
+# ═══════════════════════════════════════════
+# CONTENT
+# ═══════════════════════════════════════════
+
+@app.get("/api/content")
+async def list_content():
+    """List generated content files."""
+    content_dir = BASE_DIR / "outputs" / "content"
+    if not content_dir.exists():
+        return JSONResponse([])
+    files = sorted(content_dir.glob("*.md"), reverse=True)
+    result = []
+    for f in files:
+        result.append({
+            "filename": f.name,
+            "path": str(f),
+            "size": f.stat().st_size,
+            "created": datetime.fromtimestamp(f.stat().st_ctime).isoformat(),
+        })
+    return JSONResponse(result)
+
+
+# ═══════════════════════════════════════════
+# DESIGNS
+# ═══════════════════════════════════════════
+
+@app.get("/api/designs")
+async def list_designs():
+    """List generated design briefs."""
+    designs_dir = BASE_DIR / "data" / "designs"
+    if not designs_dir.exists():
+        return JSONResponse([])
+    files = sorted(designs_dir.glob("*.json"), reverse=True)
+    result = []
+    for f in files[:20]:
+        with open(f) as fh:
+            data = json.load(fh)
+            result.append({
+                "filename": f.name,
+                "design_type": data.get("design_type", ""),
+                "platform": data.get("platform", ""),
+                "business_name": data.get("business_name", ""),
+                "created_at": data.get("created_at", ""),
+            })
+    return JSONResponse(result)
+
+
+# ═══════════════════════════════════════════
+# VIDEO
+# ═══════════════════════════════════════════
+
+@app.get("/api/videos")
+async def list_videos():
+    """List generated video projects."""
+    videos_dir = BASE_DIR / "data" / "videos"
+    if not videos_dir.exists():
+        return JSONResponse([])
+    files = sorted(videos_dir.glob("*.json"), reverse=True)
+    result = []
+    for f in files[:20]:
+        with open(f) as fh:
+            data = json.load(fh)
+            result.append({
+                "filename": f.name,
+                "video_type": data.get("video_type", ""),
+                "business_name": data.get("business_name", ""),
+                "created_at": data.get("created_at", ""),
+            })
+    return JSONResponse(result)
 
 
 if __name__ == "__main__":

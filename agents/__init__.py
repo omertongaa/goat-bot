@@ -33,6 +33,11 @@ AGENTS = {
     # === Delivery ===
     "sitebuilder": {"name": "SiteBuilder", "role": "Generates landing pages for agency and clients",         "category": "delivery",    "icon": "🌐"},
 
+    # === Production ===
+    "storyboard":    {"name": "Storyboard",    "role": "Kling 3.0 video storyboards — elements, clips, prompts for fal.ai", "category": "production", "icon": "🎥"},
+    "videoproducer": {"name": "VideoProducer", "role": "AI video production — Kie.ai + ElevenLabs + Remotion pipeline",  "category": "production", "icon": "🎞️"},
+    "youtube":       {"name": "YouTube",       "role": "YouTube automation — upload, SEO, scheduling, strategy",         "category": "production", "icon": "▶️"},
+
     # === System ===
     "mcphub":      {"name": "MCP Hub",     "role": "MCP tools registry — browse, install, manage integrations", "category": "system",  "icon": "🔌"},
 }
@@ -46,5 +51,6 @@ CATEGORIES = {
     "intelligence": {"name": "Intelligence",  "color": "#8b5cf6"},
     "education":    {"name": "Education",     "color": "#6366f1"},
     "delivery":     {"name": "Delivery",      "color": "#14b8a6"},
+    "production":   {"name": "Production",    "color": "#dc2626"},
     "system":       {"name": "System",        "color": "#6b7280"},
 }

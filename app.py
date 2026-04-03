@@ -47,7 +47,10 @@ AGENT_MODULES = {
     "presenter": "agents.presenter.agent:PresenterAgent",
     "social": "agents.social.agent:SocialAgent",
     "brandkit": "agents.brandkit.agent:BrandKitAgent",
+    "storyboard": "agents.storyboard.agent:StoryboardAgent",
     "mcphub": "agents.mcphub.agent:MCPHubAgent",
+    "videoproducer": "agents.videoproducer.agent:VideoProducerAgent",
+    "youtube": "agents.youtube.agent:YouTubeAgent",
 }
 
 AGENT_RESULTS = {}
@@ -204,6 +207,17 @@ async def run_agent(agent_id: str, request: Request):
                 platform=params.get("platform", "instagram"),
                 business_name=params.get("business_name", ""),
                 niche=params.get("niche", ""),
+            )
+        elif agent_id == "storyboard" and params:
+            result = agent.run(
+                project_type=params.get("project_type", "general"),
+                business_name=params.get("business_name", ""),
+                product_description=params.get("product_description", ""),
+                mood=params.get("mood", ""),
+                duration=params.get("duration", "15s"),
+                video_count=params.get("video_count", 1),
+                orientation=params.get("orientation", "vertical"),
+                reference_notes=params.get("reference_notes", ""),
             )
         elif agent_id == "brandkit" and params:
             result = agent.run(
@@ -904,6 +918,30 @@ async def serve_brand_board(filename: str):
     filepath = BASE_DIR / "outputs" / "brandkit" / filename
     if not filepath.exists() or not filepath.suffix == ".html":
         return HTMLResponse("<h1>Brand board not found</h1>", status_code=404)
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+    return HTMLResponse(content)
+
+
+# ═══════════════════════════════════════════
+# STORYBOARD
+# ═══════════════════════════════════════════
+
+@app.get("/api/storyboards")
+async def list_storyboards_api():
+    """List all generated storyboard HTML files."""
+    from services.storyboard import list_storyboards
+    return JSONResponse(list_storyboards())
+
+
+@app.get("/storyboard/{filename}")
+async def serve_storyboard(filename: str):
+    """Serve a generated storyboard HTML file for preview."""
+    if ".." in filename or "/" in filename:
+        return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
+    filepath = BASE_DIR / "outputs" / "storyboards" / filename
+    if not filepath.exists() or not filepath.suffix == ".html":
+        return HTMLResponse("<h1>Storyboard not found</h1>", status_code=404)
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
     return HTMLResponse(content)

@@ -232,6 +232,41 @@ async def run_agent(agent_id: str, request: Request):
                 tool_id=params.get("tool_id", ""),
                 category=params.get("category", ""),
             )
+        elif agent_id == "videoproducer" and params:
+            result = agent.run(
+                action=params.get("action", "plan"),
+                topic=params.get("topic", ""),
+                scenes=params.get("scenes"),
+                style=params.get("style", "cinematic"),
+                language=params.get("language", "tr"),
+                voice_id=params.get("voice_id", ""),
+            )
+        elif agent_id == "youtube" and params:
+            result = agent.run(
+                action=params.get("action", "optimize"),
+                video_path=params.get("video_path", ""),
+                title=params.get("title", ""),
+                topic=params.get("topic", ""),
+                language=params.get("language", "tr"),
+                category=params.get("category", "education"),
+                schedule_time=params.get("schedule_time", ""),
+            )
+        elif agent_id == "taskplanner" and params:
+            result = agent.run(
+                action=params.get("action", "plan"),
+                message=params.get("message", ""),
+                pipeline=params.get("pipeline", ""),
+                auto_execute=params.get("auto_execute", False),
+            )
+        elif agent_id == "videomaker" and params:
+            result = agent.run(
+                video_type=params.get("video_type", "reels"),
+                business_name=params.get("business_name", ""),
+                topic=params.get("topic", ""),
+                target_audience=params.get("target_audience", ""),
+                count=params.get("count", 3),
+                language=params.get("language", "tr"),
+            )
         else:
             result = agent.run()
 

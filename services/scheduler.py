@@ -185,6 +185,84 @@ def get_scheduled_run_logs(limit: int = 20):
     return logs[-limit:]
 
 
+def enable_cofounder_mode():
+    """Enable Cofounder Mode — auto Scout daily at 9am, auto Filter at 9:30am."""
+    # Remove existing cofounder schedules
+    schedules = _load_schedules()
+    schedules = [s for s in schedules if not s.get("id", "").startswith("cofounder_")]
+
+    # Add Scout at 9am
+    scout_id = "cofounder_scout_morning"
+    schedules.append({
+        "id": scout_id,
+        "agent_id": "scout",
+        "cron": "0 9 * * *",
+        "cron_original": "daily",
+        "params": {},
+        "name": "Cofounder: Scout 09:00",
+        "created_at": datetime.now().isoformat(),
+        "active": True,
+    })
+
+    # Add Filter at 9:30am
+    filter_id = "cofounder_filter_morning"
+    schedules.append({
+        "id": filter_id,
+        "agent_id": "filter",
+        "cron": "30 9 * * *",
+        "cron_original": "daily",
+        "params": {},
+        "name": "Cofounder: Filter 09:30",
+        "created_at": datetime.now().isoformat(),
+        "active": True,
+    })
+
+    _save_schedules(schedules)
+
+    # Register with running scheduler if started
+    if _started:
+        for sid, hour, minute, agent_id, name in [
+            (scout_id, 9, 0, "scout", "Cofounder: Scout 09:00"),
+            (filter_id, 9, 30, "filter", "Cofounder: Filter 09:30"),
+        ]:
+            try:
+                scheduler.remove_job(sid)
+            except Exception:
+                pass
+            scheduler.add_job(
+                _run_agent,
+                trigger=CronTrigger(minute=minute, hour=hour),
+                args=[agent_id],
+                id=sid,
+                name=name,
+                replace_existing=True,
+            )
+
+    return {"status": "enabled", "schedules": [scout_id, filter_id]}
+
+
+def disable_cofounder_mode():
+    """Disable Cofounder Mode."""
+    schedules = _load_schedules()
+    cofounder_ids = [s["id"] for s in schedules if s.get("id", "").startswith("cofounder_")]
+    schedules = [s for s in schedules if not s.get("id", "").startswith("cofounder_")]
+    _save_schedules(schedules)
+
+    for sid in cofounder_ids:
+        try:
+            scheduler.remove_job(sid)
+        except Exception:
+            pass
+
+    return {"status": "disabled"}
+
+
+def is_cofounder_mode_active():
+    """Check if cofounder mode is enabled."""
+    schedules = _load_schedules()
+    return any(s.get("id", "").startswith("cofounder_") for s in schedules)
+
+
 def start_scheduler():
     """Start the background scheduler and restore saved schedules."""
     global _started

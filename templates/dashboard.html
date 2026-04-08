@@ -288,6 +288,17 @@ body::before {
   background: var(--accent);
   box-shadow: 0 0 12px rgba(232,93,38,0.3);
 }
+.cofounder-btn.active {
+  color: #34d399;
+  border-color: rgba(52,211,153,0.4);
+  background: rgba(52,211,153,0.08);
+  box-shadow: 0 0 12px rgba(52,211,153,0.2);
+}
+.cofounder-btn.active:hover {
+  background: rgba(52,211,153,0.2);
+  border-color: #34d399;
+  color: #34d399;
+}
 .reset-btn {
   font-size: 10px;
   color: var(--dim);
@@ -331,6 +342,84 @@ body::before {
 .log-line.indent { padding-left: 24px; }
 .log-line.space { margin-top: 14px; }
 .log-line.large { font-size: 16px; font-weight: 700; color: var(--text); text-shadow: 0 0 12px var(--glow-accent); }
+
+/* ─── Pin button on log lines ─── */
+.log-line { position: relative; padding-right: 28px; }
+.log-line .pin-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(26,26,36,0.85);
+  border: 1px solid var(--accent2);
+  color: var(--accent2);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-family: 'Space Mono', monospace;
+}
+.log-line:hover .pin-btn { opacity: 1; }
+.log-line .pin-btn:hover { background: var(--accent2); color: #0a0a0e; }
+
+/* ─── Pinned messages section ─── */
+.log { position: relative; }
+#pinnedSection {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(17,17,20,0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-left: 2px solid var(--accent2);
+  border-bottom: 1px solid rgba(255,122,69,0.2);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  max-height: 100px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px -8px var(--glow-accent);
+  display: none;
+}
+#pinnedSection.has-items { display: block; }
+#pinnedSection .pinned-header {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  text-shadow: 0 0 8px var(--glow-accent);
+}
+#pinnedSection .pinned-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+  padding: 2px 0;
+  border-bottom: 1px dashed rgba(255,122,69,0.08);
+}
+#pinnedSection .pinned-item:last-child { border-bottom: none; }
+#pinnedSection .pinned-item .pinned-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#pinnedSection .pinned-item .pinned-x {
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  font-family: inherit;
+}
+#pinnedSection .pinned-item .pinned-x:hover { color: var(--red); }
 
 /* Typing cursor for active line */
 .log-line .type-cursor {
@@ -428,6 +517,177 @@ body::before {
 @keyframes promptPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
+}
+.brief-section {
+  background: linear-gradient(180deg, rgba(232,93,38,0.04), transparent);
+  border: 1px solid rgba(232,93,38,0.15);
+  border-radius: 6px;
+  padding: 12px !important;
+  margin-bottom: 16px;
+}
+.brief-action {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(232,93,38,0.08);
+  border: 1px solid rgba(232,93,38,0.25);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 10px;
+}
+.brief-action:hover {
+  background: rgba(232,93,38,0.15);
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+.brief-arrow {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.brief-text {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.brief-stats {
+  font-size: 10px;
+  color: var(--dim);
+}
+.bs-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.bs-row strong {
+  color: var(--text);
+}
+.bs-hot {
+  color: var(--accent) !important;
+}
+.bs-pending {
+  color: #fbbf24;
+  padding: 4px 0;
+  font-size: 10px;
+}
+.hot-section {
+  margin-bottom: 16px;
+}
+.hot-count {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 700;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.hot-lead-card {
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 6px;
+}
+.hot-lead-card:hover {
+  background: rgba(232,93,38,0.06);
+  border-color: rgba(232,93,38,0.3);
+  transform: translateX(2px);
+}
+.hl-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hl-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  color: var(--dim);
+}
+.hl-score {
+  background: rgba(232,93,38,0.15);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+.hl-stage {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hl-stage-new { background: rgba(138,138,156,0.15); color: #8a8a9c; }
+.hl-stage-contacted { background: rgba(96,165,250,0.15); color: #60a5fa; }
+.hl-stage-meeting { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.hl-stage-proposal_sent { background: rgba(232,93,38,0.15); color: #e85d26; }
+.hl-stage-closed { background: rgba(52,211,153,0.15); color: #34d399; }
+.hot-empty {
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--dim);
+  line-height: 1.6;
+}
+.mini-pipeline {
+  display: flex;
+  gap: 0;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+  flex-shrink: 0;
+}
+.mp-stage {
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+  padding: 6px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  position: relative;
+  font-family: 'Space Mono', monospace;
+}
+.mp-stage:hover {
+  background: rgba(232,93,38,0.06);
+}
+.mp-stage:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 9px;
+}
+.mp-num {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+}
+.mp-stage.closed .mp-num { color: #34d399; }
+.mp-lbl {
+  display: block;
+  font-size: 9px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
 }
 .input-thinking {
   position: absolute;
@@ -874,13 +1134,22 @@ body::before {
       <span id="headerClock"></span>
       <span class="sub" id="headerSub"></span>
       <div class="hdr-btns">
+        <span class="hdr-btn cofounder-btn" id="cofounderBtn" onclick="toggleCofounder()" title="Cofounder Modu — sabah otomatik scout+filter">🤝 COFOUNDER</span>
         <span class="hdr-btn" onclick="openCRM()" title="CRM Pipeline">◫ CRM</span>
         <span class="hdr-btn" onclick="showAnalytics()" title="Analiz Paneli">📊 ANALİZ</span>
+        <span class="hdr-btn" id="compactToggle" onclick="toggleCompactMode()" title="Kompakt mod — odak için sade görünüm">⊟ COMPACT</span>
         <span class="hdr-btn" id="sfxToggle" onclick="SFX.toggle()" title="ses aç/kapa">🔊</span>
         <span class="reset-btn" onclick="fullReset()" title="sıfırla">↺</span>
       </div>
     </div>
-    <div class="log" id="log"></div>
+    <div class="mini-pipeline" id="miniPipeline">
+      <div class="mp-stage" data-stage="new" onclick="openCRM()"><span class="mp-num" id="mpNew">{{ pipeline_counts.new or 0 }}</span><span class="mp-lbl">yeni</span></div>
+      <div class="mp-stage" data-stage="contacted" onclick="openCRM()"><span class="mp-num" id="mpContacted">{{ pipeline_counts.contacted or 0 }}</span><span class="mp-lbl">iletişim</span></div>
+      <div class="mp-stage" data-stage="meeting" onclick="openCRM()"><span class="mp-num" id="mpMeeting">{{ pipeline_counts.meeting or 0 }}</span><span class="mp-lbl">toplantı</span></div>
+      <div class="mp-stage" data-stage="proposal_sent" onclick="openCRM()"><span class="mp-num" id="mpProposal">{{ pipeline_counts.proposal_sent or 0 }}</span><span class="mp-lbl">teklif</span></div>
+      <div class="mp-stage closed" data-stage="closed" onclick="openCRM()"><span class="mp-num" id="mpClosed">{{ pipeline_counts.closed or 0 }}</span><span class="mp-lbl">kazanıldı</span></div>
+    </div>
+    <div class="log" id="log"><div id="pinnedSection"></div></div>
     <div class="input-area">
       <span class="prompt">&gt;</span>
       <input type="text" id="input" placeholder="" onkeydown="if(event.key==='Enter')handleInput(); else SFX.type();" autofocus>
@@ -901,6 +1170,45 @@ body::before {
         <div class="glow"></div>
       </div>
       <div class="bot-status" id="botStatus">beklemede</div>
+    </div>
+
+    <div class="stat-section brief-section" id="secBrief">
+      <div class="stat-label">bugün</div>
+      {% if daily_brief.next_action %}
+      <div class="brief-action" onclick="handleBriefAction()">
+        <div class="brief-arrow">→</div>
+        <div class="brief-text">{{ daily_brief.next_action }}</div>
+      </div>
+      {% endif %}
+      <div class="brief-stats">
+        <div class="bs-row"><span>bugün bulundu</span><strong>{{ daily_brief.leads_today }}</strong></div>
+        <div class="bs-row"><span>sıcak eklendi</span><strong class="bs-hot">{{ daily_brief.hot_added_today }}</strong></div>
+        {% if daily_brief.pending_actions %}
+        {% for pa in daily_brief.pending_actions %}
+        <div class="bs-pending">⚠ {{ pa.label }}</div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="stat-section hot-section" id="secHotLeads">
+      <div class="stat-label">sıcak leadler <span class="hot-count" id="hotCount">{{ hot_leads|length }}</span></div>
+      <div id="hotLeadsList">
+        {% for lead in hot_leads %}
+        <div class="hot-lead-card" data-slug="{{ lead.slug }}" onclick="openHotLead('{{ lead.slug }}', '{{ lead.name|e }}')">
+          <div class="hl-name">{{ lead.name }}</div>
+          <div class="hl-meta">
+            <span class="hl-score">{{ lead.score }}</span>
+            {% if lead.email %}<span>✉</span>{% endif %}
+            {% if lead.phone %}<span>☎</span>{% endif %}
+            <span class="hl-stage hl-stage-{{ lead.stage }}">{{ lead.stage }}</span>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not hot_leads %}
+        <div class="hot-empty">henüz sıcak lead yok.<br><span style="opacity:0.6">scout çalıştır</span></div>
+        {% endif %}
+      </div>
     </div>
 
     <div class="stat-section" id="secChecklist">
@@ -1126,6 +1434,171 @@ body::before {
   border-top: 1px solid var(--border); font-size: 9px; color: var(--faint);
 }
 #cmdFooter kbd { font-family: inherit; border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; }
+.cmd-section-hdr {
+  font-size: 9px; color: var(--faint); text-transform: uppercase; letter-spacing: 1px;
+  padding: 8px 18px 4px; font-weight: 700;
+  border-top: 1px solid var(--border);
+}
+.cmd-section-hdr:first-child { border-top: none; }
+.cmd-row .cmd-snippet {
+  font-size: 10px; color: var(--dim); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+
+/* ─── Compact Mode ─── */
+.hdr-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+body.compact-mode .office-wrap { display: none !important; }
+body.compact-mode .stats-panel { display: none !important; }
+body.compact-mode .narrative { border-right: none; }
+
+/* ─── Lead Detail Slide-Out Panel ─── */
+#leadDetailBackdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  z-index: 1499; opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+}
+#leadDetailBackdrop.open { opacity: 1; pointer-events: auto; }
+#leadDetailPanel {
+  position: fixed; top: 0; right: 0; height: 100vh; width: 380px;
+  background: linear-gradient(180deg, rgba(14,14,19,0.94), rgba(8,8,11,0.96));
+  backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-left: 1px solid rgba(232,93,38,0.22);
+  box-shadow: -24px 0 60px rgba(0,0,0,0.55), -1px 0 0 rgba(255,255,255,0.03) inset;
+  z-index: 1500; transform: translateX(105%);
+  transition: transform 0.32s cubic-bezier(0.22,0.9,0.32,1);
+  display: flex; flex-direction: column;
+  font-family: 'Space Mono', monospace; color: var(--text);
+}
+#leadDetailPanel.open { transform: translateX(0); }
+.ldp-header {
+  padding: 18px 18px 14px; border-bottom: 1px solid var(--border);
+  position: relative; flex-shrink: 0;
+}
+.ldp-header::after {
+  content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.4;
+}
+.ldp-name { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.3; padding-right: 30px; letter-spacing: 0.2px; }
+.ldp-cat { font-size: 10px; color: var(--dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.6px; }
+.ldp-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--dim); font-size: 16px; border-radius: 4px;
+  transition: all 0.18s;
+}
+.ldp-close:hover { color: var(--accent); background: rgba(232,93,38,0.08); }
+.ldp-body { flex: 1; overflow-y: auto; padding: 14px 18px 18px; }
+.ldp-body::-webkit-scrollbar { width: 6px; }
+.ldp-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.ldp-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.ldp-badge {
+  font-size: 9px; padding: 4px 8px; border-radius: 10px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.02);
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--dim);
+}
+.ldp-badge.hot { color: #ff6b3d; border-color: rgba(255,107,61,0.4); background: rgba(255,107,61,0.08); }
+.ldp-badge.warm { color: #fbbf24; border-color: rgba(251,191,36,0.4); background: rgba(251,191,36,0.08); }
+.ldp-badge.cold { color: #60a5fa; border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.08); }
+.ldp-badge.score { color: var(--accent); border-color: rgba(232,93,38,0.4); background: rgba(232,93,38,0.08); }
+.ldp-badge.stage { color: #34d399; border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.06); }
+
+.ldp-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 16px; }
+.ldp-action {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 10px 4px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: rgba(255,255,255,0.015); transition: all 0.18s;
+  font-family: inherit; color: var(--dim); font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px;
+}
+.ldp-action:hover:not(:disabled) {
+  border-color: rgba(232,93,38,0.5); color: var(--accent);
+  background: rgba(232,93,38,0.06); transform: translateY(-1px);
+}
+.ldp-action:disabled { opacity: 0.3; cursor: not-allowed; }
+.ldp-action .ico { font-size: 14px; }
+
+.ldp-section { margin-bottom: 16px; }
+.ldp-label {
+  font-size: 9px; color: var(--faint); text-transform: uppercase;
+  letter-spacing: 0.7px; margin-bottom: 6px; font-weight: 700;
+}
+.ldp-stage-select {
+  width: 100%; font-family: inherit; font-size: 11px;
+  padding: 8px 10px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 5px; outline: none;
+  cursor: pointer; transition: border-color 0.2s;
+}
+.ldp-stage-select:focus, .ldp-stage-select:hover { border-color: var(--accent); }
+
+.ldp-info { display: flex; flex-direction: column; gap: 6px; }
+.ldp-info-row {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 11px; color: var(--text); padding: 6px 8px;
+  background: rgba(255,255,255,0.015); border-radius: 4px;
+  border: 1px solid transparent;
+}
+.ldp-info-row .k { color: var(--faint); font-size: 9px; min-width: 50px; text-transform: uppercase; padding-top: 2px; }
+.ldp-info-row .v { flex: 1; word-break: break-word; }
+.ldp-info-row a { color: var(--accent); text-decoration: none; }
+.ldp-info-row a:hover { text-decoration: underline; }
+.ldp-info-row.empty .v { color: var(--faint); font-style: italic; }
+
+.ldp-notes { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; margin-bottom: 8px; }
+.ldp-note {
+  font-size: 11px; padding: 8px 10px;
+  background: rgba(255,255,255,0.02); border-radius: 5px;
+  border-left: 2px solid var(--accent);
+}
+.ldp-note .txt { color: var(--text); line-height: 1.4; }
+.ldp-note .ts { font-size: 9px; color: var(--faint); margin-top: 4px; }
+.ldp-note-empty { font-size: 10px; color: var(--faint); font-style: italic; padding: 6px; text-align: center; }
+.ldp-note-add { display: flex; gap: 6px; }
+.ldp-note-add input {
+  flex: 1; font-family: inherit; font-size: 11px;
+  padding: 7px 10px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 5px; outline: none;
+}
+.ldp-note-add input:focus { border-color: var(--accent); }
+.ldp-note-add button {
+  font-family: inherit; font-size: 10px; font-weight: 700;
+  padding: 0 12px; background: var(--accent); color: #fff;
+  border: none; border-radius: 5px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ldp-note-add button:hover { background: var(--accent2); }
+
+.ldp-timeline { display: flex; flex-direction: column; gap: 8px; }
+.ldp-tl-item {
+  display: flex; gap: 10px; font-size: 10px;
+  position: relative; padding-left: 14px;
+}
+.ldp-tl-item::before {
+  content: ''; position: absolute; left: 3px; top: 5px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 6px rgba(232,93,38,0.5);
+}
+.ldp-tl-item::after {
+  content: ''; position: absolute; left: 5px; top: 14px; bottom: -8px;
+  width: 1px; background: var(--border);
+}
+.ldp-tl-item:last-child::after { display: none; }
+.ldp-tl-item .label { color: var(--text); flex: 1; }
+.ldp-tl-item .ts { color: var(--faint); font-size: 9px; }
+
+.ldp-footer {
+  padding: 12px 18px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.ldp-delete {
+  width: 100%; font-family: inherit; font-size: 10px; font-weight: 700;
+  padding: 9px; background: transparent; color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.35); border-radius: 5px;
+  cursor: pointer; text-transform: uppercase; letter-spacing: 0.6px;
+  transition: all 0.18s;
+}
+.ldp-delete:hover { background: rgba(239,68,68,0.1); border-color: #ef4444; }
+.ldp-loading { text-align: center; padding: 30px; color: var(--faint); font-size: 11px; }
 </style>
 
 <!-- Command Palette (⌘K / Ctrl+K) -->
@@ -1152,6 +1625,22 @@ body::before {
     </div>
   </div>
 </div>
+
+<!-- Lead Detail Slide-Out Panel -->
+<div id="leadDetailBackdrop" onclick="closeLeadDetail()"></div>
+<aside id="leadDetailPanel" aria-hidden="true">
+  <div class="ldp-header">
+    <div class="ldp-name" id="ldpName">—</div>
+    <div class="ldp-cat" id="ldpCat"></div>
+    <div class="ldp-close" onclick="closeLeadDetail()" title="kapat (esc)">✕</div>
+  </div>
+  <div class="ldp-body" id="ldpBody">
+    <div class="ldp-loading">yükleniyor…</div>
+  </div>
+  <div class="ldp-footer">
+    <button class="ldp-delete" onclick="ldpDeleteLead()">⌫ leadi sil</button>
+  </div>
+</aside>
 
 <script>
 // ═══════════════════════════════════════════
@@ -1396,6 +1885,10 @@ function write(text, cls='', delay=0) {
       el.innerHTML = text;
       el.classList.add('fade-in');
       log.appendChild(el);
+    }
+    // Attach pin button (skip empty/space lines)
+    if (text && text.trim() && !cls.includes('space')) {
+      try { attachPinButton(el); } catch(e) {}
     }
     log.scrollTop = log.scrollHeight;
   }, d);
@@ -2564,9 +3057,88 @@ function renderOffice() {
       return;
     }
 
-    const screenColor = isWorking ? C.screenAccent : (isActive ? C.screenGreen : C.screenOff);
+    // Determine agent eye color (used for aura + pulse)
+    const agentColors = {
+      goat: { eye: '#e85d26' },
+      scout: { eye: '#7abfff' },
+      filter: { eye: '#ffd24a' },
+      auditor: { eye: '#ffb82b' },
+      mentor: { eye: '#c4a5ff' },
+      outreach: { eye: '#ff8a8a' },
+      pitch: { eye: '#4ade80' },
+      sitebuilder: { eye: '#ffb82b' },
+      designer: { eye: '#ffb82b' },
+      content: { eye: '#ffd24a' },
+      brandkit: { eye: '#ff6eb4' },
+      presenter: { eye: '#7abfff' },
+      videomaker: { eye: '#ff8a8a' },
+      admanager: { eye: '#ff6eb4' },
+      social: { eye: '#ff6eb4' },
+      analytics: { eye: '#a78bfa' },
+    };
+    const eyeColor = (agentColors[id] || {eye: '#8a8a98'}).eye;
+
+    // Pulsing aura for working agents
+    if (isWorking) {
+      const pulse = 0.5 + Math.sin(Date.now() / 250) * 0.5;
+      ctx.save();
+      ctx.shadowColor = eyeColor;
+      ctx.shadowBlur = 18 + pulse * 14;
+      ctx.fillStyle = eyeColor;
+      ctx.globalAlpha = 0.08 + pulse * 0.10;
+      ctx.beginPath();
+      ctx.arc(d.x * PX, (d.y + 1) * PX, PX * 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
+    const screenColor = isWorking ? eyeColor : (isActive ? C.screenGreen : C.screenOff);
     drawDesk(d.x, d.y, true, screenColor);
+
+    // Bright pulsing monitor glow for working agents
+    if (isWorking) {
+      const mp = 0.5 + Math.sin(Date.now() / 200) * 0.5;
+      ctx.save();
+      ctx.shadowColor = eyeColor;
+      ctx.shadowBlur = 14 + mp * 10;
+      ctx.fillStyle = eyeColor;
+      ctx.globalAlpha = 0.35 + mp * 0.45;
+      ctx.fillRect((d.x - 2) * PX, (d.y - 5) * PX, 4 * PX, 3 * PX);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
     drawChair(d.x, d.y + 5);
+
+    // Result badge above desk (success/error count)
+    const badge = OFFICE_BADGES[id];
+    if (badge && badge.count > 0) {
+      const bx = (d.x + 4) * PX;
+      const by = (d.y - 8) * PX;
+      const badgeColor = badge.status === 'error' ? '#f87171' : '#34d399';
+      ctx.save();
+      ctx.shadowColor = badgeColor;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = badgeColor;
+      ctx.beginPath();
+      ctx.arc(bx, by, PX * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#0a0a0e';
+      ctx.font = `bold ${PX * 1.8}px 'Space Mono', monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const mark = badge.status === 'error' ? '✗' : '✓';
+      ctx.fillText(mark, bx, by);
+      // Count subscript
+      if (badge.count > 1) {
+        ctx.fillStyle = badgeColor;
+        ctx.font = `bold ${PX * 1.3}px 'Space Mono', monospace`;
+        ctx.fillText(String(badge.count), bx + PX * 2.2, by + PX * 1.2);
+      }
+      ctx.textBaseline = 'alphabetic';
+    }
 
     if (isActive) {
       if (id === 'goat') {
@@ -2659,7 +3231,22 @@ canvas.addEventListener('mousemove', (e) => {
     tip.style.cssText = 'position:fixed;pointer-events:none;background:#1a1a24;color:#e8e8e8;font-family:"Space Mono",monospace;font-size:11px;padding:3px 8px;border:1px solid #2a2a34;border-radius:3px;z-index:100;white-space:nowrap;transition:opacity 0.15s;';
     document.body.appendChild(tip);
   }
-  tip.textContent = d.label;
+  // Enriched tooltip with activity info
+  const act = OFFICE_ACTIVITY[id];
+  const isWorkingNow = officeState.working.has(id);
+  let tipHtml = `<div style="font-weight:700;color:#ff7a45">${d.label}</div>`;
+  if (isWorkingNow) {
+    tipHtml += `<div style="color:#fbbf24;font-size:10px">çalışıyor...</div>`;
+  }
+  if (act) {
+    const when = (typeof relativeTime === 'function' && act.timestamp) ? relativeTime(act.timestamp) : '';
+    const sumColor = act.status === 'error' ? '#f87171' : '#34d399';
+    tipHtml += `<div style="color:${sumColor};font-size:10px;max-width:220px;white-space:normal">${(act.summary||'').slice(0,120)}</div>`;
+    if (when) tipHtml += `<div style="color:#8a8a98;font-size:9px">${when}</div>`;
+  } else if (!isWorkingNow) {
+    tipHtml += `<div style="color:#8a8a98;font-size:10px">henüz aktivite yok</div>`;
+  }
+  tip.innerHTML = tipHtml;
   tip.style.left = tipX + 'px';
   tip.style.top = tipY + 'px';
   tip.style.opacity = '1';
@@ -3842,15 +4429,530 @@ function saveNewLead() {
 
 // ═══ COMMAND PALETTE ═══
 const CMD_ITEMS=[{icon:'🔍',label:'Scout',desc:'Müşteri bul',hint:'agent',action:doScout},{icon:'⚡',label:'Filter',desc:'Lead puanla',hint:'agent',action:doFilter},{icon:'🔎',label:'Auditor',desc:'Site analiz',hint:'agent',action:doAudit},{icon:'📝',label:'Pitch',desc:'Teklif hazırla',hint:'agent',action:doPitch},{icon:'📧',label:'Outreach',desc:'Email kampanya',hint:'agent',action:doOutreach},{icon:'🌐',label:'SiteBuilder',desc:'Site oluştur',hint:'agent',action:showSiteOptions},{icon:'🎨',label:'Designer',desc:'Görsel tasarla',hint:'agent',action:()=>{fetch('/api/agent/designer/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Designer bitti.')})}},{icon:'✍️',label:'Content',desc:'İçerik yaz',hint:'agent',action:()=>{fetch('/api/agent/content/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Content bitti.')})}},{icon:'💎',label:'BrandKit',desc:'Marka kimliği',hint:'agent',action:()=>{fetch('/api/agent/brandkit/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('BrandKit bitti.')})}},{icon:'📊',label:'Analytics',desc:'Pazar analizi',hint:'agent',action:()=>{fetch('/api/agent/analytics/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()).then(d=>{if(d.summary)addLog(d.summary);else addLog('Analytics bitti.')})}},{icon:'📋',label:'CRM Pipeline',desc:'Müşteri takibi',hint:'görünüm',action:openCRM},{icon:'📑',label:'Lead Tablosu',desc:'Tüm leadler',hint:'görünüm',action:showLeadTable},{icon:'💰',label:'Gelir Dashboard',desc:'Gelir takibi',hint:'görünüm',action:showRevenue},{icon:'🔔',label:'Hatırlatıcılar',desc:'Yaklaşan görevler',hint:'görünüm',action:showReminders},{icon:'⏰',label:'Zamanlamalar',desc:'Otomatik çalıştırma',hint:'görünüm',action:showSchedules},{icon:'➕',label:'Lead Ekle',desc:'Manuel lead ekle',hint:'aksiyon',action:showManualLeadForm},{icon:'🏗️',label:'Site Yap',desc:'Manuel site oluştur',hint:'aksiyon',action:showManualSiteForm},{icon:'⚙️',label:'Ayarlar',desc:'Konfigürasyon',hint:'aksiyon',action:showSetup},{icon:'🗑️',label:'Sıfırla',desc:'Tüm veriyi sil',hint:'aksiyon',action:fullReset},{icon:'❓',label:'Yardım',desc:'Kullanım rehberi',hint:'aksiyon',action:showHelp},{icon:'🧹',label:'Temizle',desc:'Log temizle',hint:'aksiyon',action:()=>{const log=document.getElementById('log');if(log)log.innerHTML=''}}];
-let cmdActiveIdx=0,cmdFiltered=[...CMD_ITEMS];
-function openCmdPalette(){document.getElementById('cmdPaletteOverlay').classList.add('open');const inp=document.getElementById('cmdInput');inp.value='';cmdActiveIdx=0;cmdFiltered=[...CMD_ITEMS];renderCmdResults();setTimeout(()=>inp.focus(),30)}
+let cmdActiveIdx=0,cmdFiltered=CMD_ITEMS.map(it=>({...it,kind:'cmd'}));
+let cmdCache={loaded:false,leads:[],notes:[],messages:[]};
+let cmdSearchTimer=null;
+function slugifyJS(s){return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
+async function loadCmdCache(){
+  if(cmdCache.loaded)return;
+  cmdCache.loaded=true;
+  try{
+    const [leadsRes,chatRes]=await Promise.all([
+      fetch('/api/leads/qualified').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/chat/history').then(r=>r.json()).catch(()=>[])
+    ]);
+    const leads=(leadsRes||[]).map(entry=>{
+      const l=(entry && entry.name)?entry:((entry && entry.lead)||entry||{});
+      const name=l.name||l.title||'';
+      return {name,email:l.email||'',phone:l.phone||'',slug:l.slug||slugifyJS(name),raw:l};
+    }).filter(l=>l.name);
+    cmdCache.leads=leads;
+    cmdCache.messages=(chatRes||[]).map((m,i)=>({idx:i,role:m.role,content:(m.content||'').toString()}));
+    const notePromises=leads.slice(0,80).map(l=>
+      fetch('/api/leads/'+encodeURIComponent(l.slug)+'/notes').then(r=>r.json()).catch(()=>[])
+        .then(notes=>(notes||[]).map(n=>({lead:l,text:n.text||'',id:n.id})))
+    );
+    const noteArrs=await Promise.all(notePromises);
+    cmdCache.notes=noteArrs.flat();
+    if(document.getElementById('cmdPaletteOverlay').classList.contains('open'))renderCmdResults();
+  }catch(e){console.warn('cmd cache load failed',e)}
+}
+function openCmdPalette(){document.getElementById('cmdPaletteOverlay').classList.add('open');const inp=document.getElementById('cmdInput');inp.value='';inp.placeholder='komut, lead, not veya sohbet ara...';cmdActiveIdx=0;renderCmdResults();setTimeout(()=>inp.focus(),30);loadCmdCache()}
 function closeCmdPalette(){document.getElementById('cmdPaletteOverlay').classList.remove('open')}
-function fuzzyMatch(text,query){text=text.toLowerCase();query=query.toLowerCase();let ti=0,qi=0,indices=[];while(ti<text.length&&qi<query.length){if(text[ti]===query[qi]){indices.push(ti);qi++}ti++}return qi===query.length?indices:null}
+function fuzzyMatch(text,query){text=(text||'').toLowerCase();query=(query||'').toLowerCase();let ti=0,qi=0,indices=[];while(ti<text.length&&qi<query.length){if(text[ti]===query[qi]){indices.push(ti);qi++}ti++}return qi===query.length?indices:null}
 function highlightMatch(text,indices){if(!indices)return text;let r='',s=new Set(indices);for(let i=0;i<text.length;i++)r+=s.has(i)?'<mark>'+text[i]+'</mark>':text[i];return r}
-function renderCmdResults(){const box=document.getElementById('cmdResults');if(!cmdFiltered.length){box.innerHTML='<div class="cmd-empty">sonuç yok</div>';return}const shown=cmdFiltered.slice(0,10),q=document.getElementById('cmdInput').value.trim();box.innerHTML=shown.map((it,i)=>{const lbl=q?highlightMatch(it.label,fuzzyMatch(it.label,q)):it.label;return`<div class="cmd-row${i===cmdActiveIdx?' active':''}" data-idx="${i}"><span class="cmd-icon">${it.icon}</span><div class="cmd-body"><div class="cmd-label">${lbl}</div><div class="cmd-desc">${it.desc}</div></div><span class="cmd-hint">${it.hint}</span></div>`}).join('');box.querySelectorAll('.cmd-row').forEach(r=>r.addEventListener('click',()=>cmdRunItem(+r.dataset.idx)))}
-function cmdRunItem(idx){const it=cmdFiltered[idx];if(it){closeCmdPalette();it.action()}}
-document.addEventListener('keydown',function(e){const isOpen=document.getElementById('cmdPaletteOverlay').classList.contains('open');if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();isOpen?closeCmdPalette():openCmdPalette();return}if(!isOpen)return;if(e.key==='Escape'){e.preventDefault();closeCmdPalette();return}if(e.key==='ArrowDown'){e.preventDefault();cmdActiveIdx=Math.min(cmdActiveIdx+1,Math.min(cmdFiltered.length,10)-1);renderCmdResults();return}if(e.key==='ArrowUp'){e.preventDefault();cmdActiveIdx=Math.max(cmdActiveIdx-1,0);renderCmdResults();return}if(e.key==='Enter'){e.preventDefault();cmdRunItem(cmdActiveIdx);return}});
-document.getElementById('cmdInput').addEventListener('input',function(){const q=this.value.trim().toLowerCase();if(!q){cmdFiltered=[...CMD_ITEMS]}else{cmdFiltered=CMD_ITEMS.filter(it=>fuzzyMatch(it.label+' '+it.desc,q)).sort((a,b)=>(a.label.toLowerCase().startsWith(q)?0:1)-(b.label.toLowerCase().startsWith(q)?0:1))}cmdActiveIdx=0;renderCmdResults()});
+function escHtml(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function buildCmdSections(q){
+  const sections=[];
+  let cmds=CMD_ITEMS.map(it=>({...it,kind:'cmd'}));
+  if(q)cmds=cmds.filter(it=>fuzzyMatch(it.label+' '+it.desc,q));
+  if(cmds.length)sections.push({title:'Komutlar',items:cmds.slice(0,8)});
+  if(q && q.length>=1){
+    const leadHits=cmdCache.leads.filter(l=>fuzzyMatch(l.name+' '+l.email+' '+l.phone,q)).slice(0,6)
+      .map(l=>({kind:'lead',icon:'◉',label:l.name,desc:[l.email,l.phone].filter(Boolean).join(' · ')||'lead',hint:'lead',action:()=>openHotLead(l.slug,l.name)}));
+    if(leadHits.length)sections.push({title:"Lead'ler",items:leadHits});
+    const noteHits=cmdCache.notes.filter(n=>fuzzyMatch(n.text,q)).slice(0,6)
+      .map(n=>({kind:'note',icon:'✎',label:n.lead.name,desc:n.text.slice(0,80),hint:'not',action:()=>openHotLead(n.lead.slug,n.lead.name)}));
+    if(noteHits.length)sections.push({title:'Notlar',items:noteHits});
+    const msgHits=cmdCache.messages.filter(m=>fuzzyMatch(m.content,q)).slice(-6).reverse()
+      .map(m=>({kind:'msg',icon:m.role==='user'?'👤':'🤖',label:m.role==='user'?'Sen':'goat',desc:m.content.slice(0,90),hint:'sohbet',action:()=>{const log=document.getElementById('log');if(log)log.scrollTop=log.scrollHeight}}));
+    if(msgHits.length)sections.push({title:'Sohbet',items:msgHits});
+  }
+  return sections;
+}
+function renderCmdResults(){
+  const box=document.getElementById('cmdResults');
+  const q=document.getElementById('cmdInput').value.trim();
+  const sections=buildCmdSections(q);
+  cmdFiltered=sections.flatMap(s=>s.items);
+  if(!cmdFiltered.length){box.innerHTML='<div class="cmd-empty">sonuç yok</div>';return}
+  if(cmdActiveIdx>=cmdFiltered.length)cmdActiveIdx=0;
+  let html='',flatIdx=0;
+  for(const sec of sections){
+    html+='<div class="cmd-section-hdr">'+sec.title+'</div>';
+    for(const it of sec.items){
+      const lbl=q?highlightMatch(escHtml(it.label),fuzzyMatch(it.label,q)):escHtml(it.label);
+      const desc=q?highlightMatch(escHtml(it.desc||''),fuzzyMatch(it.desc||'',q)):escHtml(it.desc||'');
+      html+='<div class="cmd-row'+(flatIdx===cmdActiveIdx?' active':'')+'" data-idx="'+flatIdx+'"><span class="cmd-icon">'+it.icon+'</span><div class="cmd-body"><div class="cmd-label">'+lbl+'</div><div class="cmd-'+(it.kind==='cmd'?'desc':'snippet')+'">'+desc+'</div></div><span class="cmd-hint">'+it.hint+'</span></div>';
+      flatIdx++;
+    }
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('.cmd-row').forEach(r=>r.addEventListener('click',()=>cmdRunItem(+r.dataset.idx)));
+  const active=box.querySelector('.cmd-row.active');
+  if(active && active.scrollIntoView)active.scrollIntoView({block:'nearest'});
+}
+function cmdRunItem(idx){const it=cmdFiltered[idx];if(it){closeCmdPalette();it.action&&it.action()}}
+document.addEventListener('keydown',function(e){const isOpen=document.getElementById('cmdPaletteOverlay').classList.contains('open');if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();isOpen?closeCmdPalette():openCmdPalette();return}if(!isOpen)return;if(e.key==='Escape'){e.preventDefault();closeCmdPalette();return}if(e.key==='ArrowDown'){e.preventDefault();cmdActiveIdx=Math.min(cmdActiveIdx+1,cmdFiltered.length-1);renderCmdResults();return}if(e.key==='ArrowUp'){e.preventDefault();cmdActiveIdx=Math.max(cmdActiveIdx-1,0);renderCmdResults();return}if(e.key==='Enter'){e.preventDefault();cmdRunItem(cmdActiveIdx);return}});
+document.getElementById('cmdInput').addEventListener('input',function(){if(cmdSearchTimer)clearTimeout(cmdSearchTimer);cmdSearchTimer=setTimeout(()=>{cmdActiveIdx=0;renderCmdResults()},200)});
+
+// ═══ COMPACT MODE ═══
+function toggleCompactMode(){
+  const on=document.body.classList.toggle('compact-mode');
+  const btn=document.getElementById('compactToggle');
+  if(btn)btn.classList.toggle('active',on);
+  try{localStorage.setItem('goat_compact_mode',on?'1':'0')}catch(e){}
+}
+(function(){try{
+  if(localStorage.getItem('goat_compact_mode')==='1'){
+    const apply=()=>{document.body.classList.add('compact-mode');const b=document.getElementById('compactToggle');if(b)b.classList.add('active')};
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);else apply();
+  }
+}catch(e){}})();
+
+// ═══════════════════════════════════════════
+// DAILY BRIEF + HOT LEADS + MINI PIPELINE
+// ═══════════════════════════════════════════
+
+function openHotLead(slug, name) {
+  openLeadDetail(slug);
+}
+
+function handleBriefAction() {
+  // Open CRM to see hot leads
+  openCRM();
+}
+
+function refreshHotLeads() {
+  fetch('/api/leads/hot').then(r => r.json()).then(leads => {
+    const list = document.getElementById('hotLeadsList');
+    if (!list) return;
+    document.getElementById('hotCount').textContent = leads.length;
+    if (leads.length === 0) {
+      list.innerHTML = '<div class="hot-empty">henüz sıcak lead yok.<br><span style="opacity:0.6">scout çalıştır</span></div>';
+      return;
+    }
+    list.innerHTML = leads.map(l => `
+      <div class="hot-lead-card" data-slug="${l.slug}" onclick="openHotLead('${l.slug}', '${(l.name||'').replace(/'/g,"\\'")}')">
+        <div class="hl-name">${l.name}</div>
+        <div class="hl-meta">
+          <span class="hl-score">${l.score}</span>
+          ${l.email ? '<span>✉</span>' : ''}
+          ${l.phone ? '<span>☎</span>' : ''}
+          <span class="hl-stage hl-stage-${l.stage}">${l.stage}</span>
+        </div>
+      </div>
+    `).join('');
+  });
+}
+
+function refreshMiniPipeline() {
+  fetch('/api/pipeline/counts').then(r => r.json()).then(c => {
+    document.getElementById('mpNew').textContent = c.new || 0;
+    document.getElementById('mpContacted').textContent = c.contacted || 0;
+    document.getElementById('mpMeeting').textContent = c.meeting || 0;
+    document.getElementById('mpProposal').textContent = c.proposal_sent || 0;
+    document.getElementById('mpClosed').textContent = c.closed || 0;
+  });
+}
+
+function refreshDashboardData() {
+  refreshHotLeads();
+  refreshMiniPipeline();
+}
+
+function toggleCofounder() {
+  fetch('/api/cofounder/status').then(r => r.json()).then(s => {
+    if (s.active) {
+      if (!confirm('Cofounder modu kapatılsın mı?')) return;
+      fetch('/api/cofounder/disable', {method: 'POST'}).then(() => {
+        document.getElementById('cofounderBtn').classList.remove('active');
+        lineDelay = 0; gap();
+        write('cofounder modu kapatıldı.', 'dim');
+      });
+    } else {
+      fetch('/api/cofounder/enable', {method: 'POST'}).then(() => {
+        document.getElementById('cofounderBtn').classList.add('active');
+        lineDelay = 0; gap();
+        write('🤝 cofounder modu aktif.', 'green');
+        write('  her sabah 09:00 — scout çalışacak', 'dim indent');
+        write('  her sabah 09:30 — filter çalışacak', 'dim indent');
+        write('  uyandığında hot leadler hazır olacak.', 'accent indent');
+      });
+    }
+  });
+}
+
+function checkCofounderStatus() {
+  fetch('/api/cofounder/status').then(r => r.json()).then(s => {
+    if (s.active) document.getElementById('cofounderBtn').classList.add('active');
+  });
+}
+checkCofounderStatus();
+
+// Auto-refresh every 30s
+setInterval(refreshDashboardData, 30000);
+
+// Refresh after agent runs
+const _origAgentOnDash = window.agentOn;
+if (typeof _origAgentOnDash === 'function') {
+  window.agentOn = function(id) {
+    _origAgentOnDash(id);
+    setTimeout(refreshDashboardData, 1000);
+  };
+}
+
+// ─── Office activity store + result badges ───
+const OFFICE_ACTIVITY = {};   // id -> { summary, timestamp, status }
+const OFFICE_BADGES = {};     // id -> { count, status }
+
+function refreshOfficeActivity() {
+  fetch('/api/activity').then(r => r.json()).then(items => {
+    if (!Array.isArray(items)) return;
+    const counts = {};
+    items.forEach(it => {
+      const id = it.agent_id;
+      if (!id) return;
+      if (!OFFICE_ACTIVITY[id] || new Date(it.timestamp || 0) > new Date(OFFICE_ACTIVITY[id].timestamp || 0)) {
+        OFFICE_ACTIVITY[id] = { summary: it.summary || '', timestamp: it.timestamp, status: it.status || 'success' };
+      }
+      counts[id] = counts[id] || { count: 0, status: 'success' };
+      counts[id].count += 1;
+      if (it.status === 'error') counts[id].status = 'error';
+    });
+    Object.keys(counts).forEach(k => { OFFICE_BADGES[k] = counts[k]; });
+  }).catch(() => {});
+}
+refreshOfficeActivity();
+setInterval(refreshOfficeActivity, 15000);
+
+// ─── Pinned messages ───
+let PINNED = [];
+function loadPinned() {
+  try { PINNED = JSON.parse(localStorage.getItem('goat_pinned') || '[]'); }
+  catch(e) { PINNED = []; }
+  renderPinned();
+}
+function savePinned() {
+  try { localStorage.setItem('goat_pinned', JSON.stringify(PINNED)); } catch(e) {}
+}
+function pinMessage(text) {
+  if (!text) return;
+  const t = String(text).trim();
+  if (!t) return;
+  if (PINNED.includes(t)) return;
+  PINNED.push(t);
+  savePinned();
+  renderPinned();
+}
+function unpinMessage(idx) {
+  PINNED.splice(idx, 1);
+  savePinned();
+  renderPinned();
+}
+function renderPinned() {
+  const sec = document.getElementById('pinnedSection');
+  if (!sec) return;
+  if (!PINNED.length) {
+    sec.classList.remove('has-items');
+    sec.innerHTML = '';
+    return;
+  }
+  sec.classList.add('has-items');
+  let html = `<div class="pinned-header">📌 Sabitlenenler (${PINNED.length})</div>`;
+  PINNED.forEach((t, i) => {
+    const safe = String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    html += `<div class="pinned-item"><span class="pinned-text">${safe}</span><button class="pinned-x" onclick="unpinMessage(${i})">×</button></div>`;
+  });
+  sec.innerHTML = html;
+}
+function attachPinButton(el) {
+  if (!el || el.querySelector('.pin-btn')) return;
+  const btn = document.createElement('button');
+  btn.className = 'pin-btn';
+  btn.textContent = '📌';
+  btn.title = 'Sabitle';
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    pinMessage(el.textContent.replace('📌','').trim());
+  };
+  el.appendChild(btn);
+}
+loadPinned();
+
+// ═══════════════════════════════════════════
+// LEAD DETAIL SLIDE-OUT PANEL
+// ═══════════════════════════════════════════
+let _ldpCurrentLead = null;
+
+const LDP_STAGES = [
+  {id:'new', label:'yeni'},
+  {id:'contacted', label:'iletişim kuruldu'},
+  {id:'meeting', label:'toplantı'},
+  {id:'proposal_sent', label:'teklif gönderildi'},
+  {id:'closed', label:'kazanıldı'},
+  {id:'lost', label:'kaybedildi'}
+];
+
+function _ldpEsc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function _ldpFmtTs(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts);
+    return d.toLocaleString('tr-TR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return String(ts); }
+}
+function _ldpSlugify(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+async function openLeadDetail(slug) {
+  if (!slug) return;
+  const panel = document.getElementById('leadDetailPanel');
+  const backdrop = document.getElementById('leadDetailBackdrop');
+  document.getElementById('ldpBody').innerHTML = '<div class="ldp-loading">yükleniyor…</div>';
+  document.getElementById('ldpName').textContent = '—';
+  document.getElementById('ldpCat').textContent = '';
+  panel.classList.add('open');
+  backdrop.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+
+  try {
+    const r = await fetch('/api/leads/qualified');
+    const data = await r.json();
+    let leads = [];
+    if (Array.isArray(data)) leads = data;
+    else if (data && Array.isArray(data.leads)) leads = data.leads;
+    else if (data && data.qualified) leads = data.qualified;
+    else if (data && typeof data === 'object') {
+      for (const k of Object.keys(data)) if (Array.isArray(data[k])) leads = leads.concat(data[k]);
+    }
+    const lead = leads.find(l => (l.slug || _ldpSlugify(l.name)) === slug);
+    if (!lead) {
+      document.getElementById('ldpBody').innerHTML = '<div class="ldp-loading">lead bulunamadı.</div>';
+      return;
+    }
+    if (!lead.slug) lead.slug = slug;
+    _ldpCurrentLead = lead;
+    _ldpRender(lead);
+    _ldpLoadNotes(lead.slug);
+  } catch(e) {
+    document.getElementById('ldpBody').innerHTML = '<div class="ldp-loading">hata: ' + _ldpEsc(e.message) + '</div>';
+  }
+}
+
+function _ldpRender(lead) {
+  document.getElementById('ldpName').textContent = lead.name || '(isimsiz)';
+  document.getElementById('ldpCat').textContent = lead.category || lead.categoryName || lead.type || '';
+
+  const qual = (lead.qualification || lead.tier || '').toLowerCase();
+  const score = lead.score != null ? lead.score : '—';
+  const stage = lead.stage || 'new';
+  const stageLabel = (LDP_STAGES.find(s=>s.id===stage)||{label:stage}).label;
+
+  const email = lead.email || '';
+  const phone = lead.phone || '';
+  const website = lead.website || lead.url || '';
+  const address = lead.address || lead.location || '';
+
+  const callHref = phone ? `tel:${phone}` : '#';
+  const mailHref = email ? `mailto:${email}` : '#';
+  const waPhone = (phone || '').replace(/[^0-9]/g, '');
+  const waHref = waPhone ? `https://wa.me/${waPhone}` : '#';
+
+  const stageOpts = LDP_STAGES.map(s =>
+    `<option value="${s.id}" ${s.id===stage?'selected':''}>${_ldpEsc(s.label)}</option>`
+  ).join('');
+
+  const tl = [];
+  if (lead.added_at || lead.created_at) tl.push({label:'eklendi', ts: lead.added_at || lead.created_at});
+  if (lead.contacted_at) tl.push({label:'iletişim kuruldu', ts: lead.contacted_at});
+  if (lead.proposal_sent_at) tl.push({label:'teklif gönderildi', ts: lead.proposal_sent_at});
+  if (lead.audit_at) tl.push({label:'site denetlendi', ts: lead.audit_at});
+  if (lead.closed_at) tl.push({label:'kapatıldı', ts: lead.closed_at});
+  if (tl.length === 0) tl.push({label:'eklendi', ts: lead.timestamp || ''});
+
+  const html = `
+    <div class="ldp-badges">
+      ${qual ? `<span class="ldp-badge ${qual}">${_ldpEsc(qual)}</span>` : ''}
+      <span class="ldp-badge score">skor ${_ldpEsc(score)}</span>
+      <span class="ldp-badge stage">${_ldpEsc(stageLabel)}</span>
+    </div>
+
+    <div class="ldp-actions">
+      <button class="ldp-action" ${phone?'':'disabled'} onclick="${phone?`window.location.href='${callHref}'`:''}">
+        <span class="ico">☎</span><span>ara</span>
+      </button>
+      <button class="ldp-action" ${email?'':'disabled'} onclick="${email?`window.location.href='${mailHref}'`:''}">
+        <span class="ico">✉</span><span>mail</span>
+      </button>
+      <button class="ldp-action" ${waPhone?'':'disabled'} onclick="${waPhone?`window.open('${waHref}','_blank')`:''}">
+        <span class="ico">💬</span><span>wa</span>
+      </button>
+      <button class="ldp-action" onclick="ldpBuildSite()">
+        <span class="ico">🌐</span><span>site</span>
+      </button>
+      <button class="ldp-action" ${website?'':'disabled'} onclick="ldpAuditSite(event)">
+        <span class="ico">🔬</span><span>audit</span>
+      </button>
+    </div>
+
+    <div class="ldp-section">
+      <div class="ldp-label">pipeline aşaması</div>
+      <select class="ldp-stage-select" id="ldpStageSelect" onchange="ldpChangeStage(this.value)">
+        ${stageOpts}
+      </select>
+    </div>
+
+    <div class="ldp-section">
+      <div class="ldp-label">iletişim bilgileri</div>
+      <div class="ldp-info">
+        <div class="ldp-info-row ${email?'':'empty'}"><span class="k">mail</span><span class="v">${email?`<a href="${mailHref}">${_ldpEsc(email)}</a>`:'yok'}</span></div>
+        <div class="ldp-info-row ${phone?'':'empty'}"><span class="k">tel</span><span class="v">${phone?`<a href="${callHref}">${_ldpEsc(phone)}</a>`:'yok'}</span></div>
+        <div class="ldp-info-row ${website?'':'empty'}"><span class="k">web</span><span class="v">${website?`<a href="${_ldpEsc(website)}" target="_blank" rel="noopener">${_ldpEsc(website)}</a>`:'yok'}</span></div>
+        <div class="ldp-info-row ${address?'':'empty'}"><span class="k">adres</span><span class="v">${address?_ldpEsc(address):'yok'}</span></div>
+      </div>
+    </div>
+
+    <div class="ldp-section">
+      <div class="ldp-label">notlar</div>
+      <div class="ldp-notes" id="ldpNotesList"><div class="ldp-note-empty">yükleniyor…</div></div>
+      <div class="ldp-note-add">
+        <input type="text" id="ldpNoteInput" placeholder="not ekle…" onkeydown="if(event.key==='Enter')ldpAddNote()">
+        <button onclick="ldpAddNote()">ekle</button>
+      </div>
+    </div>
+
+    <div class="ldp-section">
+      <div class="ldp-label">aktivite</div>
+      <div class="ldp-timeline">
+        ${tl.map(i => `<div class="ldp-tl-item"><span class="label">${_ldpEsc(i.label)}</span><span class="ts">${_ldpEsc(_ldpFmtTs(i.ts))}</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+  document.getElementById('ldpBody').innerHTML = html;
+}
+
+async function _ldpLoadNotes(slug) {
+  const list = document.getElementById('ldpNotesList');
+  if (!list) return;
+  try {
+    const r = await fetch(`/api/leads/${encodeURIComponent(slug)}/notes`);
+    if (!r.ok) throw new Error('not yüklenemedi');
+    const data = await r.json();
+    const notes = Array.isArray(data) ? data : (data.notes || []);
+    if (!notes.length) {
+      list.innerHTML = '<div class="ldp-note-empty">henüz not yok.</div>';
+      return;
+    }
+    list.innerHTML = notes.map(n => `
+      <div class="ldp-note">
+        <div class="txt">${_ldpEsc(n.text || n.note || '')}</div>
+        <div class="ts">${_ldpEsc(_ldpFmtTs(n.timestamp || n.ts || n.created_at))}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="ldp-note-empty">notlar yüklenemedi.</div>';
+  }
+}
+
+async function ldpAddNote() {
+  if (!_ldpCurrentLead) return;
+  const input = document.getElementById('ldpNoteInput');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  input.value = '';
+  try {
+    await fetch(`/api/leads/${encodeURIComponent(_ldpCurrentLead.slug)}/note`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    _ldpLoadNotes(_ldpCurrentLead.slug);
+  } catch(e) { alert('not eklenemedi: ' + e.message); }
+}
+
+async function ldpChangeStage(stage) {
+  if (!_ldpCurrentLead) return;
+  try {
+    await fetch(`/api/leads/${encodeURIComponent(_ldpCurrentLead.slug)}/stage`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({stage})
+    });
+    _ldpCurrentLead.stage = stage;
+    const stageLabel = (LDP_STAGES.find(s=>s.id===stage)||{label:stage}).label;
+    const badge = document.querySelector('#leadDetailPanel .ldp-badge.stage');
+    if (badge) badge.textContent = stageLabel;
+    if (typeof refreshDashboardData === 'function') refreshDashboardData();
+  } catch(e) { alert('aşama güncellenemedi: ' + e.message); }
+}
+
+async function ldpAuditSite(ev) {
+  if (!_ldpCurrentLead || !_ldpCurrentLead.website) return;
+  const btn = ev && ev.currentTarget;
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch('/api/audit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url: _ldpCurrentLead.website})
+    });
+    const data = await r.json();
+    alert('audit tamam.\nskor: ' + (data.score != null ? data.score : (data.overall_score != null ? data.overall_score : '—')));
+  } catch(e) { alert('audit hatası: ' + e.message); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+function ldpBuildSite() {
+  if (!_ldpCurrentLead) return;
+  if (typeof runAgent === 'function') {
+    closeLeadDetail();
+    runAgent('sitebuilder', {lead: _ldpCurrentLead.slug});
+  } else {
+    alert('site builder hazır değil.');
+  }
+}
+
+function ldpDeleteLead() {
+  if (!_ldpCurrentLead) return;
+  if (!confirm('bu leadi silmek istediğine emin misin?\n\n' + (_ldpCurrentLead.name || ''))) return;
+  fetch(`/api/leads/${encodeURIComponent(_ldpCurrentLead.slug)}`, {method:'DELETE'})
+    .then(() => {
+      closeLeadDetail();
+      if (typeof refreshDashboardData === 'function') refreshDashboardData();
+    })
+    .catch(e => alert('silinemedi: ' + e.message));
+}
+
+function closeLeadDetail() {
+  const panel = document.getElementById('leadDetailPanel');
+  const backdrop = document.getElementById('leadDetailBackdrop');
+  panel.classList.remove('open');
+  backdrop.classList.remove('open');
+  panel.setAttribute('aria-hidden', 'true');
+  _ldpCurrentLead = null;
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('leadDetailPanel').classList.contains('open')) {
+    closeLeadDetail();
+  }
+});
 
 // ─── LAUNCH ───
 try {

@@ -5,7 +5,7 @@ data/leads/raw/*
 data/leads/qualified/*
 data/campaigns/*
 data/proposals/*
-outputs/reports/*
+outputs/
 data/config/user_profile.json
 !data/**/.gitkeep
 .DS_Store

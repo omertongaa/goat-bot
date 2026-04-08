@@ -91,14 +91,160 @@ def load_pipeline_stats():
     return stats
 
 
+def load_hot_leads(limit=5):
+    """Load top hot leads from latest qualified scrape, enriched with pipeline stage."""
+    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    if not qual_dir.exists():
+        return []
+    files = sorted(qual_dir.glob("*.json"), reverse=True)
+    if not files:
+        return []
+    try:
+        with open(files[0]) as f:
+            data = json.load(f)
+    except Exception:
+        return []
+
+    # Load pipeline stages
+    stages_path = BASE_DIR / "data" / "pipeline" / "stages.json"
+    stages = {}
+    if stages_path.exists():
+        try:
+            with open(stages_path) as f:
+                stages = json.load(f)
+        except Exception:
+            pass
+
+    hot = []
+    for entry in data.get("leads", []):
+        if entry.get("qualification") == "hot":
+            lead = entry.get("lead", {})
+            name = lead.get("name", "")
+            slug = re.sub(r'[^a-z0-9-]', '-', name.lower().strip())
+            slug = re.sub(r'-+', '-', slug).strip('-')
+            hot.append({
+                "name": name,
+                "slug": slug,
+                "score": entry.get("score", 0),
+                "email": lead.get("email", ""),
+                "phone": lead.get("phone", ""),
+                "website": lead.get("website", ""),
+                "stage": stages.get(slug, {}).get("stage", "new"),
+            })
+    hot.sort(key=lambda x: x["score"], reverse=True)
+    return hot[:limit]
+
+
+def load_pipeline_counts():
+    """Get count of leads in each pipeline stage."""
+    stages_path = BASE_DIR / "data" / "pipeline" / "stages.json"
+    counts = {"new": 0, "contacted": 0, "meeting": 0, "proposal_sent": 0, "closed": 0, "lost": 0}
+    if not stages_path.exists():
+        return counts
+    try:
+        with open(stages_path) as f:
+            stages = json.load(f)
+        for slug, info in stages.items():
+            stage = info.get("stage", "new")
+            if stage in counts:
+                counts[stage] += 1
+    except Exception:
+        pass
+    return counts
+
+
+def build_daily_brief():
+    """Build a 'what happened since yesterday + what to do next' brief."""
+    from datetime import timedelta
+
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+
+    brief = {
+        "date": today.isoformat(),
+        "leads_today": 0,
+        "leads_qualified_today": 0,
+        "hot_added_today": 0,
+        "agents_run_today": [],
+        "pending_actions": [],
+        "next_action": None,
+    }
+
+    # Count leads found today
+    raw_dir = BASE_DIR / "data" / "leads" / "raw"
+    if raw_dir.exists():
+        for f in raw_dir.glob("*.json"):
+            try:
+                mtime = datetime.fromtimestamp(f.stat().st_mtime).date()
+                if mtime == today:
+                    with open(f) as fh:
+                        data = json.load(fh)
+                    brief["leads_today"] += data.get("count", len(data.get("leads", [])))
+            except Exception:
+                pass
+
+    # Count qualified
+    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    if qual_dir.exists():
+        for f in qual_dir.glob("*.json"):
+            try:
+                mtime = datetime.fromtimestamp(f.stat().st_mtime).date()
+                if mtime == today:
+                    with open(f) as fh:
+                        data = json.load(fh)
+                    leads = data.get("leads", [])
+                    brief["leads_qualified_today"] += len(leads)
+                    brief["hot_added_today"] += sum(1 for l in leads if l.get("qualification") == "hot")
+            except Exception:
+                pass
+
+    # Pending actions: hot leads not contacted
+    hot_leads = load_hot_leads(limit=20)
+    not_contacted = [l for l in hot_leads if l.get("stage") == "new"]
+    if not_contacted:
+        brief["pending_actions"].append({
+            "type": "contact_hot",
+            "count": len(not_contacted),
+            "label": f"{len(not_contacted)} sıcak lead'in iletişime geçilmemiş",
+        })
+        top = not_contacted[0]
+        brief["next_action"] = f"En sıcak lead: {top['name']} (puan: {top['score']}). Teklif gönder?"
+
+    # Stale leads (contacted >7 days ago, no follow-up)
+    pipeline_counts = load_pipeline_counts()
+    if pipeline_counts.get("contacted", 0) > 0:
+        brief["pending_actions"].append({
+            "type": "stale_followup",
+            "count": pipeline_counts["contacted"],
+            "label": f"{pipeline_counts['contacted']} lead 'iletişime geçildi' aşamasında",
+        })
+
+    # Default next action
+    if not brief["next_action"]:
+        if brief["hot_added_today"] > 0:
+            brief["next_action"] = f"Bugün {brief['hot_added_today']} yeni sıcak lead var. CRM'i kontrol et."
+        elif brief["leads_today"] == 0:
+            brief["next_action"] = "Bugün henüz lead taraması yapılmadı. Scout'u çalıştır?"
+        else:
+            brief["next_action"] = "Pipeline'daki lead'leri filtrele."
+
+    return brief
+
+
 # --- Dashboard ---
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     config = load_config()
     stats = load_pipeline_stats()
+    daily_brief = build_daily_brief()
+    hot_leads = load_hot_leads(limit=5)
+    pipeline_counts = load_pipeline_counts()
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
+        "daily_brief": daily_brief,
+        "hot_leads": hot_leads,
+        "pipeline_counts": pipeline_counts,
         "agents": AGENTS,
         "categories": CATEGORIES,
         "config": config,
@@ -221,6 +367,43 @@ async def get_qualified_leads():
             data = json.load(f)
             return JSONResponse(data.get("leads", []))
     return JSONResponse([])
+
+
+# --- Cofounder Mode ---
+
+@app.post("/api/cofounder/enable")
+async def enable_cofounder():
+    from services.scheduler import enable_cofounder_mode
+    return JSONResponse(enable_cofounder_mode())
+
+
+@app.post("/api/cofounder/disable")
+async def disable_cofounder():
+    from services.scheduler import disable_cofounder_mode
+    return JSONResponse(disable_cofounder_mode())
+
+
+@app.get("/api/cofounder/status")
+async def cofounder_status():
+    from services.scheduler import is_cofounder_mode_active
+    return JSONResponse({"active": is_cofounder_mode_active()})
+
+
+# --- Daily Brief & Hot Leads ---
+
+@app.get("/api/daily-brief")
+async def get_daily_brief():
+    return JSONResponse(build_daily_brief())
+
+
+@app.get("/api/leads/hot")
+async def get_hot_leads():
+    return JSONResponse(load_hot_leads(limit=10))
+
+
+@app.get("/api/pipeline/counts")
+async def get_pipeline_counts():
+    return JSONResponse(load_pipeline_counts())
 
 
 # --- Manual Lead Entry ---
@@ -520,6 +703,12 @@ Rules:
 User: {message}"""
 
     return prompt, config, stats
+
+
+@app.get("/api/chat/history")
+async def get_chat_history():
+    history = CHAT_HISTORIES.get("_shared", [])
+    return JSONResponse(history[-50:])
 
 
 @app.post("/api/chat/stream")

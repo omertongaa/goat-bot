@@ -30,7 +30,7 @@ def generate_image(prompt, size="landscape_16_9", model="fal-ai/nano-banana-2", 
 
     try:
         resp = requests.post(
-            f"https://queue.fal.run/{model}",
+            f"https://fal.run/{model}",
             headers={
                 "Authorization": f"Key {key}",
                 "Content-Type": "application/json",
@@ -43,10 +43,11 @@ def generate_image(prompt, size="landscape_16_9", model="fal-ai/nano-banana-2", 
                 "guidance_scale": 7.5,
                 "enable_safety_checker": True,
             },
-            timeout=60,
+            timeout=120,
         )
 
         if resp.status_code != 200:
+            print(f"[fal.ai] Error {resp.status_code}: {resp.text[:200]}")
             return None
 
         data = resp.json()

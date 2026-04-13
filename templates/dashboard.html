@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>goat — ajansını kur</title>
+<title>GOAT — Agency Command Center</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap');
 
@@ -178,6 +178,101 @@ body::before {
   99% { opacity: 0.985; }
 }
 .world { animation: crtFlicker 6s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════
+   MATRIX RAIN CANVAS
+   ═══════════════════════════════════════════ */
+#matrixCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════
+   LIVE INDICATOR
+   ═══════════════════════════════════════════ */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--green);
+  text-transform: uppercase;
+  margin-left: 12px;
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green), 0 0 16px var(--glow-green);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+/* ═══════════════════════════════════════════
+   BREATHING GLOW ON ACCENT ELEMENTS
+   ═══════════════════════════════════════════ */
+@keyframes breatheGlow {
+  0%, 100% { box-shadow: 0 0 15px rgba(232,93,38,0.15), 0 0 30px rgba(232,93,38,0.05); }
+  50% { box-shadow: 0 0 25px rgba(232,93,38,0.3), 0 0 50px rgba(232,93,38,0.1); }
+}
+.narrative-header { animation: breatheGlow 4s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════
+   AGENT ACTIVITY PULSE
+   ═══════════════════════════════════════════ */
+@keyframes agentPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(52,211,153,0); }
+}
+.agent-dot.active {
+  animation: agentPulse 1.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════
+   GLITCH TEXT EFFECT (for boot)
+   ═══════════════════════════════════════════ */
+@keyframes glitchText {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 2px); }
+  100% { transform: translate(0); }
+}
+.boot-line.header {
+  animation: glitchText 0.3s ease forwards;
+}
+
+/* ═══════════════════════════════════════════
+   STAT COUNTER ANIMATIONS
+   ═══════════════════════════════════════════ */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.mp-num {
+  animation: countUp 0.5s ease-out;
+}
+
+/* ═══════════════════════════════════════════
+   HOT LEAD CARD HOVER GLOW
+   ═══════════════════════════════════════════ */
+.hot-lead-card {
+  transition: all 0.3s ease;
+}
+.hot-lead-card:hover {
+  box-shadow: 0 0 20px rgba(232,93,38,0.2), 0 0 40px rgba(232,93,38,0.05) !important;
+  transform: translateX(4px);
+}
 
 /* ═══════════════════════════════════════════
    LAYOUT
@@ -1112,6 +1207,8 @@ body::before {
 </head>
 <body>
 
+<canvas id="matrixCanvas"></canvas>
+
 <!-- Boot Sequence Overlay -->
 <div id="bootOverlay">
   <div id="bootContent"></div>
@@ -1131,6 +1228,7 @@ body::before {
   <div class="narrative">
     <div class="narrative-header">
       <span class="title">goat</span>
+      <span class="live-badge"><span class="live-dot"></span>LIVE</span>
       <span id="headerClock"></span>
       <span class="sub" id="headerSub"></span>
       <div class="hdr-btns">
@@ -1647,41 +1745,47 @@ body.compact-mode .narrative { border-right: none; }
 // BOOT SEQUENCE
 // ═══════════════════════════════════════════
 const BOOT_LINES = [
-  { text: 'POST... OK', cls: '', delay: 80 },
-  { text: 'MEM 1048576K ... OK', cls: '', delay: 60 },
-  { text: 'KERNEL v4.2.1-goat yükleniyor', cls: '', delay: 90 },
+  { text: 'BIOS v4.2.1-goat ... OK', cls: '', delay: 40 },
+  { text: 'MEM 1048576K ... OK', cls: '', delay: 30 },
+  { text: 'GPU NEURAL ENGINE ... OK', cls: '', delay: 30 },
+  { text: 'CRYPTO HANDSHAKE ... OK', cls: '', delay: 30 },
+  { text: '', cls: '', delay: 20 },
+  { text: '   ██████╗  ██████╗  █████╗ ████████╗', cls: 'header', delay: 30 },
+  { text: '  ██╔════╝ ██╔═══██╗██╔══██╗╚══██╔══╝', cls: 'header', delay: 30 },
+  { text: '  ██║  ███╗██║   ██║███████║   ██║   ', cls: 'header', delay: 30 },
+  { text: '  ██║   ██║██║   ██║██╔══██║   ██║   ', cls: 'header', delay: 30 },
+  { text: '  ╚██████╔╝╚██████╔╝██║  ██║   ██║   ', cls: 'header', delay: 30 },
+  { text: '   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ', cls: 'header', delay: 30 },
   { text: '', cls: '', delay: 40 },
-  { text: '   ██████╗  ██████╗  █████╗ ████████╗', cls: 'header', delay: 50 },
-  { text: '  ██╔════╝ ██╔═══██╗██╔══██╗╚══██╔══╝', cls: 'header', delay: 50 },
-  { text: '  ██║  ███╗██║   ██║███████║   ██║   ', cls: 'header', delay: 50 },
-  { text: '  ██║   ██║██║   ██║██╔══██║   ██║   ', cls: 'header', delay: 50 },
-  { text: '  ╚██████╔╝╚██████╔╝██║  ██║   ██║   ', cls: 'header', delay: 50 },
-  { text: '   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ', cls: 'header', delay: 50 },
-  { text: '', cls: '', delay: 100 },
-  { text: 'AJANS KOMUTA MERKEZİ :: HAZIR', cls: 'accent', delay: 120 },
-  { text: '', cls: '', delay: 60 },
-  { text: 'Ajan alt sistemi başlatılıyor...', cls: '', delay: 80 },
-  { text: '  [OK] goat     — ana orkestratör', cls: 'green', delay: 55 },
-  { text: '  [OK] scout    — müşteri bulucu', cls: 'green', delay: 55 },
-  { text: '  [OK] filter   — lead puanlayıcı', cls: 'green', delay: 55 },
-  { text: '  [OK] auditor  — site analizcisi', cls: 'green', delay: 55 },
-  { text: '  [OK] pitch    — teklif motoru + PDF', cls: 'green', delay: 55 },
-  { text: '  [OK] outreach — kampanya yöneticisi', cls: 'green', delay: 55 },
-  { text: '  [OK] mentor   — bilgi bankası', cls: 'green', delay: 55 },
-  { text: '  [OK] sitebuilder — site oluşturucu', cls: 'green', delay: 55 },
-  { text: '', cls: '', delay: 60 },
-  { text: 'Servisler yükleniyor...', cls: '', delay: 80 },
-  { text: '  Apify tarayıcı ....... HAZIR', cls: '', delay: 70 },
-  { text: '  Google arama ......... HAZIR', cls: 'green', delay: 70 },
-  { text: '  Site auditor ......... HAZIR', cls: 'green', delay: 70 },
-  { text: '  PDF motoru ........... HAZIR', cls: 'green', delay: 70 },
-  { text: '  Zamanlayıcı .......... HAZIR', cls: 'green', delay: 70 },
-  { text: '  Site builder ......... HAZIR', cls: 'green', delay: 70 },
-  { text: '  fal.ai görsel ........ HAZIR', cls: '', delay: 70 },
-  { text: '  Instantly.ai email ... BEKLEMEDE', cls: '', delay: 70 },
-  { text: '', cls: '', delay: 60 },
-  { text: 'Kontrol paneli :7778 üzerinde aktif', cls: '', delay: 90 },
-  { text: 'Tüm sistemler çalışıyor.', cls: 'green', delay: 200 },
+  { text: 'AGENCY COMMAND CENTER v1.5', cls: 'accent', delay: 60 },
+  { text: 'powered by DOA+ Accelerator', cls: 'bright', delay: 60 },
+  { text: '', cls: '', delay: 30 },
+  { text: 'Initializing AI agent swarm...', cls: '', delay: 40 },
+  { text: '  [■] goat       master orchestrator', cls: 'green', delay: 30 },
+  { text: '  [■] scout      lead discovery engine', cls: 'green', delay: 30 },
+  { text: '  [■] filter     qualification AI', cls: 'green', delay: 30 },
+  { text: '  [■] auditor    website intelligence', cls: 'green', delay: 30 },
+  { text: '  [■] pitch      proposal generator + PDF', cls: 'green', delay: 30 },
+  { text: '  [■] outreach   campaign automation', cls: 'green', delay: 30 },
+  { text: '  [■] mentor     knowledge base', cls: 'green', delay: 30 },
+  { text: '  [■] sitebuilder   website generator', cls: 'green', delay: 30 },
+  { text: '  [■] designer   creative AI', cls: 'green', delay: 30 },
+  { text: '  [■] content    content engine', cls: 'green', delay: 30 },
+  { text: '  [■] brandkit   brand identity', cls: 'green', delay: 30 },
+  { text: '  [■] admanager  ad optimization', cls: 'green', delay: 30 },
+  { text: '', cls: '', delay: 30 },
+  { text: 'Services online:', cls: '', delay: 40 },
+  { text: '  Apify crawler ........ ● READY', cls: 'green', delay: 25 },
+  { text: '  Google search ........ ● READY', cls: 'green', delay: 25 },
+  { text: '  SEO auditor .......... ● READY', cls: 'green', delay: 25 },
+  { text: '  PDF engine ........... ● READY', cls: 'green', delay: 25 },
+  { text: '  Scheduler ............ ● READY', cls: 'green', delay: 25 },
+  { text: '  Site builder ......... ● READY', cls: 'green', delay: 25 },
+  { text: '  fal.ai generation .... ● READY', cls: 'green', delay: 25 },
+  { text: '  Instantly.ai email ... ○ STANDBY', cls: '', delay: 25 },
+  { text: '', cls: '', delay: 30 },
+  { text: '12 agents online · 7 services active · port :7778', cls: 'bright', delay: 50 },
+  { text: 'All systems operational.', cls: 'green', delay: 100 },
   { text: '', cls: '', delay: 80 },
   { text: '> komuta merkezine giriliyor...', cls: 'accent', delay: 300 },
 ];
@@ -3194,7 +3298,7 @@ function renderOffice() {
   requestAnimationFrame(renderOffice);
 }
 
-renderOffice();
+try { renderOffice(); } catch(e) { console.warn('Office init deferred:', e.message); requestAnimationFrame(renderOffice); }
 
 // ─── Interactive Office — click/hover on agent desks ───
 let officeTooltip = null;
@@ -4614,7 +4718,7 @@ if (typeof _origAgentOnDash === 'function') {
 
 // ─── Office activity store + result badges ───
 const OFFICE_ACTIVITY = {};   // id -> { summary, timestamp, status }
-const OFFICE_BADGES = {};     // id -> { count, status }
+var OFFICE_BADGES = {};     // id -> { count, status }
 
 function refreshOfficeActivity() {
   fetch('/api/activity').then(r => r.json()).then(items => {
@@ -4971,7 +5075,7 @@ setTimeout(function() {
     overlay.classList.add('hidden');
     document.getElementById('mainWorld').style.opacity = '1';
   }
-}, 15000);
+}, 5000);
 
 // ═══════════════════════════════════════════
 // ACTIVITY TIMELINE
@@ -5078,6 +5182,43 @@ async function loadAnalyticsData(){
   else{var mxR=Math.max.apply(null,mos.map(function(m){return mo[m]}).concat([1])),cW=500,cH=180,bW=Math.min(40,(cW-40)/mos.length-8);var rS='<svg width="100%" viewBox="0 0 '+cW+' '+cH+'" xmlns="http://www.w3.org/2000/svg">';mos.forEach(function(m,i){var v=mo[m],h=(v/mxR)*(cH-40),x=40+i*(bW+8),y=cH-20-h;rS+='<rect x="'+x+'" y="'+y+'" width="'+bW+'" height="'+h+'" rx="3" fill="var(--green)" opacity="0.8"/><text x="'+(x+bW/2)+'" y="'+(cH-4)+'" text-anchor="middle" fill="#8a8a9c" font-size="8" font-family="Space Mono,monospace">'+m.slice(5)+'</text><text x="'+(x+bW/2)+'" y="'+(y-4)+'" text-anchor="middle" fill="#ededf0" font-size="9" font-weight="700" font-family="Space Mono,monospace">$'+v+'</text>'});rS+='</svg>';rE.innerHTML=rS}
 }
 try{window._aRes=JSON.parse('{{ results | tojson | safe }}')}catch(e){window._aRes={}}
+</script>
+
+<script>
+// ═══════════════════════════════════════════
+// MATRIX RAIN — subtle background effect
+// ═══════════════════════════════════════════
+(function() {
+  const canvas = document.getElementById('matrixCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w, h, columns, drops;
+  const chars = 'ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ01234567890GOAT';
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    columns = Math.floor(w / 18);
+    drops = Array(columns).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw() {
+    ctx.fillStyle = 'rgba(8, 8, 11, 0.12)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#e85d26';
+    ctx.font = '13px monospace';
+    for (let i = 0; i < drops.length; i++) {
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(char, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
 </script>
 
 </body>

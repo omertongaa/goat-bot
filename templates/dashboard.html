@@ -1192,7 +1192,7 @@ body::before {
   background: #06060a;
   position: relative;
   overflow: hidden;
-  height: 200px;
+  height: 240px;
 }
 /* Ambient glow at bottom of office */
 .office-wrap::after {
@@ -1841,7 +1841,7 @@ const BOOT_LINES = [
   { text: '   ╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ', cls: 'header', delay: 30 },
   { text: '', cls: '', delay: 40 },
   { text: 'AGENCY COMMAND CENTER v1.5', cls: 'accent', delay: 60 },
-  { text: 'powered by DOA+ Accelerator', cls: 'bright', delay: 60 },
+  { text: 'agency-in-a-box', cls: 'bright', delay: 60 },
   { text: '', cls: '', delay: 30 },
   { text: 'Initializing AI agent swarm...', cls: '', delay: 40 },
   { text: '  [■] goat       master orchestrator', cls: 'green', delay: 30 },
@@ -3149,23 +3149,23 @@ function drawLockedDesk(cx, cy) {
 // ── Office Desk Positions ──
 const DESKS = {
   // Row 1 — core pipeline
-  goat:     { x: 16, y: 24, label: 'goat' },
-  scout:    { x: 38, y: 24, label: 'scout' },
-  filter:   { x: 60, y: 24, label: 'filter' },
-  auditor:  { x: 82, y: 24, label: 'auditor' },
-  pitch:    { x: 104, y: 24, label: 'pitch' },
-  outreach: { x: 126, y: 24, label: 'outreach' },
-  mentor:   { x: 148, y: 24, label: 'mentor' },
-  sitebuilder: { x: 170, y: 24, label: 'site' },
+  goat:     { x: 16, y: 16, label: 'goat' },
+  scout:    { x: 38, y: 16, label: 'scout' },
+  filter:   { x: 60, y: 16, label: 'filter' },
+  auditor:  { x: 82, y: 16, label: 'auditor' },
+  pitch:    { x: 104, y: 16, label: 'pitch' },
+  outreach: { x: 126, y: 16, label: 'outreach' },
+  mentor:   { x: 148, y: 16, label: 'mentor' },
+  sitebuilder: { x: 170, y: 16, label: 'site' },
   // Row 2 — creative & marketing
-  designer:    { x: 192, y: 24, label: 'design' },
-  content:     { x: 214, y: 24, label: 'content' },
-  brandkit:    { x: 236, y: 24, label: 'brand' },
-  presenter:   { x: 258, y: 24, label: 'present' },
-  videomaker:  { x: 280, y: 24, label: 'video' },
-  admanager:   { x: 302, y: 24, label: 'ads' },
-  social:      { x: 324, y: 24, label: 'social' },
-  analytics:   { x: 346, y: 24, label: 'analiz' },
+  designer:    { x: 16, y: 38, label: 'design' },
+  content:     { x: 38, y: 38, label: 'content' },
+  brandkit:    { x: 60, y: 38, label: 'brand' },
+  presenter:   { x: 82, y: 38, label: 'present' },
+  videomaker:  { x: 104, y: 38, label: 'video' },
+  admanager:   { x: 126, y: 38, label: 'ads' },
+  social:      { x: 148, y: 38, label: 'social' },
+  analytics:   { x: 170, y: 38, label: 'analiz' },
 };
 
 const officeState = {
@@ -3187,13 +3187,13 @@ function renderOffice() {
 
   drawFloor();
 
-  // Plants (more of them!)
-  drawPlant(6, 28);
-  drawPlant(canvas.width / PX - 8, 28);
+  // Plants — between rows and edges
+  drawPlant(6, 18);
+  drawPlant(canvas.width / PX - 8, 18);
+  drawPlant(6, 40);
+  drawPlant(canvas.width / PX - 8, 40);
   if (canvas.width > 600) {
-    drawPlant(canvas.width / PX / 2 - 2, 28);
-    drawPlant(canvas.width / PX / 3, 28);
-    drawPlant(canvas.width / PX * 2 / 3, 28);
+    drawPlant(canvas.width / PX / 2 + 10, 27);
   }
 
   // Wall clock

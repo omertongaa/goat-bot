@@ -275,6 +275,80 @@ body::before {
 }
 
 /* ═══════════════════════════════════════════
+   QUICK ACTIONS BAR
+   ═══════════════════════════════════════════ */
+.quick-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.quick-actions::-webkit-scrollbar { display: none; }
+.qa-btn {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qa-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(232,93,38,0.08);
+  box-shadow: 0 0 12px rgba(232,93,38,0.15);
+}
+.qa-btn.qa-accent {
+  color: var(--accent);
+  border-color: rgba(232,93,38,0.3);
+}
+.qa-btn.qa-accent:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.qa-btn.running {
+  color: var(--green);
+  border-color: var(--green);
+  pointer-events: none;
+}
+.qa-btn.running .qa-icon {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.qa-btn kbd {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  color: var(--faint);
+  background: rgba(255,255,255,0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.qa-icon { font-size: 12px; }
+
+/* ═══════════════════════════════════════════
+   LAST UPDATED INDICATOR
+   ═══════════════════════════════════════════ */
+#lastUpdated {
+  font-size: 9px;
+  color: var(--faint);
+  margin-left: 8px;
+}
+
+/* ═══════════════════════════════════════════
    LAYOUT
    ═══════════════════════════════════════════ */
 .world {
@@ -1230,6 +1304,7 @@ body::before {
       <span class="title">goat</span>
       <span class="live-badge"><span class="live-dot"></span>LIVE</span>
       <span id="headerClock"></span>
+      <span id="lastUpdated"></span>
       <span class="sub" id="headerSub"></span>
       <div class="hdr-btns">
         <span class="hdr-btn cofounder-btn" id="cofounderBtn" onclick="toggleCofounder()" title="Cofounder Modu — sabah otomatik scout+filter">🤝 COFOUNDER</span>
@@ -1246,6 +1321,14 @@ body::before {
       <div class="mp-stage" data-stage="meeting" onclick="openCRM()"><span class="mp-num" id="mpMeeting">{{ pipeline_counts.meeting or 0 }}</span><span class="mp-lbl">toplantı</span></div>
       <div class="mp-stage" data-stage="proposal_sent" onclick="openCRM()"><span class="mp-num" id="mpProposal">{{ pipeline_counts.proposal_sent or 0 }}</span><span class="mp-lbl">teklif</span></div>
       <div class="mp-stage closed" data-stage="closed" onclick="openCRM()"><span class="mp-num" id="mpClosed">{{ pipeline_counts.closed or 0 }}</span><span class="mp-lbl">kazanıldı</span></div>
+    </div>
+    <div class="quick-actions" id="quickActions">
+      <button class="qa-btn" id="qaPipeline" onclick="qaRunPipeline()" title="Scout → Filter [P]"><span class="qa-icon">▶</span> Pipeline <kbd>P</kbd></button>
+      <button class="qa-btn" id="qaScout" onclick="qaRunScout()" title="Lead tara [S]"><span class="qa-icon">◎</span> Scout <kbd>S</kbd></button>
+      <button class="qa-btn" id="qaFilter" onclick="qaRunFilter()" title="Leadleri puanla [F]"><span class="qa-icon">◈</span> Filtre <kbd>F</kbd></button>
+      <button class="qa-btn qa-accent" id="qaCRM" onclick="openCRM()" title="CRM Pipeline [C]"><span class="qa-icon">◫</span> CRM <kbd>C</kbd></button>
+      <button class="qa-btn" id="qaAudit" onclick="qaRunAuditPrompt()" title="Site analizi [A]"><span class="qa-icon">◉</span> Audit <kbd>A</kbd></button>
+      <button class="qa-btn" id="qaCreative" onclick="qaRunCreative()" title="Görsel üret [G]"><span class="qa-icon">◐</span> Görsel <kbd>G</kbd></button>
     </div>
     <div class="log" id="log"><div id="pinnedSection"></div></div>
     <div class="input-area">
@@ -5058,24 +5141,148 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-// ─── LAUNCH ───
-try {
-  runBootSequence();
-} catch(e) {
-  console.error('Boot error:', e);
-  // Force show the main world if boot fails
-  document.getElementById('bootOverlay').style.display = 'none';
-  document.getElementById('mainWorld').style.opacity = '1';
-  start();
-}
-// Safety: if boot takes too long, force show
-setTimeout(function() {
-  var overlay = document.getElementById('bootOverlay');
-  if (overlay && !overlay.classList.contains('hidden')) {
-    overlay.classList.add('hidden');
+// ─── LAUNCH (skip boot on repeat visits) ───
+(function() {
+  var hasBooted = localStorage.getItem('goat_has_booted');
+  if (hasBooted) {
+    // Skip boot — show dashboard immediately
+    document.getElementById('bootOverlay').classList.add('hidden');
     document.getElementById('mainWorld').style.opacity = '1';
+    start();
+  } else {
+    try {
+      runBootSequence();
+      localStorage.setItem('goat_has_booted', '1');
+    } catch(e) {
+      console.error('Boot error:', e);
+      document.getElementById('bootOverlay').style.display = 'none';
+      document.getElementById('mainWorld').style.opacity = '1';
+      start();
+    }
   }
-}, 5000);
+  // Safety timeout
+  setTimeout(function() {
+    var overlay = document.getElementById('bootOverlay');
+    if (overlay && !overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      document.getElementById('mainWorld').style.opacity = '1';
+    }
+  }, 5000);
+})();
+
+// ═══════════════════════════════════════════
+// QUICK ACTION FUNCTIONS
+// ═══════════════════════════════════════════
+function qaSetRunning(btnId, running) {
+  var btn = document.getElementById(btnId);
+  if (btn) {
+    if (running) { btn.classList.add('running'); btn.querySelector('.qa-icon').textContent = '↻'; }
+    else { btn.classList.remove('running'); }
+  }
+}
+
+function qaRunPipeline() {
+  qaSetRunning('qaPipeline', true);
+  write('Pipeline başlatılıyor (scout → filter)...', 'accent');
+  fetch('/api/agents/run-pipeline', {method:'POST'}).then(r=>r.json()).then(d => {
+    qaSetRunning('qaPipeline', false);
+    document.getElementById('qaPipeline').querySelector('.qa-icon').textContent = '▶';
+    if (d.status === 'ok') {
+      var m = (d.result||{}).metrics||{};
+      write('Pipeline tamamlandı — ' + (m.total_found||0) + ' lead bulundu, ' + (m.hot||0) + ' sıcak', 'green');
+      refreshPulse();
+    } else {
+      write('Pipeline hatası: ' + (d.summary||''), 'red');
+    }
+  }).catch(e => { qaSetRunning('qaPipeline', false); write('Pipeline bağlantı hatası', 'red'); });
+}
+
+function qaRunScout() {
+  qaSetRunning('qaScout', true);
+  write('Scout çalışıyor...', 'blue');
+  fetch('/api/agent/scout/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}).then(r=>r.json()).then(d => {
+    qaSetRunning('qaScout', false);
+    document.getElementById('qaScout').querySelector('.qa-icon').textContent = '◎';
+    var m = (d.result||{}).metrics||{};
+    write('Scout: ' + (m.total_found||0) + ' lead bulundu, ' + (m.with_email||0) + ' email', d.status==='ok'?'green':'red');
+    refreshPulse();
+  }).catch(e => { qaSetRunning('qaScout', false); write('Scout bağlantı hatası', 'red'); });
+}
+
+function qaRunFilter() {
+  qaSetRunning('qaFilter', true);
+  write('Filter çalışıyor...', 'yellow');
+  fetch('/api/agent/filter/run', {method:'POST'}).then(r=>r.json()).then(d => {
+    qaSetRunning('qaFilter', false);
+    document.getElementById('qaFilter').querySelector('.qa-icon').textContent = '◈';
+    var m = (d.result||{}).metrics||{};
+    write('Filter: ' + (m.hot||0) + ' sıcak, ' + (m.warm||0) + ' ılık, ' + (m.cold||0) + ' soğuk', d.status==='ok'?'green':'red');
+    refreshPulse();
+  }).catch(e => { qaSetRunning('qaFilter', false); write('Filter bağlantı hatası', 'red'); });
+}
+
+function qaRunAuditPrompt() {
+  var url = prompt('Hangi siteyi analiz edeyim?', 'https://');
+  if (!url || url === 'https://') return;
+  write('Audit: ' + url + ' analiz ediliyor...', 'blue');
+  fetch('/api/audit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:url})}).then(r=>r.json()).then(d => {
+    var r = d.result || d.report || {};
+    write('Audit tamamlandı — skor: ' + (r.overall_score||'?') + '/100', d.status==='ok'?'green':'red');
+    if (r.seo) write('  SEO: ' + r.seo.score + '/100, sorunlar: ' + (r.seo.issues||[]).length, 'dim indent');
+    if (r.broken_links) write('  Kırık link: ' + r.broken_links.broken_count, 'dim indent');
+  }).catch(e => { write('Audit bağlantı hatası', 'red'); });
+}
+
+function qaRunCreative() {
+  var prompt_text = prompt('Ne tür bir görsel üreteyim?', 'modern dijital ajans reklamı');
+  if (!prompt_text) return;
+  write('Görsel üretiliyor...', 'blue');
+  fetch('/api/creative', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:prompt_text,type:'ad',business_name:CFG.agency_name||'GOAT'})}).then(r=>r.json()).then(d => {
+    if (d.status === 'ok') write('Görsel hazır: ' + d.path, 'green');
+    else write('Görsel üretim hatası', 'red');
+  }).catch(e => { write('Görsel bağlantı hatası', 'red'); });
+}
+
+// ═══════════════════════════════════════════
+// KEYBOARD SHORTCUTS (when input not focused)
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  var inputFocused = document.activeElement && document.activeElement.tagName === 'INPUT';
+  if (inputFocused || e.metaKey || e.ctrlKey || e.altKey) return;
+
+  switch(e.key.toLowerCase()) {
+    case 'p': e.preventDefault(); qaRunPipeline(); break;
+    case 's': e.preventDefault(); qaRunScout(); break;
+    case 'f': e.preventDefault(); qaRunFilter(); break;
+    case 'c': e.preventDefault(); openCRM(); break;
+    case 'a': e.preventDefault(); qaRunAuditPrompt(); break;
+    case 'g': e.preventDefault(); qaRunCreative(); break;
+  }
+});
+
+// ═══════════════════════════════════════════
+// AUTO-REFRESH PULSE (every 30s)
+// ═══════════════════════════════════════════
+function refreshPulse() {
+  fetch('/api/leads/qualified').then(r=>r.json()).then(leads => {
+    if (!Array.isArray(leads)) return;
+    var hot = leads.filter(l => l.qualification === 'hot').length;
+    var warm = leads.filter(l => l.qualification === 'warm').length;
+    var cold = leads.filter(l => l.qualification === 'cold').length;
+    var el = document.getElementById('sHot'); if (el) el.textContent = hot;
+    var el2 = document.getElementById('sWarm'); if (el2) el2.textContent = warm;
+    var el3 = document.getElementById('sCold'); if (el3) el3.textContent = cold;
+    var el4 = document.getElementById('sFound'); if (el4) el4.textContent = leads.length;
+    var hc = document.getElementById('hotCount'); if (hc) hc.textContent = hot;
+  }).catch(function(){});
+
+  fetch('/api/pipeline').then(r=>r.json()).then(d => {
+    var c = d.counts || {};
+    var ids = {new:'mpNew', contacted:'mpContacted', meeting:'mpMeeting', proposal_sent:'mpProposal', closed:'mpClosed'};
+    Object.keys(ids).forEach(function(k) { var e = document.getElementById(ids[k]); if(e) e.textContent = c[k]||0; });
+  }).catch(function(){});
+}
+setInterval(refreshPulse, 30000);
 
 // ═══════════════════════════════════════════
 // ACTIVITY TIMELINE

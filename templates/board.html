@@ -4,213 +4,877 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>goat · Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0a0a0c;
-  --surface: #111114;
-  --surface-2: #171719;
-  --surface-3: #1e1e22;
-  --border: #26262c;
-  --text: #e8e8e8;
-  --dim: #8a8a98;
-  --accent: #e85d26;
-  --green: #34d399;
-  --yellow: #fbbf24;
-  --blue: #60a5fa;
+  --bg: #09090b;
+  --surface: #0f0f12;
+  --surface-2: #16161b;
+  --surface-3: #1d1d24;
+  --surface-hi: #24242c;
+  --border: #26262e;
+  --border-soft: #1a1a20;
+  --text: #f5f5f7;
+  --text-2: #c3c3cc;
+  --dim: #7a7a85;
+  --dim-2: #555560;
+  --accent: #f97316;
+  --accent-soft: rgba(249, 115, 22, 0.12);
+  --green: #22c55e;
+  --green-soft: rgba(34, 197, 94, 0.12);
+  --yellow: #eab308;
+  --yellow-soft: rgba(234, 179, 8, 0.12);
+  --blue: #3b82f6;
+  --blue-soft: rgba(59, 130, 246, 0.12);
   --red: #ef4444;
-  --purple: #a78bfa;
+  --red-soft: rgba(239, 68, 68, 0.12);
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, 0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; font-family: -apple-system, SF Pro Text, Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased; }
-a { color: var(--accent); text-decoration: none; }
-button { font-family: inherit; font-size: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+code, .mono { font-family: 'JetBrains Mono', SF Mono, Consolas, monospace; font-size: 11px; }
 
-.shell { display: grid; grid-template-columns: 220px 1fr 320px; grid-template-rows: 48px 1fr; height: 100vh; }
-header { grid-column: 1 / -1; display: flex; align-items: center; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px; }
-header .logo { font-weight: 700; letter-spacing: 0.5px; color: var(--accent); }
-header .bread { color: var(--dim); }
-header .spacer { flex: 1; }
-header .link { color: var(--dim); padding: 6px 10px; border-radius: 6px; }
-header .link:hover { color: var(--text); background: var(--surface-2); }
-header select { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 12px; }
+/* ── Layout ── */
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr 340px;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+}
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 14px;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+.logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+}
+.bread { color: var(--dim); font-size: 12px; font-weight: 500; }
+.nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+.nav-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--dim);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.nav-tab:hover { color: var(--text-2); background: var(--surface-2); }
+.nav-tab.active { color: var(--text); background: var(--surface-2); }
+.spacer { flex: 1; }
+.header-tool {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  transition: border-color 0.15s;
+}
+.header-tool:hover { border-color: var(--dim); color: var(--text); }
+.header-tool.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.header-tool.primary:hover { background: #ea580c; border-color: #ea580c; }
+header select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+header select:hover { border-color: var(--dim); }
 
-aside.left { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; overflow-y: auto; }
-aside.right { background: var(--surface); border-left: 1px solid var(--border); overflow-y: auto; }
+/* ── Sidebar ── */
+aside.left {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  overflow-y: auto;
+}
+.nav-section { margin-bottom: 24px; }
+.nav-section h3 {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--dim-2);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+.nav-section h3 .chevron { float: right; opacity: 0.5; }
+.nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--surface-2); color: var(--text); }
+.nav-item .ico { width: 14px; height: 14px; margin-right: 9px; opacity: 0.7; }
+.nav-item .count {
+  font-size: 10px;
+  background: var(--surface-hi);
+  color: var(--dim);
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+.nav-item.active .count { color: var(--text-2); }
+.nav-label { display: flex; align-items: center; }
 
-.nav-section { margin-bottom: 20px; }
-.nav-section h3 { font-size: 10px; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; letter-spacing: 1px; padding: 0 6px; }
-.nav-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; color: var(--dim); font-size: 12px; cursor: pointer; }
-.nav-item:hover, .nav-item.active { background: var(--surface-2); color: var(--text); }
-.nav-item .count { font-size: 10px; background: var(--surface-3); padding: 2px 6px; border-radius: 999px; }
+.goal-item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.goal-item:hover { border-color: var(--border); background: var(--surface-3); }
+.goal-item .title { font-size: 12px; font-weight: 500; margin-bottom: 3px; line-height: 1.3; }
+.goal-item .metric { font-size: 10.5px; color: var(--dim); font-weight: 500; }
 
-main { overflow: hidden; display: flex; flex-direction: column; }
-.main-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--surface); }
-.main-head h2 { font-size: 14px; font-weight: 600; }
-.main-head .meta { color: var(--dim); font-size: 12px; }
-.main-head .spacer { flex: 1; }
+.new-button {
+  width: 100%;
+  padding: 7px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--dim);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: all 0.1s;
+  margin-top: 6px;
+}
+.new-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-.board { flex: 1; overflow-x: auto; overflow-y: hidden; display: flex; gap: 12px; padding: 16px; background: var(--bg); }
-.col { flex: 0 0 260px; display: flex; flex-direction: column; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); max-height: 100%; }
-.col-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.col-head .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-.col-head .count { color: var(--dim); font-size: 11px; }
-.col-body { overflow-y: auto; padding: 8px; flex: 1; }
+.totals {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.totals .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.totals .row:last-child { margin-bottom: 0; }
+.totals .label { font-size: 11px; color: var(--dim); font-weight: 500; }
+.totals .value { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.totals .value.small { font-size: 14px; }
 
-.card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.1s; }
-.card:hover { border-color: var(--accent); }
-.card .title { font-size: 12px; margin-bottom: 6px; line-height: 1.35; }
-.card .row { display: flex; justify-content: space-between; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-.card .row .agent { color: var(--blue); }
-.card .row .cost { color: var(--yellow); }
-.card.needs_review { border-left: 3px solid var(--yellow); }
-.card.failed { border-left: 3px solid var(--red); }
-.card.paused_budget { border-left: 3px solid var(--red); background: rgba(239, 68, 68, 0.08); }
-.card.approved { border-left: 3px solid var(--green); }
-.card.completed { opacity: 0.7; }
+.budget-row {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+  transition: background 0.1s;
+}
+.budget-row:hover { background: var(--surface-2); }
+.budget-row .top { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+.budget-row .name { font-weight: 500; color: var(--text-2); }
+.budget-row .amt { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--dim); }
+.budget-row .bar { height: 3px; background: var(--surface-hi); border-radius: 99px; overflow: hidden; }
+.budget-row .bar .fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.3s; }
+.budget-row .bar .fill.warn { background: var(--yellow); }
+.budget-row .bar .fill.over { background: var(--red); }
 
-.activity-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface); position: sticky; top: 0; z-index: 1; }
-.activity-head h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
-.activity-list { padding: 8px 0; }
-.act { padding: 8px 14px; border-bottom: 1px solid var(--surface-2); font-size: 11px; }
-.act .kind { font-weight: 600; color: var(--text); }
-.act .subject { color: var(--dim); font-family: SF Mono, Consolas, monospace; font-size: 10px; }
-.act .time { color: var(--dim); font-size: 10px; }
-.act .actor { color: var(--purple); font-size: 10px; }
-.act.kind-ticket_completed .kind { color: var(--green); }
-.act.kind-ticket_failed .kind { color: var(--red); }
-.act.kind-ticket_needs_review .kind { color: var(--yellow); }
-.act.kind-approval_granted .kind { color: var(--green); }
-.act.kind-budget_exceeded .kind, .act.kind-ticket_paused_budget .kind { color: var(--red); }
+/* ── Main ── */
+main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.main-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+}
+.main-head .title-wrap { display: flex; flex-direction: column; gap: 2px; }
+.main-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.main-head .meta { font-size: 11.5px; color: var(--dim); }
+.main-head .actions { display: flex; gap: 6px; }
 
-.drawer { position: fixed; top: 0; right: 0; width: 520px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 60px rgba(0,0,0,0.5); transform: translateX(100%); transition: transform 0.2s ease; z-index: 10; overflow-y: auto; }
+.board {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--bg);
+  scroll-behavior: smooth;
+}
+.board::-webkit-scrollbar { height: 8px; background: var(--bg); }
+.board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.col {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  max-height: 100%;
+}
+.col-head {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+}
+.col-head .title {
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex; align-items: center; gap: 8px;
+}
+.col-head .dot {
+  width: 7px; height: 7px; border-radius: 99px;
+  background: var(--dim);
+}
+.col-head .count {
+  font-size: 11px;
+  color: var(--dim);
+  background: var(--surface-hi);
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+.col-body {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+.col-body::-webkit-scrollbar { width: 6px; }
+.col-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Column dots per status */
+.col.col-pending       .dot { background: var(--dim); }
+.col.col-in_progress   .dot { background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: pulse 2s ease-in-out infinite; }
+.col.col-needs_review  .dot { background: var(--yellow); }
+.col.col-approved      .dot { background: var(--green); }
+.col.col-completed     .dot { background: var(--green); opacity: 0.6; }
+.col.col-failed        .dot { background: var(--red); }
+.col.col-paused_budget .dot { background: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Cards */
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.card:hover {
+  border-color: var(--border);
+  background: var(--surface-3);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+.card .title {
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  line-height: 1.35;
+  color: var(--text);
+}
+.card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.card .agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text-2);
+  background: var(--surface-hi);
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.card .agent-avatar {
+  width: 14px; height: 14px;
+  border-radius: 99px;
+  background: var(--blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
+.card .cost {
+  font-size: 10.5px;
+  color: var(--yellow);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+.card .cost.zero { color: var(--dim-2); }
+.card.card-needs_review { border-left: 2px solid var(--yellow); }
+.card.card-failed { border-left: 2px solid var(--red); }
+.card.card-paused_budget { border-left: 2px solid var(--red); background: var(--red-soft); }
+.card.card-approved { border-left: 2px solid var(--green); }
+.card.card-in_progress { border-left: 2px solid var(--blue); }
+.card.card-completed { opacity: 0.75; }
+
+.empty {
+  padding: 40px 14px;
+  text-align: center;
+  color: var(--dim-2);
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+/* ── Right panel — Activity ── */
+aside.right {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.activity-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.activity-head h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.activity-head .count { font-size: 11px; color: var(--dim); }
+.activity-list { padding: 6px 0; }
+.act {
+  padding: 10px 18px;
+  display: flex;
+  gap: 10px;
+  position: relative;
+  border-bottom: 1px solid var(--border-soft);
+}
+.act:hover { background: var(--surface-2); }
+.act .kind-dot {
+  width: 7px; height: 7px;
+  border-radius: 99px;
+  background: var(--dim);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.act .content { flex: 1; min-width: 0; }
+.act .line-1 { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.act .kind {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 12px;
+}
+.act .time {
+  font-size: 10.5px;
+  color: var(--dim);
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+.act .subject {
+  font-size: 10.5px;
+  color: var(--dim);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act .actor {
+  font-size: 10px;
+  color: var(--purple);
+  margin-left: 6px;
+  font-weight: 500;
+}
+.act.kind-ticket_completed     .kind-dot { background: var(--green); }
+.act.kind-ticket_approved      .kind-dot { background: var(--green); }
+.act.kind-ticket_failed        .kind-dot { background: var(--red); }
+.act.kind-ticket_needs_review  .kind-dot { background: var(--yellow); }
+.act.kind-ticket_in_progress   .kind-dot { background: var(--blue); }
+.act.kind-ticket_paused_budget .kind-dot { background: var(--red); }
+.act.kind-budget_exceeded      .kind-dot { background: var(--red); }
+.act.kind-approval_granted     .kind-dot { background: var(--green); }
+.act.kind-plan_created         .kind-dot { background: var(--purple); }
+.act.kind-goal_created         .kind-dot { background: var(--accent); }
+.act.kind-heartbeat_tick       .kind-dot { background: var(--dim-2); opacity: 0.5; }
+
+/* ── Drawer ── */
+.drawer {
+  position: fixed;
+  top: 0; right: 0;
+  width: 560px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 10;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
 .drawer.open { transform: translateX(0); }
-.drawer-head { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: var(--surface); z-index: 1; }
-.drawer-head .close { margin-left: auto; color: var(--dim); font-size: 18px; }
-.drawer-head .close:hover { color: var(--text); }
-.drawer-body { padding: 16px; }
-.drawer-body h4 { font-size: 10px; text-transform: uppercase; color: var(--dim); letter-spacing: 1px; margin: 16px 0 6px; }
+.drawer-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.drawer-head .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--dim); }
+.drawer-head h3 { font-size: 14px; font-weight: 600; flex: 1; }
+.drawer-head .close {
+  color: var(--dim);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+.drawer-head .close:hover { color: var(--text); background: var(--surface-2); }
+
+.drawer-body { padding: 20px; flex: 1; }
+.drawer-body h4 {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin: 16px 0 8px;
+}
 .drawer-body h4:first-child { margin-top: 0; }
-.drawer-body pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; color: var(--dim); font-family: SF Mono, Consolas, monospace; }
-.drawer-body .chip { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); padding: 3px 8px; border-radius: 999px; font-size: 11px; margin-right: 6px; }
-.drawer-body .chip.status-completed { color: var(--green); border-color: var(--green); }
-.drawer-body .chip.status-failed { color: var(--red); border-color: var(--red); }
-.drawer-body .chip.status-needs_review { color: var(--yellow); border-color: var(--yellow); }
-.drawer-body .chip.status-paused_budget { color: var(--red); border-color: var(--red); }
-.drawer-body .chip.status-in_progress { color: var(--blue); border-color: var(--blue); }
-.drawer-body .actions { margin-top: 16px; display: flex; gap: 8px; }
-.btn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 500; }
-.btn:hover { background: var(--surface-3); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: #d04920; }
+.drawer-body .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.drawer-body .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.chip.status-completed    { color: var(--green); background: var(--green-soft); border-color: var(--green); }
+.chip.status-approved     { color: var(--green); background: var(--green-soft); border-color: var(--green); }
+.chip.status-failed       { color: var(--red); background: var(--red-soft); border-color: var(--red); }
+.chip.status-needs_review { color: var(--yellow); background: var(--yellow-soft); border-color: var(--yellow); }
+.chip.status-paused_budget{ color: var(--red); background: var(--red-soft); border-color: var(--red); }
+.chip.status-in_progress  { color: var(--blue); background: var(--blue-soft); border-color: var(--blue); }
+.chip.status-pending      { color: var(--dim); }
+
+.drawer-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11.5px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.5;
+}
+.drawer-body pre::-webkit-scrollbar { width: 6px; height: 6px; }
+.drawer-body pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+.drawer-body .actions-row {
+  margin-top: 18px;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.btn:hover { background: var(--surface-3); border-color: var(--dim); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { background: #ea580c; border-color: #ea580c; }
 .btn.danger { border-color: var(--red); color: var(--red); }
-.btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+.btn.danger:hover { background: var(--red-soft); }
+.btn.small { padding: 5px 10px; font-size: 11px; }
 
-.budget-row { display: flex; justify-content: space-between; padding: 6px 8px; font-size: 11px; color: var(--dim); }
-.budget-row .fill { height: 3px; flex: 1; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin: 0 10px; position: relative; align-self: center; }
-.budget-row .fill-inner { height: 100%; background: var(--green); }
-.budget-row .fill-inner.warn { background: var(--yellow); }
-.budget-row .fill-inner.over { background: var(--red); }
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 14px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.kv dt { color: var(--dim); }
+.kv dd { color: var(--text-2); word-break: break-all; }
 
-.empty { padding: 40px 20px; text-align: center; color: var(--dim); font-size: 12px; }
-.goal { padding: 10px 12px; margin-bottom: 6px; background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; }
-.goal .title { font-size: 12px; margin-bottom: 4px; }
-.goal .metric { color: var(--dim); font-size: 10px; }
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  width: 460px;
+  box-shadow: var(--shadow-lg);
+}
+.modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.modal .sub { font-size: 12px; color: var(--dim); margin-bottom: 20px; }
+.modal label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.modal input, .modal textarea, .modal select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  margin-bottom: 14px;
+  transition: border-color 0.12s;
+}
+.modal input:focus, .modal textarea:focus, .modal select:focus {
+  border-color: var(--accent);
+}
+.modal textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 
-.new-goal { width: 100%; padding: 8px; background: var(--surface-2); border: 1px dashed var(--border); color: var(--dim); border-radius: 6px; font-size: 11px; margin-top: 8px; }
-.new-goal:hover { border-color: var(--accent); color: var(--accent); }
-
-.totals { padding: 8px 0; font-size: 11px; color: var(--dim); }
-.totals .big { color: var(--text); font-size: 18px; font-weight: 600; margin: 4px 0; }
-
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 20; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; width: 420px; }
-.modal h3 { margin-bottom: 14px; font-size: 14px; }
-.modal label { display: block; font-size: 10px; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; letter-spacing: 1px; }
-.modal input, .modal textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; margin-bottom: 12px; }
-.modal textarea { resize: vertical; min-height: 60px; }
-.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* CEO Chat */
-.ceo-bubble { position: fixed; right: 20px; bottom: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(232, 93, 38, 0.4); z-index: 12; }
-.ceo-bubble:hover { background: #d04920; }
-.ceo-panel { position: fixed; right: 20px; bottom: 90px; width: 420px; max-height: 70vh; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; display: none; flex-direction: column; z-index: 12; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-.ceo-panel.open { display: flex; }
-.ceo-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+/* ── CEO Chat (embedded right-side panel) ── */
+.ceo-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 460px;
+  max-height: 76vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  z-index: 12;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(calc(100% - 50px));
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ceo-panel.open { transform: translateY(0); }
+.ceo-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.ceo-avatar {
+  width: 30px; height: 30px; border-radius: 99px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px;
+  color: #fff;
+}
+.ceo-head .info { flex: 1; }
 .ceo-head .title { font-weight: 600; font-size: 13px; }
-.ceo-head .role { color: var(--dim); font-size: 11px; }
-.ceo-head .clear { margin-left: auto; color: var(--dim); font-size: 11px; cursor: pointer; }
-.ceo-head .clear:hover { color: var(--text); }
-.ceo-log { flex: 1; padding: 10px 14px; overflow-y: auto; }
-.ceo-msg { margin-bottom: 10px; font-size: 12px; line-height: 1.45; }
-.ceo-msg .who { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+.ceo-head .sub { font-size: 11px; color: var(--dim); }
+.ceo-head .pulse {
+  width: 8px; height: 8px; border-radius: 99px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+.ceo-head .toggle { color: var(--dim); font-size: 14px; }
+.ceo-log { flex: 1; padding: 12px 16px; overflow-y: auto; min-height: 240px; max-height: 52vh; }
+.ceo-log::-webkit-scrollbar { width: 6px; }
+.ceo-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+.ceo-msg { margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
+.ceo-msg .who {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
 .ceo-msg.user { text-align: right; }
 .ceo-msg.user .who { color: var(--blue); }
 .ceo-msg.ceo .who { color: var(--accent); }
-.ceo-msg .bubble { display: inline-block; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); max-width: 85%; }
-.ceo-msg.user .bubble { background: var(--surface-3); border: 1px solid var(--border); }
-.ceo-actions { font-size: 10px; color: var(--dim); margin-top: 4px; }
-.ceo-actions .act { display: inline-block; background: var(--surface-2); padding: 2px 6px; border-radius: 4px; margin-right: 4px; color: var(--green); }
-.ceo-input { display: flex; padding: 10px; border-top: 1px solid var(--border); gap: 8px; }
-.ceo-input input { flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
-.ceo-input button { padding: 8px 12px; }
-.ceo-typing { color: var(--dim); font-style: italic; font-size: 11px; padding: 4px 0; }
+.ceo-msg .bubble {
+  display: inline-block;
+  padding: 9px 13px;
+  border-radius: 14px;
+  max-width: 88%;
+  text-align: left;
+}
+.ceo-msg.ceo .bubble {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-bottom-left-radius: 3px;
+}
+.ceo-msg.user .bubble {
+  background: var(--accent-soft);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: var(--text);
+  border-bottom-right-radius: 3px;
+}
+.ceo-actions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 10.5px;
+}
+.ceo-actions .act-pill {
+  background: var(--green-soft);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.ceo-typing {
+  color: var(--dim);
+  font-style: italic;
+  font-size: 11.5px;
+  padding: 4px 0;
+}
+.ceo-typing .dots::after {
+  content: '...';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+@keyframes dots { 0% { content: '' } 25% { content: '.' } 50% { content: '..' } 75% { content: '...' } }
+
+.ceo-input {
+  display: flex;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+  background: var(--surface);
+}
+.ceo-input input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  transition: border-color 0.12s;
+}
+.ceo-input input:focus { border-color: var(--accent); }
+.ceo-input button { padding: 9px 14px; }
+
+/* Quick-suggestions below input when chat is empty */
+.ceo-suggestions {
+  padding: 0 16px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.ceo-sugg {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ceo-sugg:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+/* Spinner for refresh */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 1s linear infinite; display: inline-block; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 200px 1fr; }
+  aside.right { display: none; }
+  .ceo-panel { width: 100vw; right: 0; bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+}
+@media (max-width: 700px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+  aside.left { max-height: 220px; }
+}
 </style>
 </head>
 <body>
 <div class="shell">
   <header>
-    <div class="logo">goat</div>
-    <div class="bread">· Board</div>
+    <div class="logo">
+      <div class="logo-mark">g</div>
+      <div>goat</div>
+    </div>
+    <div class="nav-tabs">
+      <a class="nav-tab active" href="/board">Board</a>
+      <a class="nav-tab" href="/">Classic</a>
+    </div>
     <div class="spacer"></div>
     <select id="companySelect" onchange="switchCompany()"></select>
-    <a class="link" href="/">Dashboard</a>
-    <a class="link" href="/board" style="color:var(--accent)">Board</a>
+    <button class="header-tool" onclick="runHeartbeat()" title="Heartbeat'i şimdi tetikle">⏱ Heartbeat</button>
+    <button class="header-tool primary" onclick="loadDashboard()" id="refreshBtn">↻ Yenile</button>
   </header>
 
   <aside class="left">
     <div class="nav-section">
-      <h3>Goals</h3>
-      <div id="goalsList"></div>
-      <button class="new-goal" onclick="openGoalModal()">+ Yeni hedef</button>
-    </div>
-    <div class="nav-section">
-      <h3>Totals</h3>
+      <h3>Workspace</h3>
       <div class="totals">
-        <div>Toplam ticket</div>
-        <div class="big" id="totalTickets">0</div>
-        <div>Toplam harcama</div>
-        <div class="big" id="totalCost">$0.00</div>
+        <div class="row">
+          <span class="label">Toplam ticket</span>
+          <span class="value small" id="totalTickets">0</span>
+        </div>
+        <div class="row">
+          <span class="label">Harcanan</span>
+          <span class="value" id="totalCost">$0.00</span>
+        </div>
       </div>
     </div>
+
+    <div class="nav-section">
+      <h3>Active Goals <span class="chevron">›</span></h3>
+      <div id="goalsList"></div>
+      <button class="new-button" onclick="openGoalModal()">＋ Yeni hedef</button>
+    </div>
+
     <div class="nav-section">
       <h3>Budgets</h3>
       <div id="budgetsList"></div>
+      <button class="new-button" onclick="openBudgetModal()">＋ Bütçe belirle</button>
     </div>
   </aside>
 
   <main>
     <div class="main-head">
-      <h2 id="companyName">—</h2>
-      <div class="meta" id="companyMeta">—</div>
+      <div class="title-wrap">
+        <h2 id="companyName">—</h2>
+        <div class="meta" id="companyMeta">—</div>
+      </div>
       <div class="spacer"></div>
-      <button class="btn" onclick="loadDashboard()">↻ Yenile</button>
+      <div class="actions">
+        <button class="header-tool" onclick="openCompanyModal()">＋ Yeni şirket</button>
+      </div>
     </div>
     <div class="board" id="board"></div>
   </main>
 
   <aside class="right">
     <div class="activity-head">
-      <h3>Activity Stream</h3>
-      <span class="meta" id="activityCount">—</span>
+      <h3>Activity</h3>
+      <span class="count" id="activityCount">—</span>
     </div>
     <div class="activity-list" id="activityList"></div>
   </aside>
 </div>
 
+<!-- Ticket detail drawer -->
 <div class="drawer" id="drawer">
   <div class="drawer-head">
-    <strong id="drawerTitle">Ticket</strong>
+    <div class="dot" id="drawerDot"></div>
+    <h3 id="drawerTitle">Ticket</h3>
     <button class="close" onclick="closeDrawer()">×</button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
@@ -219,41 +883,59 @@ main { overflow: hidden; display: flex; flex-direction: column; }
 <div id="modalHost"></div>
 
 <!-- CEO Chat -->
-<div class="ceo-bubble" id="ceoBubble" onclick="toggleCEO()" title="CEO ile konuş">💬</div>
 <div class="ceo-panel" id="ceoPanel">
-  <div class="ceo-head">
-    <div>
+  <div class="ceo-head" onclick="toggleCEO()">
+    <div class="ceo-avatar">C</div>
+    <div class="info">
       <div class="title">CEO</div>
-      <div class="role">Senin şirketini yöneten orkestra şefi</div>
+      <div class="sub">Şirketini yöneten asistan</div>
     </div>
-    <span class="clear" onclick="clearCEO()">× sıfırla</span>
+    <div class="pulse" title="Online"></div>
+    <div class="toggle" id="ceoToggleIcon">▲</div>
   </div>
   <div class="ceo-log" id="ceoLog">
     <div class="ceo-msg ceo">
       <div class="who">CEO</div>
-      <div class="bubble">Selam! Ne yapmak istersin? Mesela: "Bu ay İstanbul'da 50 restoran lead'i bul", "durum raporu", "scout'a 20$ bütçe ver".</div>
+      <div class="bubble">Selam! 👋 Ben goat'ın CEO'su. Sana nasıl yardımcı olabilirim?</div>
     </div>
   </div>
+  <div class="ceo-suggestions" id="ceoSuggestions">
+    <button class="ceo-sugg" onclick="suggestCEO('Bu ay İstanbul\\'da 50 restoran lead\\'i bul')">Bu ay İstanbul'da 50 restoran lead'i bul</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Scout için 25$ bütçe ver')">Scout için 25$ bütçe ver</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Durum raporu')">Durum raporu</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Onay bekleyen ticketlar?')">Onay bekleyen ticketlar?</button>
+  </div>
   <div class="ceo-input">
-    <input id="ceoInput" type="text" placeholder="CEO'ya yaz ve Enter'a bas..." onkeydown="if(event.key==='Enter')sendCEO()">
+    <input id="ceoInput" type="text" placeholder="CEO'ya yaz..." onkeydown="if(event.key==='Enter')sendCEO()">
     <button class="btn primary" onclick="sendCEO()">→</button>
   </div>
 </div>
 
 <script>
 const COLUMNS = [
-  { id: 'pending',       label: 'Pending' },
-  { id: 'in_progress',   label: 'In Progress' },
-  { id: 'needs_review',  label: 'Needs Review' },
-  { id: 'approved',      label: 'Approved' },
-  { id: 'completed',     label: 'Completed' },
-  { id: 'failed',        label: 'Failed' },
-  { id: 'paused_budget', label: 'Paused (Budget)' },
+  { id: 'pending',       label: 'Pending',       desc: 'Sıraya alındı' },
+  { id: 'in_progress',   label: 'In Progress',   desc: 'Çalışıyor' },
+  { id: 'needs_review',  label: 'Needs Review',  desc: 'Onay bekliyor' },
+  { id: 'approved',      label: 'Approved',      desc: 'Onaylandı' },
+  { id: 'completed',     label: 'Completed',     desc: 'Tamamlandı' },
+  { id: 'failed',        label: 'Failed',        desc: 'Başarısız' },
+  { id: 'paused_budget', label: 'Paused',        desc: 'Bütçe aşıldı' },
 ];
 
-let STATE = { dashboard: null, companies: [] };
+const AGENT_COLORS = {
+  ceo: '#f97316', scout: '#3b82f6', filter: '#a855f7', auditor: '#06b6d4',
+  pitch: '#22c55e', outreach: '#eab308', mentor: '#ec4899', sitebuilder: '#8b5cf6',
+  designer: '#f472b6', videomaker: '#ef4444', content: '#14b8a6', presenter: '#f59e0b',
+  brandkit: '#a855f7', admanager: '#f43f5e', social: '#0ea5e9', analytics: '#84cc16',
+  goat: '#f97316', videoproducer: '#ef4444', youtube: '#dc2626', storyboard: '#6366f1',
+  mcphub: '#64748b', taskplanner: '#0891b2',
+};
+
+let STATE = { dashboard: null, companies: [], ceoOpen: false };
 
 async function loadDashboard() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.innerHTML = '<span class="spinning">↻</span> Yenile';
   try {
     const [dash, companies] = await Promise.all([
       fetch('/api/core/dashboard').then(r => r.json()),
@@ -263,9 +945,8 @@ async function loadDashboard() {
     STATE.companies = companies.companies || [];
     renderCompanies(companies.active);
     renderMain(dash);
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
+  finally { if (btn) btn.innerHTML = '↻ Yenile'; }
 }
 
 function renderCompanies(activeId) {
@@ -278,21 +959,16 @@ function renderCompanies(activeId) {
     if (c.id === activeId) opt.selected = true;
     sel.appendChild(opt);
   }
-  const newOpt = document.createElement('option');
-  newOpt.value = '__new__';
-  newOpt.textContent = '+ Yeni şirket';
-  sel.appendChild(newOpt);
+  if (!STATE.companies.length) {
+    const opt = document.createElement('option'); opt.textContent = 'default'; opt.value = 'default';
+    sel.appendChild(opt);
+  }
 }
 
 async function switchCompany() {
   const v = document.getElementById('companySelect').value;
-  if (v === '__new__') {
-    openCompanyModal();
-    return;
-  }
   await fetch('/api/core/companies/active', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: v }),
   });
   loadDashboard();
@@ -301,8 +977,8 @@ async function switchCompany() {
 function renderMain(dash) {
   const company = dash.company || {};
   document.getElementById('companyName').textContent = company.name || company.id || 'goat';
-  document.getElementById('companyMeta').textContent =
-    [company.niche, (company.target_cities || []).join(', ')].filter(Boolean).join(' · ') || '—';
+  const metaParts = [company.niche, (company.target_cities || []).join(', ')].filter(Boolean);
+  document.getElementById('companyMeta').textContent = metaParts.join(' · ') || 'Henüz yapılandırılmadı';
 
   // Board
   const board = document.getElementById('board');
@@ -310,10 +986,10 @@ function renderMain(dash) {
   for (const col of COLUMNS) {
     const tickets = dash.tickets_by_status[col.id] || [];
     const el = document.createElement('div');
-    el.className = 'col';
+    el.className = 'col col-' + col.id;
     el.innerHTML = `
       <div class="col-head">
-        <span class="title">${col.label}</span>
+        <span class="title"><span class="dot"></span>${col.label}</span>
         <span class="count">${tickets.length}</span>
       </div>
       <div class="col-body"></div>
@@ -321,20 +997,24 @@ function renderMain(dash) {
     const body = el.querySelector('.col-body');
     for (const t of tickets) {
       const cost = t.cost_usd ? `$${Number(t.cost_usd).toFixed(3)}` : '';
+      const agentColor = AGENT_COLORS[t.agent_id] || '#64748b';
       const card = document.createElement('div');
-      card.className = `card ${col.id}`;
+      card.className = `card card-${col.id}`;
       card.onclick = () => openTicket(t.id);
       card.innerHTML = `
         <div class="title">${escapeHtml(t.title || t.id)}</div>
         <div class="row">
-          <span class="agent">${escapeHtml(t.agent_id || '')}</span>
-          <span class="cost">${cost}</span>
+          <span class="agent-chip">
+            <span class="agent-avatar" style="background:${agentColor}">${(t.agent_id || '?').charAt(0)}</span>
+            ${escapeHtml(t.agent_id || 'unknown')}
+          </span>
+          <span class="cost ${cost ? '' : 'zero'}">${cost || '—'}</span>
         </div>
       `;
       body.appendChild(card);
     }
     if (!tickets.length) {
-      body.innerHTML = '<div class="empty" style="padding:12px;font-size:11px;">—</div>';
+      body.innerHTML = '<div class="empty">—</div>';
     }
     board.appendChild(el);
   }
@@ -344,12 +1024,15 @@ function renderMain(dash) {
   gl.innerHTML = '';
   for (const g of (dash.goals || [])) {
     const el = document.createElement('div');
-    el.className = 'goal';
-    el.innerHTML = `<div class="title">${escapeHtml(g.title)}</div>
-      <div class="metric">${escapeHtml(g.target_metric || '')}</div>`;
+    el.className = 'goal-item';
+    el.onclick = () => planGoal(g.id);
+    el.innerHTML = `
+      <div class="title">${escapeHtml(g.title)}</div>
+      <div class="metric">${escapeHtml(g.target_metric || '—')}</div>
+    `;
     gl.appendChild(el);
   }
-  if (!dash.goals || !dash.goals.length) gl.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">—</div>';
+  if (!(dash.goals || []).length) gl.innerHTML = '<div class="empty" style="padding:14px 8px;">Henüz hedef yok</div>';
 
   // Budgets
   const bl = document.getElementById('budgetsList');
@@ -357,7 +1040,7 @@ function renderMain(dash) {
   const budgets = dash.budgets || {};
   const keys = Object.keys(budgets);
   if (!keys.length) {
-    bl.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">Bütçe ayarlanmamış</div>';
+    bl.innerHTML = '<div class="empty" style="padding:10px 8px;">Bütçe ayarlanmamış</div>';
   } else {
     for (const k of keys) {
       const b = budgets[k];
@@ -366,9 +1049,11 @@ function renderMain(dash) {
       const el = document.createElement('div');
       el.className = 'budget-row';
       el.innerHTML = `
-        <span>${escapeHtml(k)}</span>
-        <div class="fill"><div class="fill-inner ${cls}" style="width:${pct}%"></div></div>
-        <span>$${b.spent_usd.toFixed(2)} / $${b.amount_usd.toFixed(2)}</span>
+        <div class="top">
+          <span class="name">${escapeHtml(k)}</span>
+          <span class="amt">$${b.spent_usd.toFixed(2)} / $${b.amount_usd.toFixed(2)}</span>
+        </div>
+        <div class="bar"><div class="fill ${cls}" style="width:${pct}%"></div></div>
       `;
       bl.appendChild(el);
     }
@@ -383,159 +1068,285 @@ function renderMain(dash) {
   const al = document.getElementById('activityList');
   al.innerHTML = '';
   const acts = dash.activity || [];
-  document.getElementById('activityCount').textContent = acts.length + ' entry';
+  document.getElementById('activityCount').textContent = acts.length ? `${acts.length}` : '—';
   for (const a of acts) {
     const el = document.createElement('div');
     el.className = 'act kind-' + a.kind;
     el.innerHTML = `
-      <div><span class="kind">${escapeHtml(a.kind)}</span>
-           <span class="actor"> · ${escapeHtml(a.actor || 'system')}</span></div>
-      <div><span class="subject">${escapeHtml(a.subject || '')}</span></div>
-      <div class="time">${formatTime(a.timestamp)}</div>
+      <div class="kind-dot"></div>
+      <div class="content">
+        <div class="line-1">
+          <span><span class="kind">${escapeHtml(a.kind)}</span><span class="actor">${escapeHtml(a.actor || 'system')}</span></span>
+          <span class="time">${formatTime(a.timestamp)}</span>
+        </div>
+        <div class="subject">${escapeHtml(a.subject || '—')}</div>
+      </div>
     `;
+    if (a.subject && a.subject.startsWith('t_')) {
+      el.style.cursor = 'pointer';
+      el.onclick = () => openTicket(a.subject);
+    }
     al.appendChild(el);
   }
+  if (!acts.length) al.innerHTML = '<div class="empty">Henüz hareket yok</div>';
 }
 
 async function openTicket(id) {
-  const t = await fetch('/api/core/tickets/' + id).then(r => r.json());
-  const drawer = document.getElementById('drawer');
-  const body = document.getElementById('drawerBody');
-  document.getElementById('drawerTitle').textContent = t.title || t.id;
+  try {
+    const t = await fetch('/api/core/tickets/' + id).then(r => r.json());
+    if (t.error) return;
+    const drawer = document.getElementById('drawer');
+    const body = document.getElementById('drawerBody');
+    const statusClass = 'status-' + t.status;
+    document.getElementById('drawerDot').style.background = dotColor(t.status);
+    document.getElementById('drawerTitle').textContent = t.title || t.id;
 
-  const cost = t.cost_usd ? '$' + Number(t.cost_usd).toFixed(4) : '$0';
-  const breakdown = t.cost_breakdown && Object.keys(t.cost_breakdown).length
-    ? Object.entries(t.cost_breakdown).map(([k, v]) => `${k}: $${v}`).join('  ·  ')
-    : '—';
-  const artifacts = (t.artifacts || []).map(a =>
-    `<div>• ${escapeHtml(a.kind || 'artifact')}: <code>${escapeHtml(a.path || a.name || '')}</code></div>`
-  ).join('') || '<em style="color:var(--dim);">Yok</em>';
+    const cost = t.cost_usd ? '$' + Number(t.cost_usd).toFixed(4) : '$0';
+    const breakdown = t.cost_breakdown && Object.keys(t.cost_breakdown).length
+      ? Object.entries(t.cost_breakdown).map(([k, v]) => `${k}: $${v}`).join('\n')
+      : '—';
+    const artifacts = (t.artifacts || []).map(a =>
+      `<div>· ${escapeHtml(a.kind || 'artifact')}: <code>${escapeHtml(a.path || a.name || '')}</code></div>`
+    ).join('') || '<em style="color:var(--dim-2);">Yok</em>';
 
-  let actions = '';
-  if (t.status === 'needs_review') {
-    actions = `
-      <div class="actions">
-        <button class="btn primary" onclick="approveTicket('${t.id}')">✓ Onayla</button>
-        <button class="btn danger" onclick="rejectTicket('${t.id}')">✕ Reddet</button>
-      </div>`;
-  }
+    let actions = '';
+    if (t.status === 'needs_review') {
+      actions = `
+        <div class="actions-row">
+          <button class="btn primary" onclick="approveTicket('${t.id}')">✓ Onayla</button>
+          <button class="btn danger" onclick="rejectTicket('${t.id}')">✕ Reddet</button>
+        </div>`;
+    }
 
-  body.innerHTML = `
-    <div>
-      <span class="chip">${escapeHtml(t.agent_id || '')}</span>
-      <span class="chip status-${t.status}">${escapeHtml(t.status)}</span>
-      <span class="chip">${cost}</span>
-    </div>
-    ${actions}
-    <h4>ID</h4>
-    <pre>${t.id}</pre>
-    <h4>Açıklama</h4>
-    <pre>${escapeHtml(t.description || '—')}</pre>
-    <h4>Params</h4>
-    <pre>${escapeHtml(JSON.stringify(t.params || {}, null, 2))}</pre>
-    <h4>Result</h4>
-    <pre>${escapeHtml(JSON.stringify(t.result || {}, null, 2))}</pre>
-    <h4>Cost Breakdown</h4>
-    <pre>${escapeHtml(breakdown)}</pre>
-    <h4>Artifacts</h4>
-    <div style="font-size:11px; color:var(--dim);">${artifacts}</div>
-    <h4>Timestamps</h4>
-    <pre>created: ${t.created_at || '—'}
-started: ${t.started_at || '—'}
-completed: ${t.completed_at || '—'}
-approved_by: ${t.approved_by || '—'}</pre>
-    ${t.error ? `<h4>Error</h4><pre style="color:var(--red);">${escapeHtml(t.error)}</pre>` : ''}
-  `;
-  drawer.classList.add('open');
+    body.innerHTML = `
+      <div class="chips">
+        <span class="chip"><span class="agent-avatar" style="background:${AGENT_COLORS[t.agent_id] || '#64748b'};width:12px;height:12px;font-size:7px;">${(t.agent_id || '?').charAt(0)}</span>${escapeHtml(t.agent_id || '')}</span>
+        <span class="chip ${statusClass}">${escapeHtml(t.status)}</span>
+        <span class="chip">${cost}</span>
+        ${t.needs_approval ? '<span class="chip status-needs_review">onay gerekir</span>' : ''}
+      </div>
+      ${actions}
+      <h4>ID</h4>
+      <pre>${t.id}</pre>
+      <h4>Açıklama</h4>
+      <pre>${escapeHtml(t.description || '—')}</pre>
+      <h4>Params</h4>
+      <pre>${escapeHtml(JSON.stringify(t.params || {}, null, 2))}</pre>
+      <h4>Result</h4>
+      <pre>${escapeHtml(JSON.stringify(t.result || {}, null, 2))}</pre>
+      <h4>Cost Breakdown</h4>
+      <pre>${escapeHtml(breakdown)}</pre>
+      <h4>Artifacts</h4>
+      <div style="font-size:11.5px; color:var(--text-2);">${artifacts}</div>
+      <h4>Timeline</h4>
+      <dl class="kv">
+        <dt>created</dt><dd>${t.created_at || '—'}</dd>
+        <dt>started</dt><dd>${t.started_at || '—'}</dd>
+        <dt>completed</dt><dd>${t.completed_at || '—'}</dd>
+        <dt>approved_by</dt><dd>${t.approved_by || '—'}</dd>
+      </dl>
+      ${t.error ? `<h4>Hata</h4><pre style="color:var(--red);">${escapeHtml(t.error)}</pre>` : ''}
+    `;
+    drawer.classList.add('open');
+  } catch (e) { console.error(e); }
+}
+
+function dotColor(status) {
+  return {
+    pending: 'var(--dim)', in_progress: 'var(--blue)',
+    needs_review: 'var(--yellow)', approved: 'var(--green)',
+    completed: 'var(--green)', failed: 'var(--red)',
+    paused_budget: 'var(--red)',
+  }[status] || 'var(--dim)';
 }
 
 function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
 
 async function approveTicket(id) {
   await fetch(`/api/core/tickets/${id}/approve`, { method: 'POST' });
-  closeDrawer();
-  loadDashboard();
+  closeDrawer(); loadDashboard();
 }
-
 async function rejectTicket(id) {
   const reason = prompt('Red nedeni (opsiyonel):') || '';
   await fetch(`/api/core/tickets/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   });
-  closeDrawer();
+  closeDrawer(); loadDashboard();
+}
+
+async function planGoal(goalId) {
+  const r = await fetch(`/api/core/goals/${goalId}/plan`, { method: 'POST' });
+  const d = await r.json();
+  alert(`Plan oluşturuldu: ${(d.tickets || []).length} ticket yaratıldı. Board'da göreceksin.`);
+  loadDashboard();
+}
+
+async function runHeartbeat() {
+  const r = await fetch('/api/core/heartbeat/tick', { method: 'POST' });
+  const d = await r.json();
+  console.log('heartbeat:', d);
   loadDashboard();
 }
 
 function openGoalModal() {
-  const host = document.getElementById('modalHost');
-  host.innerHTML = `
-    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
-      <div class="modal">
-        <h3>Yeni hedef</h3>
-        <label>Başlık</label>
-        <input id="gTitle" placeholder="Bu ay 50 hot lead">
-        <label>Açıklama</label>
-        <textarea id="gDesc" placeholder="İstanbul + Ankara, restoran + klinik"></textarea>
-        <label>Metrik</label>
-        <input id="gMetric" placeholder="50 hot leads">
-        <div class="modal-actions">
-          <button class="btn" onclick="closeModal()">İptal</button>
-          <button class="btn primary" onclick="createGoal()">Oluştur</button>
-        </div>
-      </div>
-    </div>`;
+  modal(`
+    <h3>Yeni hedef</h3>
+    <div class="sub">Senin için otomatik plan ve ticket'lar üretilecek</div>
+    <label>Başlık</label>
+    <input id="gTitle" placeholder="Bu ay 50 hot lead">
+    <label>Hedef sektör / bölge (opsiyonel)</label>
+    <textarea id="gDesc" placeholder="İstanbul, Ankara — restoran + klinik"></textarea>
+    <label>Ölçülebilir metrik</label>
+    <input id="gMetric" placeholder="50 hot leads">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createGoal()">Oluştur & Planla</button>
+    </div>
+  `);
 }
 
 async function createGoal() {
   const title = document.getElementById('gTitle').value.trim();
   if (!title) return;
-  await fetch('/api/core/goals', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const r = await fetch('/api/core/goals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      title,
-      description: document.getElementById('gDesc').value,
+      title, description: document.getElementById('gDesc').value,
       target_metric: document.getElementById('gMetric').value,
     }),
   });
+  const goal = await r.json();
   closeModal();
+  // Otomatik plan
+  if (goal.id) await fetch(`/api/core/goals/${goal.id}/plan`, { method: 'POST' });
   loadDashboard();
 }
 
 function openCompanyModal() {
-  const host = document.getElementById('modalHost');
-  host.innerHTML = `
-    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
-      <div class="modal">
-        <h3>Yeni şirket</h3>
-        <label>ID (slug)</label>
-        <input id="cId" placeholder="goat-ugc">
-        <label>Ad</label>
-        <input id="cName" placeholder="GOAT UGC">
-        <div class="modal-actions">
-          <button class="btn" onclick="closeModal(); loadDashboard();">İptal</button>
-          <button class="btn primary" onclick="createCompany()">Oluştur</button>
-        </div>
-      </div>
-    </div>`;
+  modal(`
+    <h3>Yeni şirket</h3>
+    <div class="sub">goat içinde ayrı bir data silo oluştur</div>
+    <label>ID (slug)</label>
+    <input id="cId" placeholder="goat-ugc">
+    <label>Görünen ad</label>
+    <input id="cName" placeholder="GOAT UGC">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createCompany()">Oluştur</button>
+    </div>
+  `);
 }
-
 async function createCompany() {
   const id = document.getElementById('cId').value.trim();
   const name = document.getElementById('cName').value.trim() || id;
   if (!id) return;
   await fetch('/api/core/companies/active', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, name }),
   });
-  closeModal();
-  loadDashboard();
+  closeModal(); loadDashboard();
 }
 
+function openBudgetModal() {
+  const agents = ['scout', 'filter', 'auditor', 'pitch', 'outreach', 'designer',
+                  'videomaker', 'videoproducer', 'content', 'social', 'admanager', 'youtube', 'analytics'];
+  modal(`
+    <h3>Bütçe belirle</h3>
+    <div class="sub">Aylık USD limit — aşılırsa agent otomatik durur</div>
+    <label>Agent</label>
+    <select id="bAgent">
+      ${agents.map(a => `<option value="${a}">${a}</option>`).join('')}
+    </select>
+    <label>Aylık limit (USD)</label>
+    <input id="bAmount" type="number" step="0.01" placeholder="20">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createBudget()">Kaydet</button>
+    </div>
+  `);
+}
+async function createBudget() {
+  const agent_id = document.getElementById('bAgent').value;
+  const amount_usd = parseFloat(document.getElementById('bAmount').value);
+  if (!agent_id || !amount_usd || amount_usd <= 0) return;
+  await fetch('/api/core/budgets', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id, amount_usd }),
+  });
+  closeModal(); loadDashboard();
+}
+
+function modal(html) {
+  document.getElementById('modalHost').innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+      <div class="modal">${html}</div>
+    </div>`;
+}
 function closeModal() { document.getElementById('modalHost').innerHTML = ''; }
+
+// ── CEO Chat ──
+function toggleCEO() {
+  STATE.ceoOpen = !STATE.ceoOpen;
+  const panel = document.getElementById('ceoPanel');
+  panel.classList.toggle('open', STATE.ceoOpen);
+  document.getElementById('ceoToggleIcon').textContent = STATE.ceoOpen ? '▼' : '▲';
+}
+
+function suggestCEO(text) {
+  document.getElementById('ceoInput').value = text.replaceAll('\\\'', "'");
+  sendCEO();
+}
+
+async function sendCEO() {
+  if (!STATE.ceoOpen) toggleCEO();
+  const input = document.getElementById('ceoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const log = document.getElementById('ceoLog');
+  const suggestions = document.getElementById('ceoSuggestions');
+  if (suggestions) suggestions.style.display = 'none';
+
+  const userEl = document.createElement('div');
+  userEl.className = 'ceo-msg user';
+  userEl.innerHTML = `<div class="who">sen</div><div class="bubble">${escapeHtml(msg)}</div>`;
+  log.appendChild(userEl);
+
+  const typing = document.createElement('div');
+  typing.className = 'ceo-typing';
+  typing.innerHTML = 'CEO düşünüyor<span class="dots"></span>';
+  log.appendChild(typing);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    const r = await fetch('/api/core/ceo/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await r.json();
+    typing.remove();
+    const ceoEl = document.createElement('div');
+    ceoEl.className = 'ceo-msg ceo';
+    const acts = (data.executed || []).filter(e => e.ok).map(e =>
+      `<span class="act-pill">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 10) : ''}</span>`
+    ).join('');
+    ceoEl.innerHTML = `
+      <div class="who">CEO</div>
+      <div class="bubble">${escapeHtml(data.response || '')}</div>
+      ${acts ? `<div class="ceo-actions">${acts}</div>` : ''}
+    `;
+    log.appendChild(ceoEl);
+    log.scrollTop = log.scrollHeight;
+    loadDashboard();
+  } catch (e) {
+    typing.remove();
+    const errEl = document.createElement('div');
+    errEl.className = 'ceo-msg ceo';
+    errEl.innerHTML = `<div class="who">CEO</div><div class="bubble" style="color:var(--red);">Hata oluştu. Sunucu erişilebilir mi?</div>`;
+    log.appendChild(errEl);
+  }
+}
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -551,60 +1362,6 @@ function formatTime(iso) {
   if (mins < 60) return mins + ' dk';
   if (mins < 1440) return Math.floor(mins / 60) + ' sa';
   return Math.floor(mins / 1440) + ' gün';
-}
-
-function toggleCEO() { document.getElementById('ceoPanel').classList.toggle('open'); }
-
-async function sendCEO() {
-  const input = document.getElementById('ceoInput');
-  const msg = input.value.trim();
-  if (!msg) return;
-  input.value = '';
-  const log = document.getElementById('ceoLog');
-
-  const userEl = document.createElement('div');
-  userEl.className = 'ceo-msg user';
-  userEl.innerHTML = `<div class="who">sen</div><div class="bubble">${escapeHtml(msg)}</div>`;
-  log.appendChild(userEl);
-
-  const typing = document.createElement('div');
-  typing.className = 'ceo-typing';
-  typing.textContent = 'CEO düşünüyor...';
-  log.appendChild(typing);
-  log.scrollTop = log.scrollHeight;
-
-  try {
-    const r = await fetch('/api/core/ceo/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg }),
-    });
-    const data = await r.json();
-    typing.remove();
-    const ceoEl = document.createElement('div');
-    ceoEl.className = 'ceo-msg ceo';
-    const acts = (data.executed || []).filter(e => e.ok).map(e =>
-      `<span class="act">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 8) : ''}</span>`
-    ).join('');
-    ceoEl.innerHTML = `
-      <div class="who">CEO</div>
-      <div class="bubble">${escapeHtml(data.response || '')}</div>
-      ${acts ? `<div class="ceo-actions">${acts}</div>` : ''}
-    `;
-    log.appendChild(ceoEl);
-    log.scrollTop = log.scrollHeight;
-    // Refresh board — CEO may have created tickets/goals
-    loadDashboard();
-  } catch (e) {
-    typing.remove();
-    console.error(e);
-  }
-}
-
-async function clearCEO() {
-  await fetch('/api/core/ceo/history/clear', { method: 'POST' });
-  document.getElementById('ceoLog').innerHTML = `
-    <div class="ceo-msg ceo"><div class="who">CEO</div><div class="bubble">Sıfırlandı. Yeni mesaj?</div></div>`;
 }
 
 loadDashboard();

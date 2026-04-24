@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from agents.base import BaseAgent, DATA_DIR
-from services.scraper import scrape_google_maps
+from services.scraper import scrape_b2b_leads, HARD_CAP
 from services.email_finder import enrich_leads
 
 
@@ -20,6 +20,8 @@ class ScoutAgent(BaseAgent):
     category = "acquisition"
 
     def run(self, query: str = "", location: str = "", limit: int = 50) -> dict:
+        # Enforce hard cap — Apify runs can be expensive; cap at 100 always.
+        limit = max(1, min(int(limit or 50), HARD_CAP))
         config = self.load_config()
 
         # Use provided params or fall back to user_profile config
@@ -30,14 +32,15 @@ class ScoutAgent(BaseAgent):
             cities = config.get("target_cities", [])
             location = cities[0] if cities else ""
 
-        self.log(f"Searching for '{query}' in '{location}' (limit: {limit})...")
+        self.log(f"Searching for '{query}' in '{location}' (limit: {limit}, max {HARD_CAP})...")
 
         import os
         used_fallback = False
         has_apify = bool(os.environ.get("APIFY_TOKEN", "").strip())
 
         if has_apify:
-            leads = scrape_google_maps(
+            # Lead finder first (B2B contacts with email/LinkedIn), falls back to Google Maps
+            leads = scrape_b2b_leads(
                 query=query,
                 location=location,
                 max_results=limit,

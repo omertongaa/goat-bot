@@ -30,6 +30,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 AGENT_MODULES = {
+    "ceo": "agents.ceo.agent:CEOAgent",
     "goat": "agents.goat.agent:GoatAgent",
     "scout": "agents.scout.agent:ScoutAgent",
     "filter": "agents.filter.agent:FilterAgent",
@@ -129,153 +130,85 @@ async def run_agent(agent_id: str, request: Request):
 
     # Inject config API keys into env for agents
     cfg = load_config()
-    if cfg.get("instantly_api_key"):
-        os.environ["INSTANTLY_API_KEY"] = cfg["instantly_api_key"]
-    if cfg.get("apify_token"):
-        os.environ["APIFY_TOKEN"] = cfg["apify_token"]
-    if cfg.get("fal_key"):
-        os.environ["FAL_KEY"] = cfg["fal_key"]
+    for src, dst in [
+        ("instantly_api_key", "INSTANTLY_API_KEY"),
+        ("apify_token", "APIFY_TOKEN"),
+        ("fal_key", "FAL_KEY"),
+        ("scraper_actor", "SCRAPER_ACTOR"),
+        ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
+        ("emailapi_key", "EMAILAPI_KEY"),
+        ("emailapi_domain", "EMAILAPI_DOMAIN"),
+        ("leadmagic_api_key", "LEADMAGIC_API_KEY"),
+        ("generect_api_key", "GENERECT_API_KEY"),
+    ]:
+        if cfg.get(src):
+            os.environ[dst] = cfg[src]
+
+    # Resolve per-agent run() params from request body
+    def _resolve_run_params(agent_id, params):
+        if not params:
+            return {}
+        if agent_id == "scout":
+            return {"query": params.get("query", ""), "location": params.get("location", ""), "limit": params.get("limit", 50)}
+        if agent_id == "auditor":
+            return {"url": params.get("url", ""), "max_leads": params.get("max_leads", 10)}
+        if agent_id == "sitebuilder":
+            return {"site_type": params.get("site_type", "agency"), "lead_index": params.get("lead_index", 0)}
+        if agent_id == "designer":
+            return {"design_type": params.get("design_type", "social_post"), "business_name": params.get("business_name", ""), "platform": params.get("platform", "instagram"), "theme": params.get("theme", ""), "text": params.get("text", "")}
+        if agent_id in ("videomaker",):
+            return {"video_type": params.get("video_type", "reels"), "business_name": params.get("business_name", ""), "topic": params.get("topic", ""), "target_audience": params.get("target_audience", ""), "count": params.get("count", 3), "language": params.get("language", "tr")}
+        if agent_id == "admanager":
+            return {"platform": params.get("platform", "meta"), "campaign_type": params.get("campaign_type", "lead_gen"), "budget": params.get("budget", "1000"), "business_name": params.get("business_name", ""), "target_audience": params.get("target_audience", "")}
+        if agent_id == "analytics":
+            return {"analysis_type": params.get("analysis_type", "competitor"), "target": params.get("target", ""), "industry": params.get("industry", ""), "location": params.get("location", "")}
+        if agent_id == "content":
+            return {"content_type": params.get("content_type", "blog"), "topic": params.get("topic", ""), "tone": params.get("tone", "profesyonel"), "language": params.get("language", "tr"), "platform": params.get("platform", ""), "count": params.get("count", 1)}
+        if agent_id == "presenter":
+            return {"template": params.get("template", "pitch_deck"), "topic": params.get("topic", ""), "business_name": params.get("business_name", ""), "audience": params.get("audience", "")}
+        if agent_id == "social":
+            return {"action": params.get("action", "strategy"), "platform": params.get("platform", "instagram"), "business_name": params.get("business_name", ""), "niche": params.get("niche", "")}
+        if agent_id == "storyboard":
+            return {"project_type": params.get("project_type", "general"), "business_name": params.get("business_name", ""), "product_description": params.get("product_description", ""), "mood": params.get("mood", ""), "duration": params.get("duration", "15s"), "video_count": params.get("video_count", 1), "orientation": params.get("orientation", "vertical"), "reference_notes": params.get("reference_notes", "")}
+        if agent_id == "brandkit":
+            return {"business_name": params.get("business_name", ""), "industry": params.get("industry", ""), "style": params.get("style", "modern"), "values": params.get("values", "")}
+        if agent_id == "mcphub":
+            return {"action": params.get("action", "list"), "tool_id": params.get("tool_id", ""), "category": params.get("category", "")}
+        if agent_id == "videoproducer":
+            return {"action": params.get("action", "plan"), "topic": params.get("topic", ""), "scenes": params.get("scenes"), "style": params.get("style", "cinematic"), "language": params.get("language", "tr"), "voice_id": params.get("voice_id", "")}
+        if agent_id == "youtube":
+            return {"action": params.get("action", "optimize"), "video_path": params.get("video_path", ""), "title": params.get("title", ""), "topic": params.get("topic", ""), "language": params.get("language", "tr"), "category": params.get("category", "education"), "schedule_time": params.get("schedule_time", "")}
+        if agent_id == "taskplanner":
+            return {"action": params.get("action", "plan"), "message": params.get("message", ""), "pipeline": params.get("pipeline", ""), "auto_execute": params.get("auto_execute", False)}
+        if agent_id == "ceo":
+            return {"message": params.get("message", ""), "history": params.get("history", [])}
+        return {}
 
     try:
+        from core import agent_runtime as _core_runtime
         agent = get_agent_instance(agent_id)
-        if agent_id == "scout" and params:
-            result = agent.run(
-                query=params.get("query", ""),
-                location=params.get("location", ""),
-                limit=params.get("limit", 50),
-            )
-        elif agent_id == "auditor" and params:
-            result = agent.run(
-                url=params.get("url", ""),
-                max_leads=params.get("max_leads", 10),
-            )
-        elif agent_id == "sitebuilder" and params:
-            result = agent.run(
-                site_type=params.get("site_type", "agency"),
-                lead_index=params.get("lead_index", 0),
-            )
-        elif agent_id == "designer" and params:
-            result = agent.run(
-                design_type=params.get("design_type", "social_post"),
-                business_name=params.get("business_name", ""),
-                platform=params.get("platform", "instagram"),
-                theme=params.get("theme", ""),
-                text=params.get("text", ""),
-            )
-        elif agent_id == "videomaker" and params:
-            result = agent.run(
-                video_type=params.get("video_type", "reels"),
-                business_name=params.get("business_name", ""),
-                topic=params.get("topic", ""),
-                target_audience=params.get("target_audience", ""),
-                count=params.get("count", 3),
-            )
-        elif agent_id == "admanager" and params:
-            result = agent.run(
-                platform=params.get("platform", "meta"),
-                campaign_type=params.get("campaign_type", "lead_gen"),
-                budget=params.get("budget", "1000"),
-                business_name=params.get("business_name", ""),
-                target_audience=params.get("target_audience", ""),
-            )
-        elif agent_id == "analytics" and params:
-            result = agent.run(
-                analysis_type=params.get("analysis_type", "competitor"),
-                target=params.get("target", ""),
-                industry=params.get("industry", ""),
-                location=params.get("location", ""),
-            )
-        elif agent_id == "content" and params:
-            result = agent.run(
-                content_type=params.get("content_type", "blog"),
-                topic=params.get("topic", ""),
-                tone=params.get("tone", "profesyonel"),
-                language=params.get("language", "tr"),
-                platform=params.get("platform", ""),
-                count=params.get("count", 1),
-            )
-        elif agent_id == "presenter" and params:
-            result = agent.run(
-                template=params.get("template", "pitch_deck"),
-                topic=params.get("topic", ""),
-                business_name=params.get("business_name", ""),
-                audience=params.get("audience", ""),
-            )
-        elif agent_id == "social" and params:
-            result = agent.run(
-                action=params.get("action", "strategy"),
-                platform=params.get("platform", "instagram"),
-                business_name=params.get("business_name", ""),
-                niche=params.get("niche", ""),
-            )
-        elif agent_id == "storyboard" and params:
-            result = agent.run(
-                project_type=params.get("project_type", "general"),
-                business_name=params.get("business_name", ""),
-                product_description=params.get("product_description", ""),
-                mood=params.get("mood", ""),
-                duration=params.get("duration", "15s"),
-                video_count=params.get("video_count", 1),
-                orientation=params.get("orientation", "vertical"),
-                reference_notes=params.get("reference_notes", ""),
-            )
-        elif agent_id == "brandkit" and params:
-            result = agent.run(
-                business_name=params.get("business_name", ""),
-                industry=params.get("industry", ""),
-                style=params.get("style", "modern"),
-                values=params.get("values", ""),
-            )
-        elif agent_id == "mcphub" and params:
-            result = agent.run(
-                action=params.get("action", "list"),
-                tool_id=params.get("tool_id", ""),
-                category=params.get("category", ""),
-            )
-        elif agent_id == "videoproducer" and params:
-            result = agent.run(
-                action=params.get("action", "plan"),
-                topic=params.get("topic", ""),
-                scenes=params.get("scenes"),
-                style=params.get("style", "cinematic"),
-                language=params.get("language", "tr"),
-                voice_id=params.get("voice_id", ""),
-            )
-        elif agent_id == "youtube" and params:
-            result = agent.run(
-                action=params.get("action", "optimize"),
-                video_path=params.get("video_path", ""),
-                title=params.get("title", ""),
-                topic=params.get("topic", ""),
-                language=params.get("language", "tr"),
-                category=params.get("category", "education"),
-                schedule_time=params.get("schedule_time", ""),
-            )
-        elif agent_id == "taskplanner" and params:
-            result = agent.run(
-                action=params.get("action", "plan"),
-                message=params.get("message", ""),
-                pipeline=params.get("pipeline", ""),
-                auto_execute=params.get("auto_execute", False),
-            )
-        elif agent_id == "videomaker" and params:
-            result = agent.run(
-                video_type=params.get("video_type", "reels"),
-                business_name=params.get("business_name", ""),
-                topic=params.get("topic", ""),
-                target_audience=params.get("target_audience", ""),
-                count=params.get("count", 3),
-                language=params.get("language", "tr"),
-            )
-        else:
-            result = agent.run()
+        run_params = _resolve_run_params(agent_id, params)
+        ticket = _core_runtime.execute_in_ticket(
+            agent_id=agent_id, run_fn=agent.run, params=run_params,
+            title=(params or {}).get("title", ""),
+            goal_id=(params or {}).get("goal_id"),
+        )
+        result = ticket.get("result", {})
 
         AGENT_RESULTS[agent_id] = {
             "result": result,
             "timestamp": datetime.now().isoformat(),
-            "status": "success",
+            "status": "success" if ticket.get("status") in ("completed", "approved", "needs_review") else "error",
+            "ticket_id": ticket["id"],
         }
-        return JSONResponse({"status": "ok", "agent": agent_id, "result": result})
+        return JSONResponse({
+            "status": "ok", "agent": agent_id, "result": result,
+            "ticket": {
+                "id": ticket["id"], "status": ticket["status"],
+                "cost_usd": ticket.get("cost_usd", 0.0),
+                "needs_approval": ticket.get("needs_approval", False),
+            },
+        })
     except Exception as e:
         AGENT_RESULTS[agent_id] = {
             "result": {"error": str(e)},
@@ -285,17 +218,31 @@ async def run_agent(agent_id: str, request: Request):
         return JSONResponse({"status": "error", "error": str(e)}, status_code=500)
 
 
+# (legacy inline agent-run block removed — replaced by execute_in_ticket above)
+
+
 @app.post("/api/agents/run-pipeline")
 async def run_pipeline():
-    """Run the full pipeline: Scout → Filter."""
-    agent = get_agent_instance("goat")
-    result = agent.run()
+    """Run the full pipeline: Scout → Filter. Tracked as a goat-master ticket."""
+    from core import agent_runtime as _core_runtime
+    import asyncio
+    def _run():
+        agent = get_agent_instance("goat")
+        return _core_runtime.execute_in_ticket(
+            agent_id="goat", run_fn=agent.run, params={},
+            title="Full pipeline: Scout → Filter",
+        )
+    ticket = await asyncio.to_thread(_run)
+    result = ticket.get("result", {})
     AGENT_RESULTS["goat"] = {
-        "result": result,
-        "timestamp": datetime.now().isoformat(),
-        "status": "success",
+        "result": result, "timestamp": datetime.now().isoformat(),
+        "status": "success" if ticket.get("status") in ("completed", "approved") else "error",
+        "ticket_id": ticket["id"],
     }
-    return JSONResponse({"status": "ok", "result": result})
+    return JSONResponse({
+        "status": "ok", "result": result,
+        "ticket": {"id": ticket["id"], "status": ticket["status"], "cost_usd": ticket.get("cost_usd", 0.0)},
+    })
 
 
 @app.get("/api/agent/{agent_id}/result")
@@ -618,6 +565,245 @@ async def get_schedule_logs():
 async def startup_event():
     from services.scheduler import start_scheduler
     start_scheduler()
+    # Materialize default company from legacy user_profile.json on first run
+    from core import store as _core_store
+    _core_store.migrate_legacy_profile_if_needed()
+
+
+# ═══════════════════════════════════════════
+# CORE CONTROL PLANE (Paperclip-style)
+# ═══════════════════════════════════════════
+
+from core import store as core_store
+from core import activity_log as core_activity
+from core import agent_runtime as core_runtime
+
+
+@app.get("/api/core/companies")
+async def core_list_companies():
+    return JSONResponse({
+        "active": core_store.active_company_id(),
+        "companies": core_store.list_companies(),
+    })
+
+
+@app.post("/api/core/companies/active")
+async def core_set_active_company(request: Request):
+    body = await request.json()
+    cid = body.get("id", "").strip()
+    if not cid:
+        return JSONResponse({"error": "id required"}, status_code=400)
+    core_store.ensure_company_exists(cid, name=body.get("name", ""))
+    core_store.set_active_company(cid)
+    return JSONResponse({"active": cid})
+
+
+@app.get("/api/core/tickets")
+async def core_list_tickets(status: str = "", agent_id: str = "", goal_id: str = "", limit: int = 200):
+    cid = core_store.active_company_id()
+    return JSONResponse({
+        "company_id": cid,
+        "tickets": core_store.list_tickets(cid, status=status or None, agent_id=agent_id or None,
+                                           goal_id=goal_id or None, limit=limit),
+    })
+
+
+@app.get("/api/core/tickets/{ticket_id}")
+async def core_get_ticket(ticket_id: str):
+    cid = core_store.active_company_id()
+    ticket = core_store.load_ticket(cid, ticket_id)
+    if not ticket:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(ticket)
+
+
+@app.post("/api/core/tickets/{ticket_id}/approve")
+async def core_approve_ticket(ticket_id: str):
+    cid = core_store.active_company_id()
+    t = core_runtime.approve(cid, ticket_id)
+    if not t:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(t)
+
+
+@app.post("/api/core/tickets/{ticket_id}/reject")
+async def core_reject_ticket(ticket_id: str, request: Request):
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    cid = core_store.active_company_id()
+    t = core_runtime.reject(cid, ticket_id, reason=body.get("reason", ""))
+    if not t:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(t)
+
+
+@app.get("/api/core/goals")
+async def core_list_goals():
+    cid = core_store.active_company_id()
+    return JSONResponse({"company_id": cid, "goals": core_store.list_goals(cid)})
+
+
+@app.post("/api/core/goals")
+async def core_create_goal(request: Request):
+    from core.models import Goal, new_id, to_dict
+    body = await request.json()
+    cid = core_store.active_company_id()
+    goal = to_dict(Goal(
+        id=new_id("g"),
+        company_id=cid,
+        title=body.get("title", "").strip() or "Untitled goal",
+        description=body.get("description", ""),
+        target_metric=body.get("target_metric", ""),
+        deadline=body.get("deadline"),
+    ))
+    core_store.save_goal(goal)
+    core_activity.append(cid, "goal_created", actor="user", subject=goal["id"],
+                         details={"title": goal["title"]})
+    return JSONResponse(goal)
+
+
+@app.post("/api/core/goals/{goal_id}/plan")
+async def core_plan_goal(goal_id: str):
+    from core import planner
+    cid = core_store.active_company_id()
+    goal = core_store.load_goal(cid, goal_id)
+    if not goal:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    plan = planner.plan_goal(cid, goal)
+    tickets = planner.materialize_plan(cid, goal_id, plan)
+    return JSONResponse({"goal_id": goal_id, "plan": plan,
+                         "tickets": [{"id": t["id"], "agent_id": t["agent_id"], "title": t["title"]} for t in tickets]})
+
+
+@app.get("/api/core/activity")
+async def core_activity_stream(limit: int = 100, kind: str = "", subject: str = ""):
+    cid = core_store.active_company_id()
+    return JSONResponse({
+        "company_id": cid,
+        "entries": core_activity.read(cid, limit=limit, kind=kind or None, subject=subject or None),
+    })
+
+
+@app.get("/api/core/budgets")
+async def core_list_budgets():
+    cid = core_store.active_company_id()
+    return JSONResponse({"company_id": cid, "budgets": core_store.load_budgets(cid)})
+
+
+@app.post("/api/core/budgets")
+async def core_set_budget(request: Request):
+    body = await request.json()
+    agent_id = body.get("agent_id", "").strip()
+    amount = float(body.get("amount_usd", 0))
+    if not agent_id:
+        return JSONResponse({"error": "agent_id required"}, status_code=400)
+    cid = core_store.active_company_id()
+    budget = core_store.set_budget(cid, agent_id, amount)
+    core_activity.append(cid, "budget_set", actor="user", subject=f"budget:{agent_id}",
+                         details={"amount_usd": amount})
+    return JSONResponse(budget)
+
+
+@app.get("/api/core/dashboard")
+async def core_dashboard_summary():
+    cid = core_store.active_company_id()
+    tickets = core_store.list_tickets(cid, limit=500)
+    by_status: dict = {}
+    total_cost = 0.0
+    cost_by_agent: dict = {}
+    for t in tickets:
+        s = t.get("status", "pending")
+        by_status.setdefault(s, []).append({
+            "id": t["id"], "title": t.get("title", ""), "agent_id": t.get("agent_id", ""),
+            "cost_usd": t.get("cost_usd", 0.0), "created_at": t.get("created_at", ""),
+            "needs_approval": t.get("needs_approval", False),
+        })
+        c = float(t.get("cost_usd", 0.0) or 0.0)
+        total_cost += c
+        aid = t.get("agent_id", "unknown")
+        cost_by_agent[aid] = round(cost_by_agent.get(aid, 0.0) + c, 4)
+    return JSONResponse({
+        "company_id": cid,
+        "company": core_store.load_company(cid),
+        "counts": {k: len(v) for k, v in by_status.items()},
+        "tickets_by_status": by_status,
+        "goals": core_store.list_goals(cid, status="active"),
+        "budgets": core_store.load_budgets(cid),
+        "activity": core_activity.read(cid, limit=40),
+        "totals": {"cost_usd": round(total_cost, 4), "cost_by_agent": cost_by_agent,
+                   "tickets": len(tickets)},
+    })
+
+
+@app.get("/board", response_class=HTMLResponse)
+async def board_page(request: Request):
+    return templates.TemplateResponse("board.html", {"request": request})
+
+
+# ── CEO chat ───────────────────────────────────────────────────────
+CEO_HISTORIES: dict = {}
+CEO_MAX_HISTORY = 24
+
+
+@app.post("/api/core/ceo/chat")
+async def core_ceo_chat(request: Request):
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    if not message:
+        return JSONResponse({"error": "message required"}, status_code=400)
+    cid = core_store.active_company_id()
+    history = CEO_HISTORIES.setdefault(cid, [])
+
+    # Inject keys like the regular run endpoint
+    cfg = load_config()
+    for src, dst in [
+        ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+        ("instantly_api_key", "INSTANTLY_API_KEY"),
+    ]:
+        if cfg.get(src):
+            os.environ[dst] = cfg[src]
+
+    import asyncio
+    def _run():
+        agent = get_agent_instance("ceo")
+        return agent.run(message=message, history=history)
+    result = await asyncio.to_thread(_run)
+
+    history.append({"role": "user", "content": message})
+    history.append({"role": "assistant", "content": result.get("response", "")})
+    if len(history) > CEO_MAX_HISTORY * 2:
+        CEO_HISTORIES[cid] = history[-CEO_MAX_HISTORY * 2:]
+
+    return JSONResponse({
+        "response": result.get("response", ""),
+        "actions": result.get("actions", []),
+        "executed": result.get("executed", []),
+        "state": result.get("state_snapshot", {}),
+    })
+
+
+@app.get("/api/core/ceo/history")
+async def core_ceo_history():
+    cid = core_store.active_company_id()
+    return JSONResponse({"company_id": cid, "messages": CEO_HISTORIES.get(cid, [])})
+
+
+@app.post("/api/core/ceo/history/clear")
+async def core_ceo_clear():
+    cid = core_store.active_company_id()
+    CEO_HISTORIES[cid] = []
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/core/heartbeat/tick")
+async def core_heartbeat_tick():
+    from core import heartbeat as core_heartbeat
+    import asyncio
+    summary = await asyncio.to_thread(core_heartbeat.tick)
+    return JSONResponse(summary)
 
 
 # ═══════════════════════════════════════════

@@ -23,9 +23,32 @@ python app.py
 
 | Key | Env Var | Purpose | Source |
 |-----|---------|---------|--------|
-| Apify | `APIFY_TOKEN` | Google Maps lead scraping | console.apify.com |
+| Apify | `APIFY_TOKEN` | Google Maps lead scraping + apify_web email finder | console.apify.com |
 | fal.ai | `FAL_KEY` | Image generation (proposals, ads) | fal.ai |
 | Instantly.ai | `INSTANTLY_API_KEY` | Email campaigns (optional) | app.instantly.ai |
+
+### Scout Configuration (optional)
+
+| Env Var | Values | Effect |
+|---------|--------|--------|
+| `SCRAPER_ACTOR` | `compass` (default), `lukaskrivka` | Google Maps actor. `lukaskrivka` = $2.10/1000 place with richer email/phone/social (memory-recommended for Turkish SMB) |
+| `EMAIL_FINDER_PROVIDERS` | comma-separated list | Waterfall enrichment for leads missing email. Scout tries each in order, stops at first hit |
+
+### Email Finder Providers (optional, opt-in)
+
+The system is multi-provider by design — user picks whichever has API keys set and orders them by preference via `EMAIL_FINDER_PROVIDERS`.
+
+| Provider | Env Var(s) | Cost | Auth | Needs |
+|----------|-----------|------|------|-------|
+| `emailapi` | `EMAILAPI_KEY`, `EMAILAPI_DOMAIN` | ~$19-40/1000 | Bearer token | first+last name + domain |
+| `leadmagic` | `LEADMAGIC_API_KEY` | ~$7/1000 (100 free trial credits) | `X-API-Key` | name+domain OR company |
+| `generect` | `GENERECT_API_KEY` | ~$30-50/1000 | `Authorization: Token` | first+last name + domain |
+| `apify_web` | `APIFY_TOKEN` | ~$2/1000 (website scrape) | query param | domain only (best for Turkish SMB) |
+
+Example — try LeadMagic first, fall back to apify_web website scraping:
+```
+EMAIL_FINDER_PROVIDERS=leadmagic,apify_web
+```
 
 Keys are stored in `.env` AND/OR `data/config/user_profile.json` (set via dashboard onboarding).
 
@@ -298,6 +321,14 @@ Scout → Filter → Pitch / Outreach
 - Extracts: name, website, email, phone, description from result pages
 - **No API keys needed** — free alternative to Apify
 - Auto-used as Scout fallback when APIFY_TOKEN is not set
+
+**8. Email Finder** (`services/email_finder.py`)
+- `enrich_leads(leads, providers=None, log=None)` → leads with email filled
+- Multi-provider waterfall: `emailapi`, `leadmagic`, `generect`, `apify_web`
+- Automatic run after Scout scrape if `EMAIL_FINDER_PROVIDERS` set
+- Skips providers that need person name for leads without `contact_name`
+- `apify_web` uses `vdrmota~contact-info-scraper` to extract emails from
+  business websites (ideal for Turkish SMB with no LinkedIn presence)
 
 ## Data Structure
 

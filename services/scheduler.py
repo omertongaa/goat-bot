@@ -219,5 +219,21 @@ def start_scheduler():
         except Exception:
             pass
 
+    # Register the autonomous heartbeat — fires every 2 minutes
+    try:
+        from core import heartbeat as core_heartbeat
+        from apscheduler.triggers.interval import IntervalTrigger
+        scheduler.add_job(
+            core_heartbeat.tick,
+            trigger=IntervalTrigger(minutes=2),
+            id="goat_core_heartbeat",
+            name="GOAT core heartbeat",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+    except Exception as e:
+        print(f"[scheduler] heartbeat registration failed: {e}")
+
     scheduler.start()
     _started = True

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from agents.base import BaseAgent, DATA_DIR
 from services.scraper import scrape_google_maps
+from services.email_finder import enrich_leads
 
 
 class ScoutAgent(BaseAgent):
@@ -77,6 +78,17 @@ class ScoutAgent(BaseAgent):
                         "Farklı bir arama terimi veya şehir dene",
                     ],
                 }
+
+        # Optional email enrichment via configured providers
+        if os.environ.get("EMAIL_FINDER_PROVIDERS", "").strip():
+            try:
+                before = sum(1 for l in leads if l.get("email"))
+                leads = enrich_leads(leads, log=self.log)
+                after = sum(1 for l in leads if l.get("email"))
+                if after > before:
+                    self.log(f"Email enrichment added {after - before} emails")
+            except Exception as e:
+                self.log(f"Email enrichment failed: {e}")
 
         # Save raw results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

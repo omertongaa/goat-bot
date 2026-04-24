@@ -54,6 +54,14 @@ def generate_image(prompt, size="landscape_16_9", model="fal-ai/nano-banana-2", 
         if not images:
             return None
 
+        # Cost attribution — record against active ticket's cost context
+        try:
+            from core.cost_tracker import record
+            kind = "fal.image.flux" if "flux" in (model or "").lower() else "fal.image.sdxl"
+            record(kind, units=len(images), meta={"model": model, "size": size})
+        except Exception:
+            pass
+
         image_url = images[0].get("url")
         if not image_url:
             return None

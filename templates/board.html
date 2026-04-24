@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat · Board</title>
+<style>
+:root {
+  --bg: #0a0a0c;
+  --surface: #111114;
+  --surface-2: #171719;
+  --surface-3: #1e1e22;
+  --border: #26262c;
+  --text: #e8e8e8;
+  --dim: #8a8a98;
+  --accent: #e85d26;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --blue: #60a5fa;
+  --red: #ef4444;
+  --purple: #a78bfa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, SF Pro Text, Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+button { font-family: inherit; font-size: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+
+.shell { display: grid; grid-template-columns: 220px 1fr 320px; grid-template-rows: 48px 1fr; height: 100vh; }
+header { grid-column: 1 / -1; display: flex; align-items: center; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px; }
+header .logo { font-weight: 700; letter-spacing: 0.5px; color: var(--accent); }
+header .bread { color: var(--dim); }
+header .spacer { flex: 1; }
+header .link { color: var(--dim); padding: 6px 10px; border-radius: 6px; }
+header .link:hover { color: var(--text); background: var(--surface-2); }
+header select { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 6px; font-size: 12px; }
+
+aside.left { background: var(--surface); border-right: 1px solid var(--border); padding: 16px 12px; overflow-y: auto; }
+aside.right { background: var(--surface); border-left: 1px solid var(--border); overflow-y: auto; }
+
+.nav-section { margin-bottom: 20px; }
+.nav-section h3 { font-size: 10px; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; letter-spacing: 1px; padding: 0 6px; }
+.nav-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; color: var(--dim); font-size: 12px; cursor: pointer; }
+.nav-item:hover, .nav-item.active { background: var(--surface-2); color: var(--text); }
+.nav-item .count { font-size: 10px; background: var(--surface-3); padding: 2px 6px; border-radius: 999px; }
+
+main { overflow: hidden; display: flex; flex-direction: column; }
+.main-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--surface); }
+.main-head h2 { font-size: 14px; font-weight: 600; }
+.main-head .meta { color: var(--dim); font-size: 12px; }
+.main-head .spacer { flex: 1; }
+
+.board { flex: 1; overflow-x: auto; overflow-y: hidden; display: flex; gap: 12px; padding: 16px; background: var(--bg); }
+.col { flex: 0 0 260px; display: flex; flex-direction: column; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); max-height: 100%; }
+.col-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.col-head .title { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.col-head .count { color: var(--dim); font-size: 11px; }
+.col-body { overflow-y: auto; padding: 8px; flex: 1; }
+
+.card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.1s; }
+.card:hover { border-color: var(--accent); }
+.card .title { font-size: 12px; margin-bottom: 6px; line-height: 1.35; }
+.card .row { display: flex; justify-content: space-between; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .row .agent { color: var(--blue); }
+.card .row .cost { color: var(--yellow); }
+.card.needs_review { border-left: 3px solid var(--yellow); }
+.card.failed { border-left: 3px solid var(--red); }
+.card.paused_budget { border-left: 3px solid var(--red); background: rgba(239, 68, 68, 0.08); }
+.card.approved { border-left: 3px solid var(--green); }
+.card.completed { opacity: 0.7; }
+
+.activity-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface); position: sticky; top: 0; z-index: 1; }
+.activity-head h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
+.activity-list { padding: 8px 0; }
+.act { padding: 8px 14px; border-bottom: 1px solid var(--surface-2); font-size: 11px; }
+.act .kind { font-weight: 600; color: var(--text); }
+.act .subject { color: var(--dim); font-family: SF Mono, Consolas, monospace; font-size: 10px; }
+.act .time { color: var(--dim); font-size: 10px; }
+.act .actor { color: var(--purple); font-size: 10px; }
+.act.kind-ticket_completed .kind { color: var(--green); }
+.act.kind-ticket_failed .kind { color: var(--red); }
+.act.kind-ticket_needs_review .kind { color: var(--yellow); }
+.act.kind-approval_granted .kind { color: var(--green); }
+.act.kind-budget_exceeded .kind, .act.kind-ticket_paused_budget .kind { color: var(--red); }
+
+.drawer { position: fixed; top: 0; right: 0; width: 520px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 60px rgba(0,0,0,0.5); transform: translateX(100%); transition: transform 0.2s ease; z-index: 10; overflow-y: auto; }
+.drawer.open { transform: translateX(0); }
+.drawer-head { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.drawer-head .close { margin-left: auto; color: var(--dim); font-size: 18px; }
+.drawer-head .close:hover { color: var(--text); }
+.drawer-body { padding: 16px; }
+.drawer-body h4 { font-size: 10px; text-transform: uppercase; color: var(--dim); letter-spacing: 1px; margin: 16px 0 6px; }
+.drawer-body h4:first-child { margin-top: 0; }
+.drawer-body pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; color: var(--dim); font-family: SF Mono, Consolas, monospace; }
+.drawer-body .chip { display: inline-block; background: var(--surface-2); border: 1px solid var(--border); padding: 3px 8px; border-radius: 999px; font-size: 11px; margin-right: 6px; }
+.drawer-body .chip.status-completed { color: var(--green); border-color: var(--green); }
+.drawer-body .chip.status-failed { color: var(--red); border-color: var(--red); }
+.drawer-body .chip.status-needs_review { color: var(--yellow); border-color: var(--yellow); }
+.drawer-body .chip.status-paused_budget { color: var(--red); border-color: var(--red); }
+.drawer-body .chip.status-in_progress { color: var(--blue); border-color: var(--blue); }
+.drawer-body .actions { margin-top: 16px; display: flex; gap: 8px; }
+.btn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 500; }
+.btn:hover { background: var(--surface-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #d04920; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+.budget-row { display: flex; justify-content: space-between; padding: 6px 8px; font-size: 11px; color: var(--dim); }
+.budget-row .fill { height: 3px; flex: 1; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin: 0 10px; position: relative; align-self: center; }
+.budget-row .fill-inner { height: 100%; background: var(--green); }
+.budget-row .fill-inner.warn { background: var(--yellow); }
+.budget-row .fill-inner.over { background: var(--red); }
+
+.empty { padding: 40px 20px; text-align: center; color: var(--dim); font-size: 12px; }
+.goal { padding: 10px 12px; margin-bottom: 6px; background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 6px; }
+.goal .title { font-size: 12px; margin-bottom: 4px; }
+.goal .metric { color: var(--dim); font-size: 10px; }
+
+.new-goal { width: 100%; padding: 8px; background: var(--surface-2); border: 1px dashed var(--border); color: var(--dim); border-radius: 6px; font-size: 11px; margin-top: 8px; }
+.new-goal:hover { border-color: var(--accent); color: var(--accent); }
+
+.totals { padding: 8px 0; font-size: 11px; color: var(--dim); }
+.totals .big { color: var(--text); font-size: 18px; font-weight: 600; margin: 4px 0; }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; width: 420px; }
+.modal h3 { margin-bottom: 14px; font-size: 14px; }
+.modal label { display: block; font-size: 10px; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; letter-spacing: 1px; }
+.modal input, .modal textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; margin-bottom: 12px; }
+.modal textarea { resize: vertical; min-height: 60px; }
+.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* CEO Chat */
+.ceo-bubble { position: fixed; right: 20px; bottom: 20px; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 30px rgba(232, 93, 38, 0.4); z-index: 12; }
+.ceo-bubble:hover { background: #d04920; }
+.ceo-panel { position: fixed; right: 20px; bottom: 90px; width: 420px; max-height: 70vh; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; display: none; flex-direction: column; z-index: 12; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+.ceo-panel.open { display: flex; }
+.ceo-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.ceo-head .title { font-weight: 600; font-size: 13px; }
+.ceo-head .role { color: var(--dim); font-size: 11px; }
+.ceo-head .clear { margin-left: auto; color: var(--dim); font-size: 11px; cursor: pointer; }
+.ceo-head .clear:hover { color: var(--text); }
+.ceo-log { flex: 1; padding: 10px 14px; overflow-y: auto; }
+.ceo-msg { margin-bottom: 10px; font-size: 12px; line-height: 1.45; }
+.ceo-msg .who { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+.ceo-msg.user { text-align: right; }
+.ceo-msg.user .who { color: var(--blue); }
+.ceo-msg.ceo .who { color: var(--accent); }
+.ceo-msg .bubble { display: inline-block; padding: 8px 12px; border-radius: 10px; background: var(--surface-2); max-width: 85%; }
+.ceo-msg.user .bubble { background: var(--surface-3); border: 1px solid var(--border); }
+.ceo-actions { font-size: 10px; color: var(--dim); margin-top: 4px; }
+.ceo-actions .act { display: inline-block; background: var(--surface-2); padding: 2px 6px; border-radius: 4px; margin-right: 4px; color: var(--green); }
+.ceo-input { display: flex; padding: 10px; border-top: 1px solid var(--border); gap: 8px; }
+.ceo-input input { flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 6px; font-size: 12px; font-family: inherit; }
+.ceo-input button { padding: 8px 12px; }
+.ceo-typing { color: var(--dim); font-style: italic; font-size: 11px; padding: 4px 0; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">goat</div>
+    <div class="bread">· Board</div>
+    <div class="spacer"></div>
+    <select id="companySelect" onchange="switchCompany()"></select>
+    <a class="link" href="/">Dashboard</a>
+    <a class="link" href="/board" style="color:var(--accent)">Board</a>
+  </header>
+
+  <aside class="left">
+    <div class="nav-section">
+      <h3>Goals</h3>
+      <div id="goalsList"></div>
+      <button class="new-goal" onclick="openGoalModal()">+ Yeni hedef</button>
+    </div>
+    <div class="nav-section">
+      <h3>Totals</h3>
+      <div class="totals">
+        <div>Toplam ticket</div>
+        <div class="big" id="totalTickets">0</div>
+        <div>Toplam harcama</div>
+        <div class="big" id="totalCost">$0.00</div>
+      </div>
+    </div>
+    <div class="nav-section">
+      <h3>Budgets</h3>
+      <div id="budgetsList"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="main-head">
+      <h2 id="companyName">—</h2>
+      <div class="meta" id="companyMeta">—</div>
+      <div class="spacer"></div>
+      <button class="btn" onclick="loadDashboard()">↻ Yenile</button>
+    </div>
+    <div class="board" id="board"></div>
+  </main>
+
+  <aside class="right">
+    <div class="activity-head">
+      <h3>Activity Stream</h3>
+      <span class="meta" id="activityCount">—</span>
+    </div>
+    <div class="activity-list" id="activityList"></div>
+  </aside>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <strong id="drawerTitle">Ticket</strong>
+    <button class="close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<div id="modalHost"></div>
+
+<!-- CEO Chat -->
+<div class="ceo-bubble" id="ceoBubble" onclick="toggleCEO()" title="CEO ile konuş">💬</div>
+<div class="ceo-panel" id="ceoPanel">
+  <div class="ceo-head">
+    <div>
+      <div class="title">CEO</div>
+      <div class="role">Senin şirketini yöneten orkestra şefi</div>
+    </div>
+    <span class="clear" onclick="clearCEO()">× sıfırla</span>
+  </div>
+  <div class="ceo-log" id="ceoLog">
+    <div class="ceo-msg ceo">
+      <div class="who">CEO</div>
+      <div class="bubble">Selam! Ne yapmak istersin? Mesela: "Bu ay İstanbul'da 50 restoran lead'i bul", "durum raporu", "scout'a 20$ bütçe ver".</div>
+    </div>
+  </div>
+  <div class="ceo-input">
+    <input id="ceoInput" type="text" placeholder="CEO'ya yaz ve Enter'a bas..." onkeydown="if(event.key==='Enter')sendCEO()">
+    <button class="btn primary" onclick="sendCEO()">→</button>
+  </div>
+</div>
+
+<script>
+const COLUMNS = [
+  { id: 'pending',       label: 'Pending' },
+  { id: 'in_progress',   label: 'In Progress' },
+  { id: 'needs_review',  label: 'Needs Review' },
+  { id: 'approved',      label: 'Approved' },
+  { id: 'completed',     label: 'Completed' },
+  { id: 'failed',        label: 'Failed' },
+  { id: 'paused_budget', label: 'Paused (Budget)' },
+];
+
+let STATE = { dashboard: null, companies: [] };
+
+async function loadDashboard() {
+  try {
+    const [dash, companies] = await Promise.all([
+      fetch('/api/core/dashboard').then(r => r.json()),
+      fetch('/api/core/companies').then(r => r.json()),
+    ]);
+    STATE.dashboard = dash;
+    STATE.companies = companies.companies || [];
+    renderCompanies(companies.active);
+    renderMain(dash);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderCompanies(activeId) {
+  const sel = document.getElementById('companySelect');
+  sel.innerHTML = '';
+  for (const c of STATE.companies) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name || c.id;
+    if (c.id === activeId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__';
+  newOpt.textContent = '+ Yeni şirket';
+  sel.appendChild(newOpt);
+}
+
+async function switchCompany() {
+  const v = document.getElementById('companySelect').value;
+  if (v === '__new__') {
+    openCompanyModal();
+    return;
+  }
+  await fetch('/api/core/companies/active', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: v }),
+  });
+  loadDashboard();
+}
+
+function renderMain(dash) {
+  const company = dash.company || {};
+  document.getElementById('companyName').textContent = company.name || company.id || 'goat';
+  document.getElementById('companyMeta').textContent =
+    [company.niche, (company.target_cities || []).join(', ')].filter(Boolean).join(' · ') || '—';
+
+  // Board
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (const col of COLUMNS) {
+    const tickets = dash.tickets_by_status[col.id] || [];
+    const el = document.createElement('div');
+    el.className = 'col';
+    el.innerHTML = `
+      <div class="col-head">
+        <span class="title">${col.label}</span>
+        <span class="count">${tickets.length}</span>
+      </div>
+      <div class="col-body"></div>
+    `;
+    const body = el.querySelector('.col-body');
+    for (const t of tickets) {
+      const cost = t.cost_usd ? `$${Number(t.cost_usd).toFixed(3)}` : '';
+      const card = document.createElement('div');
+      card.className = `card ${col.id}`;
+      card.onclick = () => openTicket(t.id);
+      card.innerHTML = `
+        <div class="title">${escapeHtml(t.title || t.id)}</div>
+        <div class="row">
+          <span class="agent">${escapeHtml(t.agent_id || '')}</span>
+          <span class="cost">${cost}</span>
+        </div>
+      `;
+      body.appendChild(card);
+    }
+    if (!tickets.length) {
+      body.innerHTML = '<div class="empty" style="padding:12px;font-size:11px;">—</div>';
+    }
+    board.appendChild(el);
+  }
+
+  // Goals
+  const gl = document.getElementById('goalsList');
+  gl.innerHTML = '';
+  for (const g of (dash.goals || [])) {
+    const el = document.createElement('div');
+    el.className = 'goal';
+    el.innerHTML = `<div class="title">${escapeHtml(g.title)}</div>
+      <div class="metric">${escapeHtml(g.target_metric || '')}</div>`;
+    gl.appendChild(el);
+  }
+  if (!dash.goals || !dash.goals.length) gl.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">—</div>';
+
+  // Budgets
+  const bl = document.getElementById('budgetsList');
+  bl.innerHTML = '';
+  const budgets = dash.budgets || {};
+  const keys = Object.keys(budgets);
+  if (!keys.length) {
+    bl.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">Bütçe ayarlanmamış</div>';
+  } else {
+    for (const k of keys) {
+      const b = budgets[k];
+      const pct = b.amount_usd ? Math.min(100, (b.spent_usd / b.amount_usd) * 100) : 0;
+      const cls = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '';
+      const el = document.createElement('div');
+      el.className = 'budget-row';
+      el.innerHTML = `
+        <span>${escapeHtml(k)}</span>
+        <div class="fill"><div class="fill-inner ${cls}" style="width:${pct}%"></div></div>
+        <span>$${b.spent_usd.toFixed(2)} / $${b.amount_usd.toFixed(2)}</span>
+      `;
+      bl.appendChild(el);
+    }
+  }
+
+  // Totals
+  const totals = dash.totals || {};
+  document.getElementById('totalTickets').textContent = totals.tickets || 0;
+  document.getElementById('totalCost').textContent = '$' + (totals.cost_usd || 0).toFixed(2);
+
+  // Activity
+  const al = document.getElementById('activityList');
+  al.innerHTML = '';
+  const acts = dash.activity || [];
+  document.getElementById('activityCount').textContent = acts.length + ' entry';
+  for (const a of acts) {
+    const el = document.createElement('div');
+    el.className = 'act kind-' + a.kind;
+    el.innerHTML = `
+      <div><span class="kind">${escapeHtml(a.kind)}</span>
+           <span class="actor"> · ${escapeHtml(a.actor || 'system')}</span></div>
+      <div><span class="subject">${escapeHtml(a.subject || '')}</span></div>
+      <div class="time">${formatTime(a.timestamp)}</div>
+    `;
+    al.appendChild(el);
+  }
+}
+
+async function openTicket(id) {
+  const t = await fetch('/api/core/tickets/' + id).then(r => r.json());
+  const drawer = document.getElementById('drawer');
+  const body = document.getElementById('drawerBody');
+  document.getElementById('drawerTitle').textContent = t.title || t.id;
+
+  const cost = t.cost_usd ? '$' + Number(t.cost_usd).toFixed(4) : '$0';
+  const breakdown = t.cost_breakdown && Object.keys(t.cost_breakdown).length
+    ? Object.entries(t.cost_breakdown).map(([k, v]) => `${k}: $${v}`).join('  ·  ')
+    : '—';
+  const artifacts = (t.artifacts || []).map(a =>
+    `<div>• ${escapeHtml(a.kind || 'artifact')}: <code>${escapeHtml(a.path || a.name || '')}</code></div>`
+  ).join('') || '<em style="color:var(--dim);">Yok</em>';
+
+  let actions = '';
+  if (t.status === 'needs_review') {
+    actions = `
+      <div class="actions">
+        <button class="btn primary" onclick="approveTicket('${t.id}')">✓ Onayla</button>
+        <button class="btn danger" onclick="rejectTicket('${t.id}')">✕ Reddet</button>
+      </div>`;
+  }
+
+  body.innerHTML = `
+    <div>
+      <span class="chip">${escapeHtml(t.agent_id || '')}</span>
+      <span class="chip status-${t.status}">${escapeHtml(t.status)}</span>
+      <span class="chip">${cost}</span>
+    </div>
+    ${actions}
+    <h4>ID</h4>
+    <pre>${t.id}</pre>
+    <h4>Açıklama</h4>
+    <pre>${escapeHtml(t.description || '—')}</pre>
+    <h4>Params</h4>
+    <pre>${escapeHtml(JSON.stringify(t.params || {}, null, 2))}</pre>
+    <h4>Result</h4>
+    <pre>${escapeHtml(JSON.stringify(t.result || {}, null, 2))}</pre>
+    <h4>Cost Breakdown</h4>
+    <pre>${escapeHtml(breakdown)}</pre>
+    <h4>Artifacts</h4>
+    <div style="font-size:11px; color:var(--dim);">${artifacts}</div>
+    <h4>Timestamps</h4>
+    <pre>created: ${t.created_at || '—'}
+started: ${t.started_at || '—'}
+completed: ${t.completed_at || '—'}
+approved_by: ${t.approved_by || '—'}</pre>
+    ${t.error ? `<h4>Error</h4><pre style="color:var(--red);">${escapeHtml(t.error)}</pre>` : ''}
+  `;
+  drawer.classList.add('open');
+}
+
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+async function approveTicket(id) {
+  await fetch(`/api/core/tickets/${id}/approve`, { method: 'POST' });
+  closeDrawer();
+  loadDashboard();
+}
+
+async function rejectTicket(id) {
+  const reason = prompt('Red nedeni (opsiyonel):') || '';
+  await fetch(`/api/core/tickets/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  closeDrawer();
+  loadDashboard();
+}
+
+function openGoalModal() {
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h3>Yeni hedef</h3>
+        <label>Başlık</label>
+        <input id="gTitle" placeholder="Bu ay 50 hot lead">
+        <label>Açıklama</label>
+        <textarea id="gDesc" placeholder="İstanbul + Ankara, restoran + klinik"></textarea>
+        <label>Metrik</label>
+        <input id="gMetric" placeholder="50 hot leads">
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">İptal</button>
+          <button class="btn primary" onclick="createGoal()">Oluştur</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function createGoal() {
+  const title = document.getElementById('gTitle').value.trim();
+  if (!title) return;
+  await fetch('/api/core/goals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description: document.getElementById('gDesc').value,
+      target_metric: document.getElementById('gMetric').value,
+    }),
+  });
+  closeModal();
+  loadDashboard();
+}
+
+function openCompanyModal() {
+  const host = document.getElementById('modalHost');
+  host.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h3>Yeni şirket</h3>
+        <label>ID (slug)</label>
+        <input id="cId" placeholder="goat-ugc">
+        <label>Ad</label>
+        <input id="cName" placeholder="GOAT UGC">
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal(); loadDashboard();">İptal</button>
+          <button class="btn primary" onclick="createCompany()">Oluştur</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function createCompany() {
+  const id = document.getElementById('cId').value.trim();
+  const name = document.getElementById('cName').value.trim() || id;
+  if (!id) return;
+  await fetch('/api/core/companies/active', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, name }),
+  });
+  closeModal();
+  loadDashboard();
+}
+
+function closeModal() { document.getElementById('modalHost').innerHTML = ''; }
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'şimdi';
+  if (mins < 60) return mins + ' dk';
+  if (mins < 1440) return Math.floor(mins / 60) + ' sa';
+  return Math.floor(mins / 1440) + ' gün';
+}
+
+function toggleCEO() { document.getElementById('ceoPanel').classList.toggle('open'); }
+
+async function sendCEO() {
+  const input = document.getElementById('ceoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const log = document.getElementById('ceoLog');
+
+  const userEl = document.createElement('div');
+  userEl.className = 'ceo-msg user';
+  userEl.innerHTML = `<div class="who">sen</div><div class="bubble">${escapeHtml(msg)}</div>`;
+  log.appendChild(userEl);
+
+  const typing = document.createElement('div');
+  typing.className = 'ceo-typing';
+  typing.textContent = 'CEO düşünüyor...';
+  log.appendChild(typing);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    const r = await fetch('/api/core/ceo/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await r.json();
+    typing.remove();
+    const ceoEl = document.createElement('div');
+    ceoEl.className = 'ceo-msg ceo';
+    const acts = (data.executed || []).filter(e => e.ok).map(e =>
+      `<span class="act">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 8) : ''}</span>`
+    ).join('');
+    ceoEl.innerHTML = `
+      <div class="who">CEO</div>
+      <div class="bubble">${escapeHtml(data.response || '')}</div>
+      ${acts ? `<div class="ceo-actions">${acts}</div>` : ''}
+    `;
+    log.appendChild(ceoEl);
+    log.scrollTop = log.scrollHeight;
+    // Refresh board — CEO may have created tickets/goals
+    loadDashboard();
+  } catch (e) {
+    typing.remove();
+    console.error(e);
+  }
+}
+
+async function clearCEO() {
+  await fetch('/api/core/ceo/history/clear', { method: 'POST' });
+  document.getElementById('ceoLog').innerHTML = `
+    <div class="ceo-msg ceo"><div class="who">CEO</div><div class="bubble">Sıfırlandı. Yeni mesaj?</div></div>`;
+}
+
+loadDashboard();
+setInterval(loadDashboard, 10000);
+</script>
+</body>
+</html>

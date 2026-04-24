@@ -128,7 +128,17 @@ class OutreachAgent(BaseAgent):
 
         results = {
             "status": "ok",
-            "summary": f"Kampanya hazır: {len(instantly_leads)} lead eklendi. Instantly.ai'dan aktifleştir.",
+            "summary": f"Kampanya hazır: {len(instantly_leads)} lead eklendi. Onay bekleniyor.",
+            "needs_approval": True,
+            "approval_action": {
+                "kind": "activate_campaign",
+                "campaign_id": campaign_id,
+                "preview": {
+                    "leads_count": len(instantly_leads),
+                    "sequence_steps": len(sequence),
+                    "first_subject": sequence[0]["subject"] if sequence else "",
+                },
+            },
             "metrics": {
                 "campaign_id": campaign_id,
                 "campaign_name": campaign_name,
@@ -136,14 +146,13 @@ class OutreachAgent(BaseAgent):
                 "total_hot": len(leads),
                 "with_email": len(email_leads),
                 "sequence_steps": len(sequence),
-                "status": "draft",
+                "status": "awaiting_approval",
             },
             "sequence": sequence,
             "recommendations": [
-                "Instantly.ai dashboard'undan email hesabını bağla",
-                "Email sequence'i kontrol et ve düzenle",
-                "Warmup'ın tamamlandığından emin ol",
-                "Kampanyayı Instantly.ai'dan aktifleştir",
+                "Kampanya draft olarak hazırlandı; Board'dan onayla",
+                "Email hesabının Instantly.ai'da bağlı olduğundan emin ol",
+                "Onay sonrası kampanya aktifleşecek",
             ],
         }
 

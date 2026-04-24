@@ -35,25 +35,34 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 CEO_SYSTEM_PROMPT = """Sen GOAT şirketinin CEO'susun. Kullanıcıyı dinle, şirketi yönet.
 
+ÇALIŞMA STİLİ:
+- Paperclip gibi çalış — paralel, akıcı, sıralı DEĞİL.
+- Kullanıcı "X yap" derse, direkt create_ticket ile o agent'ı çağır. "Önce şunu yap,
+  sonra bunu yap" diye sıralama yapma. Birden fazla iş eşzamanlı koşabilir.
+- "teklif yap" → create_ticket(agent_id=pitch). Scout'u çağırma.
+- "email gönder" → create_ticket(agent_id=outreach). Pitch'i önce çağırma.
+- "50 lead bul" → create_ticket(agent_id=scout, params={query, location, limit}).
+- Kullanıcı sadece hedef anlatıyorsa ("bu ay 50 hot lead hedef") create_goal + plan_goal
+  çağır, böylece plan otomatik oluşur.
+- Kısa ve net Türkçe konuş.
+
 KURALLAR:
-- Kullanıcıya Türkçe konuş, kısa ve net.
-- Her konuşma sonunda <<<ACTIONS>>> etiketinden SONRA geçerli JSON array olarak
-  yapılacak işleri listele. Yoksa boş array [].
-- Sadece geçerli agent_id'ler kullan: scout, filter, auditor, pitch, outreach,
-  designer, videomaker, content, presenter, brandkit, admanager, social, analytics,
-  sitebuilder.
-- Kalıcı aksiyon gerekmiyorsa (sadece bilgi sorusu) aksiyon boş kalabilir, ama
-  yanıtın kullanıcının sorusuna mutlaka değinmeli.
-- Email/video/sosyal gibi dışarıya etki eden işler onay ister. Bunu kullanıcıya
-  söyle; sistem zaten approval gate uygulayacak.
+- Her cevap sonunda <<<ACTIONS>>> etiketinden SONRA geçerli JSON array ver. Yoksa [].
+- Geçerli agent_id'ler: scout, filter, auditor, pitch, outreach, designer, videomaker,
+  videoproducer, content, presenter, brandkit, admanager, social, analytics, sitebuilder,
+  youtube, storyboard, mcphub, ceo, goat.
+- Aynı anda birden çok create_ticket ekleyebilirsin; hepsi paralel çalışır.
+- Email/video/sosyal/ad gibi dışarıya etki eden agent'lar otomatik onay gate'ine takılır —
+  kullanıcıya "hazır olunca onay için board'a düşecek" de.
 
 AKSIYON FORMATLARI:
 [
-  {"action":"create_goal","title":"...","description":"...","target_metric":"..."},
-  {"action":"create_ticket","agent_id":"scout","title":"...","params":{"query":"...", "location":"...", "limit": 50}},
+  {"action":"create_ticket","agent_id":"scout","title":"...","params":{"query":"...","location":"...","limit":50}},
+  {"action":"create_ticket","agent_id":"pitch","title":"Hot lead için teklif hazırla","params":{}},
+  {"action":"create_ticket","agent_id":"designer","title":"Logo taslağı","params":{"design_type":"logo","business_name":"X"}},
+  {"action":"create_goal","title":"Bu ay 50 hot lead","target_metric":"50 hot leads"},
   {"action":"plan_goal","goal_id":"g_xxxx"},
   {"action":"approve_ticket","ticket_id":"t_xxxx"},
-  {"action":"reject_ticket","ticket_id":"t_xxxx","reason":"..."},
   {"action":"set_budget","agent_id":"scout","amount_usd": 20.0}
 ]
 """
@@ -162,42 +171,112 @@ class CEOAgent(BaseAgent):
         return response, actions
 
     def _fallback_reply(self, message: str, company: dict, state: dict):
-        """Template-based reply for when Claude CLI isn't available."""
-        m = (message or "").lower()
+        """Template-based reply for when Claude CLI isn't available.
 
-        # Simple intent heuristics
-        if any(w in m for w in ("lead bul", "müşteri bul", "scout", "ara")):
-            query = _extract_first(m, ["restoran", "kafe", "klinik", "otel", "kuaför", "emlak", "spor"]) or "küçük işletme"
-            location = (company.get("target_cities") or ["İstanbul"])[0]
-            limit = _extract_num(m) or 50
-            return (
-                f"Hemen {location} için {query} arayacak bir Scout ticket açıyorum (limit {limit}). "
-                "Tamamlandığında board'dan görebileceksin.",
-                [{"action": "create_ticket", "agent_id": "scout", "title": f"Scout {query} {location}",
-                  "params": {"query": query, "location": location, "limit": limit}}],
-            )
-        if any(w in m for w in ("hedef", "goal", "bu ay", "bu hafta")):
-            title = message.strip() or "Yeni hedef"
-            return (
-                f"Hedefi oluşturuyorum: '{title}'. Hemen planlamaya başlıyorum — heartbeat sıraya alacak.",
-                [{"action": "create_goal", "title": title, "description": "", "target_metric": ""}],
-            )
-        if "durum" in m or "status" in m or "nerede" in m:
-            counts = state.get("counts_by_status", {})
-            summary = ", ".join(f"{k}: {v}" for k, v in counts.items()) or "hiç ticket yok"
-            return (f"Durum: {summary}. Aktif hedef: {len(state.get('active_goals', []))}.", [])
-        if "onay" in m or "approve" in m:
+        Intent: parse the user's sentence, extract the TARGET AGENT, fire a
+        create_ticket directly. No sequential planning unless user explicitly
+        asks for a goal/plan.
+        """
+        m = (message or "").lower()
+        default_location = (company.get("target_cities") or ["İstanbul"])[0]
+        limit = _extract_num(m) or 50
+
+        # ── Direct agent dispatch (single action, paralel uyumlu) ──
+        if _matches(m, ["teklif", "proposal", "pitch"]):
+            return ("Pitch agent'ı ticket açtım — hot leadler için teklif hazırlıyor. Board'da görebilirsin.",
+                    [{"action": "create_ticket", "agent_id": "pitch", "title": "Teklif hazırla", "params": {}}])
+
+        if _matches(m, ["email", "mail gönder", "kampanya", "outreach"]):
+            return ("Outreach ticket açtım — 3 adımlı email kampanyası hazırlanıyor (gönderim öncesi onay soracak).",
+                    [{"action": "create_ticket", "agent_id": "outreach", "title": "Email kampanyası", "params": {}}])
+
+        if _matches(m, ["lead bul", "müşteri bul", "scout", "ara", "bulsun", "bul scout"]):
+            query = _extract_first(m, ["restoran", "kafe", "klinik", "otel", "kuaför", "emlak", "spor", "kebapçı", "market", "bakkal"]) or (company.get("niche") or "küçük işletme")
+            return (f"Scout ticket açtım — {default_location} için {query} ({limit} lead).",
+                    [{"action": "create_ticket", "agent_id": "scout", "title": f"Scout {query}",
+                      "params": {"query": query, "location": default_location, "limit": limit}}])
+
+        if _matches(m, ["site denetle", "site analiz", "audit", "seo"]):
+            return ("Auditor ticket açtım — hot lead websitelerini denetliyor.",
+                    [{"action": "create_ticket", "agent_id": "auditor", "title": "Website audit", "params": {"max_leads": 10}}])
+
+        if _matches(m, ["filtrele", "skorla", "filter", "puanla"]):
+            return ("Filter ticket açtım — leadler skorlanıyor.",
+                    [{"action": "create_ticket", "agent_id": "filter", "title": "Filter & score", "params": {}}])
+
+        if _matches(m, ["logo", "brand kit", "marka", "brandkit"]):
+            name = company.get("name") or "goat"
+            return (f"BrandKit ticket açtım — {name} için marka kiti hazırlanıyor.",
+                    [{"action": "create_ticket", "agent_id": "brandkit", "title": "Brand kit",
+                      "params": {"business_name": name, "industry": company.get("niche", ""), "style": "modern"}}])
+
+        if _matches(m, ["reklam", "ad", "ads", "admanager"]):
+            name = company.get("name") or "goat"
+            return ("AdManager ticket açtım — reklam kampanyası taslağı hazırlanıyor (yayın için onay soracak).",
+                    [{"action": "create_ticket", "agent_id": "admanager", "title": "Reklam kampanyası",
+                      "params": {"platform": "meta", "campaign_type": "lead_gen", "budget": "1000", "business_name": name}}])
+
+        if _matches(m, ["sosyal", "social", "instagram", "linkedin"]):
+            name = company.get("name") or "goat"
+            return ("Social ticket açtım — sosyal medya stratejisi hazırlanıyor.",
+                    [{"action": "create_ticket", "agent_id": "social", "title": "Sosyal medya strateji",
+                      "params": {"action": "strategy", "platform": "instagram", "business_name": name, "niche": company.get("niche", "")}}])
+
+        if _matches(m, ["video", "youtube", "tiktok", "reels"]):
+            name = company.get("name") or "goat"
+            return ("VideoMaker ticket açtım — video içerik planı hazırlanıyor (render için onay soracak).",
+                    [{"action": "create_ticket", "agent_id": "videomaker", "title": "Video content",
+                      "params": {"video_type": "reels", "business_name": name, "topic": company.get("niche", "")}}])
+
+        if _matches(m, ["blog", "içerik", "yaz", "content"]):
+            return ("Content ticket açtım — blog/sosyal içerik taslağı hazırlanıyor.",
+                    [{"action": "create_ticket", "agent_id": "content", "title": "İçerik taslağı",
+                      "params": {"content_type": "blog", "topic": company.get("niche", ""), "language": "tr"}}])
+
+        if _matches(m, ["site yap", "website", "landing", "sitebuilder"]):
+            return ("SiteBuilder ticket açtım — landing page hazırlanıyor.",
+                    [{"action": "create_ticket", "agent_id": "sitebuilder", "title": "Landing page",
+                      "params": {"site_type": "agency"}}])
+
+        if _matches(m, ["analiz", "rapor", "analytics"]):
+            return ("Analytics ticket açtım — performans raporu çıkarılıyor.",
+                    [{"action": "create_ticket", "agent_id": "analytics", "title": "Performans raporu",
+                      "params": {"analysis_type": "internal"}}])
+
+        # ── Bütçe ──
+        if "bütçe" in m or "budget" in m:
+            agent = _extract_first(m, ["scout", "outreach", "videomaker", "pitch", "designer", "content", "social", "admanager"]) or "scout"
+            amt = _extract_num(m) or 20
+            return (f"{agent} agent'ına ${amt} aylık bütçe ayarladım.",
+                    [{"action": "set_budget", "agent_id": agent, "amount_usd": float(amt)}])
+
+        # ── Onay ──
+        if _matches(m, ["onay", "approve", "reddet", "reject"]):
             needs = [t for t in state.get("recent_tickets", []) if t["status"] == "needs_review"]
             if not needs:
                 return ("Onay bekleyen ticket yok.", [])
             names = ", ".join(f"{t['title']} ({t['id']})" for t in needs[:3])
-            return (f"Onay bekleyen: {names}. Board'dan tek tek onaylayabilirsin.", [])
+            return (f"Onay bekleyen: {names}. Board'dan tek tek onaylayabilirsin, ya da bana 't_xxx onayla' yaz.", [])
 
+        # ── Hedef (sıralı planlama) ──
+        if _matches(m, ["hedef", "goal", "bu ay", "bu hafta", "plan yap"]):
+            title = message.strip()
+            return (f"'{title}' hedefini oluşturuyorum ve planı hazırlıyorum — ticketlar paralel çalışacak.",
+                    [{"action": "create_goal", "title": title, "description": "", "target_metric": ""}])
+
+        # ── Durum ──
+        if _matches(m, ["durum", "status", "nerede", "ne oluyor"]):
+            counts = state.get("counts_by_status", {})
+            summary = ", ".join(f"{k}: {v}" for k, v in counts.items()) or "hiç ticket yok"
+            return (f"Durum: {summary}. Aktif hedef: {len(state.get('active_goals', []))}.", [])
+
+        # ── Default: don't force a plan, just ask ──
         return (
-            "Anladım. Sana daha iyi yardımcı olabilmek için şunlardan birini söyle: "
-            "'bu ay için hedef koy', 'X şehrinde Y tipi lead bul', 'durum raporu', 'onay bekleyenleri göster'.",
+            "Tam anlamadım. Direkt söyle: 'teklif oluştur', 'email kampanyası başlat', "
+            "'İstanbul'da 50 restoran lead'i bul', 'logo hazırla', 'bütçe ver scout 20$'.",
             [],
         )
+
 
     def _execute_action(self, action: dict, company_id: str) -> dict:
         from core import planner, agent_runtime
@@ -274,3 +353,7 @@ def _extract_num(text: str) -> Optional[int]:
         except ValueError:
             pass
     return None
+
+
+def _matches(text: str, keywords: list) -> bool:
+    return any(k in text for k in keywords)

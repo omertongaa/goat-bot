@@ -100,7 +100,14 @@ def load_pipeline_stats():
 # --- Dashboard ---
 
 @app.get("/", response_class=HTMLResponse)
+async def landing(request: Request):
+    """Paperclip-style Board is now the primary interface."""
+    return templates.TemplateResponse("board.html", {"request": request})
+
+
+@app.get("/classic", response_class=HTMLResponse)
 async def dashboard(request: Request):
+    """Legacy Dark Room dashboard — preserved for nostalgia + quick actions."""
     config = load_config()
     stats = load_pipeline_stats()
     return templates.TemplateResponse("dashboard.html", {

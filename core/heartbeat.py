@@ -2,20 +2,21 @@
 
 Runs periodically (every N minutes). Each tick:
     1. For every active company, load pending tickets ordered by created_at
-    2. For each pending ticket that has no unresolved parent, execute it
+    2. Execute pending tickets IN PARALLEL via a thread pool
     3. Respect budgets (execute_in_ticket already handles hard-stop)
     4. For active goals with no open tickets, run the planner and materialize
 
-Designed to be triggered by APScheduler (or any scheduler) on a fixed
-interval. A single pass should finish quickly even with many companies.
+Paperclip-style: multiple agents work simultaneously, not in a strict queue.
+No parent_ticket_id blocking — tickets from the same goal fire concurrently.
 """
 
 import importlib
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from core import store, activity_log, agent_runtime, planner
 
-MAX_TICKETS_PER_TICK = 3     # safety cap — don't run too much per tick
+MAX_PARALLEL = 5             # concurrent tickets per tick (per company)
 MAX_COMPANIES_PER_TICK = 10
 
 
@@ -80,20 +81,11 @@ def tick(company_id: Optional[str] = None) -> dict:
                     details={"error": f"{type(e).__name__}: {e}"},
                 )
 
-        # 2) Execute pending tickets
+        # 2) Execute pending tickets IN PARALLEL
         pending = store.list_tickets(cid, status="pending")
-        pending.sort(key=lambda t: t.get("created_at", ""))  # oldest first
-        run_count = 0
-        for t in pending:
-            if run_count >= MAX_TICKETS_PER_TICK:
-                break
-            # Don't execute if a parent ticket is still blocking
-            parent_id = t.get("parent_ticket_id")
-            if parent_id:
-                parent = store.load_ticket(cid, parent_id)
-                if parent and parent.get("status") not in ("completed", "approved", "needs_review"):
-                    continue
-
+        pending.sort(key=lambda t: t.get("created_at", ""))
+        runnable = []
+        for t in pending[:MAX_PARALLEL]:
             agent = _get_agent_instance(t["agent_id"], modules_map)
             if not agent:
                 activity_log.append(
@@ -101,13 +93,19 @@ def tick(company_id: Optional[str] = None) -> dict:
                     details={"agent_id": t["agent_id"]},
                 )
                 continue
-
             run_params = _resolve_run_params(t["agent_id"], t.get("params", {}))
+            runnable.append((t, agent, run_params))
 
-            # Execute inside the existing ticket — mark in_progress, run, attribute cost
-            _execute_existing_ticket(cid, t, agent, run_params)
-            summary["tickets_run"] += 1
-            run_count += 1
+        if runnable:
+            with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as pool:
+                futures = [pool.submit(_execute_existing_ticket, cid, t, agent, p)
+                           for (t, agent, p) in runnable]
+                for f in futures:
+                    try:
+                        f.result(timeout=900)  # 15 min safety cap per ticket
+                        summary["tickets_run"] += 1
+                    except Exception:
+                        pass
 
     activity_log.append(
         "default" if not company_ids else company_ids[0],

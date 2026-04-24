@@ -49,9 +49,14 @@ def plan_goal(company_id: str, goal: dict) -> list:
 
 
 def materialize_plan(company_id: str, goal_id: str, plan: list) -> list:
-    """Create pending tickets for each plan step. Returns list of created tickets."""
+    """Create pending tickets for each plan step — all independent, no chaining.
+
+    Tickets are intentionally NOT linked via parent_ticket_id so they can
+    execute in parallel. The user wants Paperclip-style concurrent execution,
+    not a strict pipeline. Agents that truly need upstream data will no-op
+    gracefully (e.g. Pitch with no hot leads).
+    """
     created = []
-    prev_id = None
     for step in plan:
         t = agent_runtime.create_ticket(
             company_id=company_id,
@@ -60,13 +65,9 @@ def materialize_plan(company_id: str, goal_id: str, plan: list) -> list:
             description=step.get("description", ""),
             params=step.get("params", {}),
             goal_id=goal_id,
-            parent_ticket_id=prev_id,
             needs_approval=step.get("needs_approval", False),
         )
         created.append(t)
-        # Note: tickets are created in dependency order. Heartbeat picks them
-        # up one at a time; we don't hard-block later steps on earlier success
-        # here because that's a heartbeat concern.
 
     activity_log.append(
         company_id, "plan_created", actor="planner", subject=goal_id,

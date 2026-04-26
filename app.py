@@ -13,7 +13,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -734,11 +734,46 @@ async def core_plan_goal(goal_id: str):
 
 
 @app.get("/api/core/activity")
-async def core_activity_stream(limit: int = 100, kind: str = "", subject: str = ""):
+async def core_activity_list(limit: int = 100, kind: str = "", subject: str = ""):
     cid = core_store.active_company_id()
     return JSONResponse({
         "company_id": cid,
         "entries": core_activity.read(cid, limit=limit, kind=kind or None, subject=subject or None),
+    })
+
+
+@app.get("/api/core/activity/stream")
+async def core_activity_stream():
+    """SSE stream — pushes new activity entries as they arrive.
+
+    Polls activity_log every 1s server-side and emits SSE events for entries
+    newer than the last seen timestamp. Connection lives ~5min then closes
+    (Vercel function max). Browser EventSource auto-reconnects.
+    """
+    cid = core_store.active_company_id()
+
+    async def gen():
+        import asyncio
+        seen = set()
+        # Start by sending recent backlog so client paints history
+        for e in reversed(core_activity.read(cid, limit=20)):
+            seen.add(e.get("timestamp", "") + e.get("subject", ""))
+            yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+        # Tail-poll
+        for _ in range(290):  # ~290 * 1s = 4.8min, well under Vercel's 5min cap
+            await asyncio.sleep(1)
+            for e in reversed(core_activity.read(cid, limit=20)):
+                key = e.get("timestamp", "") + e.get("subject", "")
+                if key in seen:
+                    continue
+                seen.add(key)
+                yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+            yield ": ping\n\n"  # keep-alive comment
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
     })
 
 
@@ -1009,6 +1044,72 @@ async def core_ceo_chat(request: Request):
         "executed": result.get("executed", []),
         "tool_calls": result.get("tool_calls", []),
         "state": result.get("state_snapshot", {}),
+    })
+
+
+@app.post("/api/core/ceo/chat/stream")
+async def core_ceo_chat_stream(request: Request):
+    """SSE streaming endpoint — emits text deltas, tool starts/ends, action
+    results as the CEO works. Connection ends on 'done' event."""
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    if not message:
+        return JSONResponse({"error": "message required"}, status_code=400)
+    cid = core_store.active_company_id()
+    history = CEO_HISTORIES.setdefault(cid, [])
+
+    company = core_store.load_company(cid) or {}
+    company_keys = company.get("api_keys", {}) or {}
+    cfg = load_config()
+    for src, dst in [
+        ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+        ("instantly_api_key", "INSTANTLY_API_KEY"),
+        ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+        ("composio_api_key", "COMPOSIO_API_KEY"),
+        ("scraper_actor", "SCRAPER_ACTOR"),
+        ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
+    ]:
+        v = company_keys.get(src) or cfg.get(src)
+        if v:
+            os.environ[dst] = v
+
+    from agents.ceo.agent import stream_chat_events
+
+    def event_gen():
+        final_response = ""
+        final_actions = []
+        any_create = False
+        try:
+            for evt in stream_chat_events(message, history, cid):
+                yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+                if evt.get("kind") == "done":
+                    final_response = evt.get("response", "") or ""
+                    final_actions = evt.get("executed", []) or []
+                    any_create = any(
+                        e.get("ok") and e.get("kind") in ("create_ticket", "plan_goal")
+                        for e in final_actions
+                    )
+        except Exception as e:
+            yield f"data: {json.dumps({'kind':'error','message':str(e)}, ensure_ascii=False)}\n\n"
+
+        # Persist history once stream completes
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": final_response})
+        if len(history) > CEO_MAX_HISTORY * 2:
+            CEO_HISTORIES[cid] = history[-CEO_MAX_HISTORY * 2:]
+
+        # Auto-execute downstream agents if CEO created tickets
+        if any_create:
+            try:
+                from core import heartbeat as _hb
+                _hb.tick(company_id=cid)
+            except Exception:
+                pass
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
     })
 
 

@@ -530,6 +530,160 @@ def _block_to_dict(block) -> dict:
     return {"type": "text", "text": ""}
 
 
+def stream_chat_events(message: str, history: list, company_id: str):
+    """Yield SSE-friendly event dicts as the CEO thinks/acts.
+
+    Event kinds:
+        text_delta     {text}        — model writing prose
+        tool_start     {name, input} — about to run a Composio tool
+        tool_end       {name, ok, error}
+        action         {kind, ok, id} — local action executed (create_ticket, etc.)
+        done           {response, actions, executed, tool_calls}
+
+    Falls back to non-streaming + final emit if Anthropic SDK isn't available.
+    """
+    company = store.load_company(company_id) or {}
+    snap = _snapshot_for_company(company_id)
+
+    if not (os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE):
+        # Fallback: run non-streaming and emit final
+        agent = CEOAgent()
+        result = agent.run(message=message, history=history)
+        yield {"kind": "text_delta", "text": result.get("response", "")}
+        yield {"kind": "done", "response": result.get("response", ""),
+               "actions": result.get("actions", []),
+               "executed": result.get("executed", []),
+               "tool_calls": result.get("tool_calls", [])}
+        return
+
+    client = anthropic.Anthropic()
+    try:
+        from services import composio_tools as _ct
+        tools = _ct.tools_for_anthropic(user_id=company_id)
+    except Exception:
+        tools = []
+
+    messages = []
+    for h in history[-12:]:
+        role = "user" if h.get("role") == "user" else "assistant"
+        c = (h.get("content") or "").strip()
+        if c:
+            messages.append({"role": role, "content": c})
+    messages.append({"role": "user", "content": message})
+
+    company_brief = json.dumps({
+        "company": {"name": company.get("name"), "niche": company.get("niche"),
+                    "target_cities": company.get("target_cities", []),
+                    "target_industries": company.get("target_industries", [])},
+        "state": snap,
+        "connected_apps": [t["name"] for t in tools] if tools else [],
+    }, ensure_ascii=False)
+    system_blocks = [
+        {"type": "text", "text": CEO_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "GÜNCEL DURUM:\n" + company_brief},
+    ]
+    model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
+    MAX_TOOL_STEPS = 6
+    accumulated_text = ""
+    tool_calls: list = []
+
+    for step in range(MAX_TOOL_STEPS):
+        kwargs = {"model": model, "max_tokens": 1024,
+                  "system": system_blocks, "messages": messages}
+        if tools:
+            kwargs["tools"] = tools
+
+        # Anthropic SDK supports streaming via messages.stream()
+        with client.messages.stream(**kwargs) as stream:
+            step_text = ""
+            for chunk in stream.text_stream:
+                if chunk:
+                    step_text += chunk
+                    yield {"kind": "text_delta", "text": chunk}
+            final = stream.get_final_message()
+
+        try:
+            from core.cost_tracker import record
+            u = final.usage
+            record("claude.token_in", units=getattr(u, "input_tokens", 0))
+            record("claude.token_out", units=getattr(u, "output_tokens", 0))
+        except Exception:
+            pass
+
+        accumulated_text = step_text  # last text wins
+        tool_uses = [b for b in final.content if getattr(b, "type", "") == "tool_use"]
+        if not tool_uses or final.stop_reason != "tool_use":
+            break
+
+        messages.append({"role": "assistant",
+                         "content": [_block_to_dict(b) for b in final.content]})
+        from services import composio_tools as _ct
+        tool_results = []
+        for tu in tool_uses:
+            yield {"kind": "tool_start", "name": tu.name, "input": tu.input or {}}
+            res = _ct.execute_tool(tu.name, user_id=company_id, arguments=tu.input or {})
+            tool_calls.append({"name": tu.name, "ok": res.get("ok", False),
+                               "input": tu.input or {}, "error": res.get("error")})
+            yield {"kind": "tool_end", "name": tu.name,
+                   "ok": res.get("ok", False), "error": res.get("error")}
+            payload = res.get("data") if res.get("ok") else {"error": res.get("error", "failed")}
+            tool_results.append({"type": "tool_result", "tool_use_id": tu.id,
+                                 "content": json.dumps(payload, ensure_ascii=False)[:8000],
+                                 "is_error": not res.get("ok", False)})
+        messages.append({"role": "user", "content": tool_results})
+
+    response_text, actions = (None, [])
+    if accumulated_text:
+        # Reuse parse logic from CEOAgent
+        agent = CEOAgent()
+        response_text, actions = agent._parse_response(accumulated_text)
+
+    # Execute structured actions locally
+    executed = []
+    if actions:
+        agent = CEOAgent()
+        last_goal_id = None
+        last_ticket_id = None
+        for a in actions:
+            if a.get("action") == "plan_goal" and last_goal_id and not _looks_like_real_id(a.get("goal_id"), "g"):
+                a["goal_id"] = last_goal_id
+            if a.get("action") in ("approve_ticket", "reject_ticket") and last_ticket_id and not _looks_like_real_id(a.get("ticket_id"), "t"):
+                a["ticket_id"] = last_ticket_id
+            res = agent._execute_action(a, company_id)
+            yield {"kind": "action", **res}
+            executed.append(res)
+            if res.get("ok"):
+                if a.get("action") == "create_goal" and res.get("id"):
+                    last_goal_id = res["id"]
+                if a.get("action") == "create_ticket" and res.get("id"):
+                    last_ticket_id = res["id"]
+
+    yield {"kind": "done", "response": response_text or accumulated_text,
+           "actions": actions, "executed": executed, "tool_calls": tool_calls}
+
+
+def _snapshot_for_company(company_id: str) -> dict:
+    """Public-friendly snapshot — same logic as CEOAgent._snapshot."""
+    tickets = store.list_tickets(company_id, limit=50)
+    goals = store.list_goals(company_id, status="active")
+    budgets = store.load_budgets(company_id)
+    by_status: dict = {}
+    for t in tickets:
+        by_status.setdefault(t["status"], 0)
+        by_status[t["status"]] += 1
+    return {
+        "active_goals": [{"id": g["id"], "title": g["title"],
+                          "metric": g.get("target_metric", "")} for g in goals],
+        "recent_tickets": [
+            {"id": t["id"], "agent_id": t["agent_id"], "status": t["status"],
+             "title": t.get("title", ""), "cost": t.get("cost_usd", 0)}
+            for t in tickets[:10]
+        ],
+        "counts_by_status": by_status,
+        "budgets": budgets,
+    }
+
+
 def _looks_like_real_id(value, prefix: str) -> bool:
     """Real IDs are prefix_<12-hex-chars>. Anything else (empty, descriptive
     placeholder like 'g_izmir_restoran') is treated as a hallucinated stub."""

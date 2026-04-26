@@ -1744,22 +1744,82 @@ async function sendCEO() {
   userEl.className = 'ceo-msg user';
   userEl.innerHTML = `<div class="who">sen</div><div class="bubble">${escapeHtml(msg)}</div>`;
   log.appendChild(userEl);
-
-  const typing = document.createElement('div');
-  typing.className = 'ceo-typing';
-  typing.innerHTML = 'CEO düşünüyor<span class="dots"></span>';
-  log.appendChild(typing);
   log.scrollTop = log.scrollHeight;
 
+  // Streaming bubble
+  const ceoEl = document.createElement('div');
+  ceoEl.className = 'ceo-msg ceo';
+  ceoEl.innerHTML = `<div class="who">CEO</div><div class="bubble md"><em style="opacity:0.5;">düşünüyor…</em></div><div class="ceo-actions"></div>`;
+  log.appendChild(ceoEl);
+  const bubble = ceoEl.querySelector('.bubble');
+  const pillsBox = ceoEl.querySelector('.ceo-actions');
+  let accumulated = '';
+
   try {
+    const r = await fetch('/api/core/ceo/chat/stream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    if (!r.ok || !r.body) throw new Error('stream not ok');
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+        if (!dataLine) continue;
+        const j = dataLine.slice(6).trim();
+        if (!j) continue;
+        let evt; try { evt = JSON.parse(j); } catch { continue; }
+        if (evt.kind === 'text_delta') {
+          accumulated += evt.text || '';
+          bubble.innerHTML = (typeof marked !== 'undefined')
+            ? marked.parse(accumulated, { breaks: true, gfm: true })
+            : escapeHtml(accumulated);
+          log.scrollTop = log.scrollHeight;
+        } else if (evt.kind === 'tool_start') {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill tool-pending';
+          pill.dataset.tool = evt.name;
+          pill.innerHTML = `<span class="spinning" style="display:inline-block;">⚡</span> ${escapeHtml(evt.name)}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'tool_end') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].reverse().find(x => x.dataset.tool === evt.name);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.classList.toggle('act-pill-err', !evt.ok);
+            p.innerHTML = `${evt.ok ? '✓' : '✕'} ${escapeHtml(evt.name)}`;
+          }
+        } else if (evt.kind === 'action' && evt.ok) {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill';
+          pill.textContent = `${evt.kind || 'action'} ${(evt.id || '').slice(0, 10)}`.trim();
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'done') {
+          setTimeout(loadDashboard, 400);
+        } else if (evt.kind === 'error') {
+          accumulated += '\n\n⚠ ' + (evt.message || 'hata');
+        }
+      }
+    }
+    if (!accumulated) bubble.innerHTML = '<em style="color:var(--dim);">(boş cevap)</em>';
+    return;
+  } catch (e) {
+    // Fallback: legacy non-stream
     const r = await fetch('/api/core/ceo/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: msg }),
     });
     const data = await r.json();
-    typing.remove();
-    const ceoEl = document.createElement('div');
-    ceoEl.className = 'ceo-msg ceo';
+    const md = (typeof marked !== 'undefined' && data.response)
+      ? marked.parse(data.response, { breaks: true, gfm: true })
+      : escapeHtml(data.response || '');
+    bubble.innerHTML = md;
     const acts = (data.executed || []).filter(e => e.ok).map(e =>
       `<span class="act-pill">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 10) : ''}</span>`
     ).join('');
@@ -1768,23 +1828,9 @@ async function sendCEO() {
       const icon = tc.ok ? '⚡' : '✕';
       return `<span class="${cls}" title="${escapeHtml(JSON.stringify(tc.input || {}))}">${icon} ${escapeHtml(tc.name)}</span>`;
     }).join('');
-    const md = (typeof marked !== 'undefined' && data.response)
-      ? marked.parse(data.response, { breaks: true, gfm: true })
-      : escapeHtml(data.response || '');
-    ceoEl.innerHTML = `
-      <div class="who">CEO</div>
-      <div class="bubble md">${md}</div>
-      ${(acts || tools) ? `<div class="ceo-actions">${tools}${acts}</div>` : ''}
-    `;
-    log.appendChild(ceoEl);
+    pillsBox.innerHTML = tools + acts;
     log.scrollTop = log.scrollHeight;
     loadDashboard();
-  } catch (e) {
-    typing.remove();
-    const errEl = document.createElement('div');
-    errEl.className = 'ceo-msg ceo';
-    errEl.innerHTML = `<div class="who">CEO</div><div class="bubble" style="color:var(--red);">Hata oluştu. Sunucu erişilebilir mi?</div>`;
-    log.appendChild(errEl);
   }
 }
 
@@ -1806,6 +1852,51 @@ function formatTime(iso) {
 
 loadDashboard();
 setInterval(loadDashboard, 10000);
+
+// SSE activity stream — pushes events as they arrive
+let activityStream = null;
+function startActivityStream() {
+  if (activityStream) activityStream.close();
+  activityStream = new EventSource('/api/core/activity/stream');
+  activityStream.onmessage = (ev) => {
+    try {
+      const entry = JSON.parse(ev.data);
+      prependActivity(entry);
+    } catch (e) {}
+  };
+  activityStream.onerror = () => {
+    // EventSource auto-reconnects on close
+  };
+}
+
+function prependActivity(entry) {
+  const list = document.getElementById('activityList');
+  if (!list) return;
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+  const el = document.createElement('div');
+  el.className = 'act kind-' + (entry.kind || '');
+  el.style.animation = 'fadeIn 0.4s ease-out';
+  el.innerHTML = `
+    <div class="kind-dot"></div>
+    <div class="content">
+      <div class="line-1">
+        <span><span class="kind">${escapeHtml(entry.kind)}</span><span class="actor">${escapeHtml(entry.actor || 'system')}</span></span>
+        <span class="time">şimdi</span>
+      </div>
+      <div class="subject">${escapeHtml(entry.subject || '—')}</div>
+    </div>
+  `;
+  if (entry.subject && entry.subject.startsWith('t_')) {
+    el.style.cursor = 'pointer';
+    el.onclick = () => openTicket(entry.subject);
+  }
+  list.insertBefore(el, list.firstChild);
+  // Cap at 50 visible entries
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+startActivityStream();
 </script>
 </body>
 </html>

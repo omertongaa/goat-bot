@@ -262,6 +262,15 @@ class CEOAgent(BaseAgent):
         for t in tickets:
             by_status.setdefault(t["status"], 0)
             by_status[t["status"]] += 1
+        # Pull recent facts so CEO doesn't re-discover what the company knows
+        try:
+            from core import memory as _mem
+            recent_facts = [
+                {"kind": f.get("kind"), "content": f.get("content")}
+                for f in _mem.list_facts(company_id, limit=15)
+            ]
+        except Exception:
+            recent_facts = []
         return {
             "active_goals": [{"id": g["id"], "title": g["title"], "metric": g.get("target_metric", "")} for g in goals],
             "recent_tickets": [
@@ -270,6 +279,7 @@ class CEOAgent(BaseAgent):
             ],
             "counts_by_status": by_status,
             "budgets": budgets,
+            "memory": recent_facts,
         }
 
     def _chat_with_claude(self, message: str, history: list, company: dict, state: dict):

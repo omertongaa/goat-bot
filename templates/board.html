@@ -250,6 +250,17 @@ aside.left {
   font-weight: 600;
 }
 
+.fact-item {
+  padding: 8px 10px; margin-bottom: 4px;
+  background: var(--surface-2); border-left: 2px solid var(--purple);
+  border-radius: var(--radius-sm); font-size: 11.5px;
+  color: var(--text-2); line-height: 1.4;
+}
+.fact-item .kind {
+  font-size: 9.5px; text-transform: uppercase; color: var(--purple);
+  letter-spacing: 0.06em; font-weight: 600; margin-bottom: 3px;
+}
+
 .new-button {
   width: 100%;
   padding: 7px;
@@ -1002,6 +1013,11 @@ aside.right {
       <div id="budgetsList"></div>
       <button class="new-button" onclick="openBudgetModal()">＋ Bütçe belirle</button>
     </div>
+
+    <div class="nav-section">
+      <h3>🧠 Hafıza <span class="chevron">›</span></h3>
+      <div id="memoryList"></div>
+    </div>
   </aside>
 
   <main>
@@ -1095,11 +1111,12 @@ async function loadDashboard() {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.innerHTML = '<span class="spinning">↻</span> Yenile';
   try {
-    const [dash, companies, agents, system] = await Promise.all([
+    const [dash, companies, agents, system, memory] = await Promise.all([
       fetch('/api/core/dashboard').then(r => r.json()),
       fetch('/api/core/companies').then(r => r.json()),
       fetch('/api/core/agents').then(r => r.json()),
       fetch('/api/core/system').then(r => r.json()),
+      fetch('/api/core/memory?limit=12').then(r => r.json()).catch(() => ({facts:[]})),
     ]);
     STATE.dashboard = dash;
     STATE.companies = companies.companies || [];
@@ -1108,9 +1125,25 @@ async function loadDashboard() {
     renderBanner(system);
     renderCompanies(companies.active);
     renderAgents(STATE.agents);
+    renderMemory(memory.facts || []);
     renderMain(dash);
   } catch (e) { console.error(e); }
   finally { if (btn) btn.innerHTML = '↻ Yenile'; }
+}
+
+function renderMemory(facts) {
+  const el = document.getElementById('memoryList');
+  if (!el) return;
+  if (!facts.length) {
+    el.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">Henüz öğrenilen bir şey yok</div>';
+    return;
+  }
+  el.innerHTML = facts.map(f => `
+    <div class="fact-item">
+      <div class="kind">${escapeHtml(f.kind || 'insight')}</div>
+      <div>${escapeHtml(f.content || '')}</div>
+    </div>
+  `).join('');
 }
 
 function renderModeSwitch(mode) {
@@ -1778,9 +1811,11 @@ async function sendCEO() {
         let evt; try { evt = JSON.parse(j); } catch { continue; }
         if (evt.kind === 'text_delta') {
           accumulated += evt.text || '';
+          // Hide the structured action block that comes after <<<ACTIONS>>>
+          const visible = accumulated.split('<<<ACTIONS>>>')[0].trimEnd();
           bubble.innerHTML = (typeof marked !== 'undefined')
-            ? marked.parse(accumulated, { breaks: true, gfm: true })
-            : escapeHtml(accumulated);
+            ? marked.parse(visible, { breaks: true, gfm: true })
+            : escapeHtml(visible);
           log.scrollTop = log.scrollHeight;
         } else if (evt.kind === 'tool_start') {
           const pill = document.createElement('span');

@@ -81,6 +81,28 @@ def create_ticket(
     return t
 
 
+def _extract_facts_async(company_id: str, ticket: dict) -> None:
+    """Fire-and-forget Haiku fact extraction on completed tickets.
+    Runs synchronously here (already inside agent thread); no extra worker."""
+    try:
+        from core import memory as _mem
+        facts = _mem.extract_facts_from_ticket(ticket)
+        for f in facts:
+            saved = _mem.add_fact(
+                company_id=company_id,
+                kind=f.get("kind") or "insight",
+                content=f.get("content") or "",
+                source_ticket_id=ticket.get("id"),
+            )
+            activity_log.append(
+                company_id, "memory_fact_added", actor="memory",
+                subject=saved["id"],
+                details={"kind": saved["kind"], "content": saved["content"][:120]},
+            )
+    except Exception:
+        pass
+
+
 def _transition(ticket: dict, status: str, actor: str = "system", **extra) -> dict:
     """Change ticket status + persist + log."""
     from_status = ticket.get("status")
@@ -181,6 +203,9 @@ def execute_in_ticket(
                     _execute_approval_action(company_id, ticket, action)
                 except Exception:
                     pass
+            # Knowledge memory — extract facts from successful runs
+            if final_status == "completed":
+                _extract_facts_async(company_id, ticket)
 
     except Exception as e:
         ticket["error"] = f"{type(e).__name__}: {e}"
@@ -217,6 +242,8 @@ def approve(company_id: str, ticket_id: str, approver: str = "user") -> Optional
             )
             ticket["error"] = f"Approval action failed: {e}"
             store.save_ticket(ticket)
+    # Approved tickets count as completed work — extract facts
+    _extract_facts_async(company_id, ticket)
     return ticket
 
 

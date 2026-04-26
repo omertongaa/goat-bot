@@ -169,6 +169,8 @@ def _execute_existing_ticket(company_id: str, ticket: dict, agent, run_params: d
                     agent_runtime._execute_approval_action(company_id, ticket, action)
                 except Exception:
                     pass
+            if status == "completed":
+                agent_runtime._extract_facts_async(company_id, ticket)
 
     except Exception as e:
         ticket["error"] = f"{type(e).__name__}: {e}"

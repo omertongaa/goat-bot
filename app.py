@@ -104,8 +104,46 @@ def load_pipeline_stats():
 
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
-    """Paperclip-style Board is now the primary interface."""
+    """Paperclip-style Board is now the primary interface.
+
+    First-run users (no onboarding completed yet) are redirected to /onboard."""
+    cid = core_store.active_company_id()
+    company = core_store.load_company(cid) or {}
+    if not company.get("settings", {}).get("onboarded"):
+        return HTMLResponse(content='<meta http-equiv="refresh" content="0; url=/onboard">')
     return templates.TemplateResponse("board.html", {"request": request})
+
+
+@app.get("/onboard", response_class=HTMLResponse)
+async def onboard_page(request: Request):
+    return templates.TemplateResponse("onboarding.html", {"request": request})
+
+
+@app.post("/api/core/onboarding/complete")
+async def core_onboarding_complete(request: Request):
+    body = await request.json()
+    cid = core_store.active_company_id()
+    company = core_store.load_company(cid) or {"id": cid}
+    company["id"] = cid
+    company["name"] = body.get("name") or company.get("name") or "goat"
+    company["niche"] = body.get("niche") or ""
+    company["target_cities"] = body.get("target_cities") or []
+    company["target_industries"] = body.get("target_industries") or []
+    keys = company.get("api_keys", {}) or {}
+    for k in ("anthropic_api_key", "apify_token", "fal_key", "composio_api_key",
+              "instantly_api_key"):
+        v = body.get(k)
+        if v:
+            keys[k] = v
+    company["api_keys"] = keys
+    settings = company.get("settings", {}) or {}
+    settings["onboarded"] = True
+    settings.setdefault("work_mode", "auto")
+    company["settings"] = settings
+    core_store.save_company(company)
+    core_activity.append(cid, "onboarding_completed", actor="user", subject=cid,
+                         details={"name": company["name"]})
+    return JSONResponse({"ok": True})
 
 
 @app.get("/classic", response_class=HTMLResponse)
@@ -1124,6 +1162,14 @@ async def core_ceo_clear():
     cid = core_store.active_company_id()
     CEO_HISTORIES[cid] = []
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/core/memory")
+async def core_list_memory(limit: int = 30):
+    """Şirketin biriktirdiği gözlemler."""
+    from core import memory as _mem
+    cid = core_store.active_company_id()
+    return JSONResponse({"company_id": cid, "facts": _mem.list_facts(cid, limit=limit)})
 
 
 @app.post("/api/core/heartbeat/tick")

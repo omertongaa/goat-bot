@@ -496,6 +496,29 @@ main { display: flex; flex-direction: column; overflow: hidden; background: var(
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.system-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--dim);
+}
+.system-bar .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 99px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.system-bar .dot {
+  width: 6px; height: 6px; border-radius: 99px; background: var(--green);
+}
+.system-bar .dot.warn { background: var(--yellow); }
+.system-bar .dot.err { background: var(--red); }
+
 .empty {
   padding: 40px 14px;
   text-align: center;
@@ -1032,6 +1055,7 @@ aside.right {
       </div>
     </div>
     <div id="setupBanner" class="setup-banner" style="display:none;"></div>
+    <div id="systemBar" class="system-bar"></div>
     <div class="board" id="board"></div>
   </main>
 
@@ -1151,6 +1175,26 @@ function renderModeSwitch(mode) {
   buttons.forEach(b => b.classList.toggle('active', b.dataset.mode === (mode || 'auto')));
 }
 
+function renderSystemBar(sys, dash) {
+  const el = document.getElementById('systemBar');
+  if (!el) return;
+  const counts = (dash && dash.counts) || {};
+  const inProgress = counts.in_progress || 0;
+  const needsReview = counts.needs_review || 0;
+  const totalCost = ((dash && dash.totals && dash.totals.cost_usd) || 0).toFixed(2);
+  const dotClass = sys.kv_enabled ? '' : sys.vercel ? 'warn' : '';
+  const statusText = sys.kv_enabled ? 'durable' : sys.vercel ? 'ephemeral' : 'local';
+  const modeIcon = sys.work_mode === 'beast' ? '🔥' : sys.work_mode === 'manual' ? '🛡' : '⚡';
+  el.innerHTML = `
+    <span class="pill"><span class="dot ${dotClass}"></span>${statusText}</span>
+    <span class="pill">${modeIcon} ${escapeHtml(sys.work_mode || 'auto')} mode</span>
+    ${inProgress ? `<span class="pill" style="color:var(--blue);">▶ ${inProgress} çalışıyor</span>` : ''}
+    ${needsReview ? `<span class="pill" style="color:var(--yellow);">⏸ ${needsReview} onay bekliyor</span>` : ''}
+    <span class="pill">💰 $${totalCost}</span>
+    <span style="margin-left:auto;font-size:10px;color:var(--dim-2);">${sys.anthropic_configured ? 'AI ✓' : 'AI ✕'} · ${sys.composio_configured ? 'Apps ✓' : 'Apps ✕'}</span>
+  `;
+}
+
 async function setWorkMode(mode) {
   const r = await fetch('/api/core/work_mode', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -1165,6 +1209,7 @@ async function setWorkMode(mode) {
 
 function renderBanner(sys) {
   if (sys.work_mode) renderModeSwitch(sys.work_mode);
+  renderSystemBar(sys, STATE.dashboard);
   const el = document.getElementById('setupBanner');
   if (!el) return;
   // Show critical durable-state warning on Vercel without KV
@@ -1447,7 +1492,17 @@ function renderMain(dash) {
       body.appendChild(card);
     }
     if (!tickets.length) {
-      body.innerHTML = '<div class="empty">—</div>';
+      const total = Object.values(dash.tickets_by_status || {}).reduce((s, x) => s + x.length, 0);
+      if (col.id === 'pending' && total === 0) {
+        body.innerHTML = `
+          <div class="empty" style="padding:20px 14px; text-align:center;">
+            <div style="font-size:24px; margin-bottom:8px;">💬</div>
+            <div style="color:var(--text-2); font-size:11.5px; margin-bottom:8px;">CEO'ya yaz, ajanlar otomatik bölünüp çalışsın.</div>
+            <button class="btn small" style="font-size:10.5px;" onclick="document.getElementById('ceoPanel').classList.add('open'); STATE.ceoOpen=true; document.getElementById('ceoInput').focus();">CEO'yu aç</button>
+          </div>`;
+      } else {
+        body.innerHTML = '<div class="empty">—</div>';
+      }
     }
     board.appendChild(el);
   }

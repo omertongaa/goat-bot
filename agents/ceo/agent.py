@@ -107,8 +107,27 @@ class CEOAgent(BaseAgent):
         if reply_text is None:
             reply_text, actions = self._fallback_reply(message, company, state)
 
-        # Execute actions locally so the user sees effect immediately
-        executed = [self._execute_action(a, company_id) for a in actions]
+        # Execute actions locally so the user sees effect immediately.
+        # Track outputs of earlier actions so later actions can reference them
+        # (e.g. plan_goal needs the actual goal_id that create_goal just made).
+        executed = []
+        last_goal_id: Optional[str] = None
+        last_ticket_id: Optional[str] = None
+        for a in actions:
+            kind = a.get("action")
+            # Resolve forward-references: if Claude emitted a placeholder
+            # goal_id/ticket_id, swap in the freshly-created one.
+            if kind == "plan_goal" and last_goal_id and not _looks_like_real_id(a.get("goal_id"), "g"):
+                a["goal_id"] = last_goal_id
+            if kind in ("approve_ticket", "reject_ticket") and last_ticket_id and not _looks_like_real_id(a.get("ticket_id"), "t"):
+                a["ticket_id"] = last_ticket_id
+            res = self._execute_action(a, company_id)
+            executed.append(res)
+            if res.get("ok"):
+                if kind == "create_goal" and res.get("id"):
+                    last_goal_id = res["id"]
+                if kind == "create_ticket" and res.get("id"):
+                    last_ticket_id = res["id"]
 
         return {
             "status": "ok",
@@ -436,3 +455,14 @@ def _extract_num(text: str) -> Optional[int]:
 
 def _matches(text: str, keywords: list) -> bool:
     return any(k in text for k in keywords)
+
+
+def _looks_like_real_id(value, prefix: str) -> bool:
+    """Real IDs are prefix_<12-hex-chars>. Anything else (empty, descriptive
+    placeholder like 'g_izmir_restoran') is treated as a hallucinated stub."""
+    if not value or not isinstance(value, str):
+        return False
+    if not value.startswith(prefix + "_"):
+        return False
+    suffix = value[len(prefix) + 1:]
+    return len(suffix) == 12 and all(c in "0123456789abcdef" for c in suffix.lower())

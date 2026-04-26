@@ -25,6 +25,9 @@ from agents import AGENTS, CATEGORIES
 
 app = FastAPI(title="goat — Agency-in-a-Box")
 BASE_DIR = Path(__file__).parent
+# Writable bases (overridden to /tmp on Vercel via GOAT_DATA_DIR / GOAT_OUTPUTS_DIR)
+DATA_BASE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
+OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -66,7 +69,7 @@ def get_agent_instance(agent_id: str):
 
 
 def load_config():
-    path = BASE_DIR / "data" / "config" / "user_profile.json"
+    path = DATA_BASE / "config" / "user_profile.json"
     if path.exists():
         with open(path) as f:
             return json.load(f)
@@ -76,7 +79,7 @@ def load_config():
 def load_pipeline_stats():
     """Load stats from latest reports for the dashboard."""
     stats = {"leads_found": 0, "leads_qualified": 0, "hot": 0, "warm": 0, "cold": 0}
-    reports_dir = BASE_DIR / "outputs" / "reports"
+    reports_dir = OUTPUTS_BASE / "reports"
 
     scout_report = reports_dir / "scout_leads_report.json"
     if scout_report.exists():
@@ -264,7 +267,7 @@ async def get_agent_result(agent_id: str):
 @app.get("/api/leads")
 async def get_leads():
     """Get all raw leads from latest scrape."""
-    raw_dir = BASE_DIR / "data" / "leads" / "raw"
+    raw_dir = DATA_BASE / "leads" / "raw"
     if not raw_dir.exists():
         return JSONResponse([])
     files = sorted(raw_dir.glob("*.json"), reverse=True)
@@ -278,7 +281,7 @@ async def get_leads():
 @app.get("/api/leads/qualified")
 async def get_qualified_leads():
     """Get latest qualified/scored leads."""
-    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    qual_dir = DATA_BASE / "leads" / "qualified"
     if not qual_dir.exists():
         return JSONResponse([])
     files = sorted(qual_dir.glob("*.json"), reverse=True)
@@ -385,7 +388,7 @@ async def get_config():
 @app.post("/api/config")
 async def save_config(request: Request):
     body = await request.json()
-    config_dir = BASE_DIR / "data" / "config"
+    config_dir = DATA_BASE / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_path = config_dir / "user_profile.json"
     with open(config_path, "w") as f:
@@ -426,13 +429,13 @@ async def reset_all():
 
     # Delete data files
     for sub in ["config", "leads/raw", "leads/qualified", "campaigns", "proposals"]:
-        p = BASE_DIR / "data" / sub
+        p = DATA_BASE / sub
         if p.exists():
             shutil.rmtree(p)
             p.mkdir(parents=True, exist_ok=True)
 
     # Delete reports
-    reports = BASE_DIR / "outputs" / "reports"
+    reports = OUTPUTS_BASE / "reports"
     if reports.exists():
         shutil.rmtree(reports)
         reports.mkdir(parents=True, exist_ok=True)
@@ -460,7 +463,7 @@ async def audit_lead(lead_name: str):
     """Audit a specific lead's website by lead name."""
     from services.site_auditor import full_audit
     # Find the lead
-    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    qual_dir = DATA_BASE / "leads" / "qualified"
     if not qual_dir.exists():
         return JSONResponse({"error": "No qualified leads"}, status_code=404)
     files = sorted(qual_dir.glob("*.json"), reverse=True)
@@ -914,7 +917,7 @@ async def core_heartbeat_tick():
 # PIPELINE / CRM
 # ═══════════════════════════════════════════
 
-PIPELINE_DIR = BASE_DIR / "data" / "pipeline"
+PIPELINE_DIR = DATA_BASE / "pipeline"
 VALID_STAGES = ["new", "contacted", "meeting", "proposal_sent", "closed", "lost"]
 
 
@@ -982,7 +985,7 @@ async def get_pipeline():
     stages = _load_json(stages_path)
 
     # Get qualified leads for enrichment
-    qual_dir = BASE_DIR / "data" / "leads" / "qualified"
+    qual_dir = DATA_BASE / "leads" / "qualified"
     leads_by_name = {}
     if qual_dir.exists():
         files = sorted(qual_dir.glob("*.json"), reverse=True)
@@ -1154,7 +1157,7 @@ async def revenue_summary():
 @app.get("/api/sites")
 async def list_sites():
     """List all generated site HTML files."""
-    sites_dir = BASE_DIR / "outputs" / "sites"
+    sites_dir = OUTPUTS_BASE / "sites"
     if not sites_dir.exists():
         return JSONResponse([])
     files = sorted(sites_dir.glob("*.html"), reverse=True)
@@ -1175,7 +1178,7 @@ async def serve_site(filename: str):
     # Sanitize filename
     if ".." in filename or "/" in filename:
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    filepath = BASE_DIR / "outputs" / "sites" / filename
+    filepath = OUTPUTS_BASE / "sites" / filename
     if not filepath.exists() or not filepath.suffix == ".html":
         return HTMLResponse("<h1>Site not found</h1>", status_code=404)
     with open(filepath, "r", encoding="utf-8") as f:
@@ -1190,7 +1193,7 @@ async def serve_site(filename: str):
 @app.get("/api/presentations")
 async def list_presentations():
     """List all generated presentations."""
-    pres_dir = BASE_DIR / "outputs" / "presentations"
+    pres_dir = OUTPUTS_BASE / "presentations"
     if not pres_dir.exists():
         return JSONResponse([])
     files = sorted(pres_dir.glob("*.html"), reverse=True)
@@ -1210,7 +1213,7 @@ async def serve_presentation(filename: str):
     """Serve a generated presentation HTML file."""
     if ".." in filename or "/" in filename:
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    filepath = BASE_DIR / "outputs" / "presentations" / filename
+    filepath = OUTPUTS_BASE / "presentations" / filename
     if not filepath.exists() or not filepath.suffix == ".html":
         return HTMLResponse("<h1>Presentation not found</h1>", status_code=404)
     with open(filepath, "r", encoding="utf-8") as f:
@@ -1225,7 +1228,7 @@ async def serve_presentation(filename: str):
 @app.get("/api/brandkit")
 async def get_brand_kit():
     """Get the latest brand kit."""
-    kit_dir = BASE_DIR / "data" / "brandkit"
+    kit_dir = DATA_BASE / "brandkit"
     if not kit_dir.exists():
         return JSONResponse({"status": "empty"})
     files = sorted(kit_dir.glob("*.json"), reverse=True)
@@ -1240,7 +1243,7 @@ async def serve_brand_board(filename: str):
     """Serve a generated brand board HTML file."""
     if ".." in filename or "/" in filename:
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    filepath = BASE_DIR / "outputs" / "brandkit" / filename
+    filepath = OUTPUTS_BASE / "brandkit" / filename
     if not filepath.exists() or not filepath.suffix == ".html":
         return HTMLResponse("<h1>Brand board not found</h1>", status_code=404)
     with open(filepath, "r", encoding="utf-8") as f:
@@ -1264,7 +1267,7 @@ async def serve_storyboard(filename: str):
     """Serve a generated storyboard HTML file for preview."""
     if ".." in filename or "/" in filename:
         return HTMLResponse("<h1>Invalid filename</h1>", status_code=400)
-    filepath = BASE_DIR / "outputs" / "storyboards" / filename
+    filepath = OUTPUTS_BASE / "storyboards" / filename
     if not filepath.exists() or not filepath.suffix == ".html":
         return HTMLResponse("<h1>Storyboard not found</h1>", status_code=404)
     with open(filepath, "r", encoding="utf-8") as f:
@@ -1310,7 +1313,7 @@ async def install_mcp_tool(request: Request):
 @app.get("/api/mcp/installed")
 async def get_installed_mcp():
     """Get installed MCP tools."""
-    path = BASE_DIR / "data" / "mcp" / "installed.json"
+    path = DATA_BASE / "mcp" / "installed.json"
     if path.exists():
         with open(path) as f:
             return JSONResponse(json.load(f))
@@ -1321,7 +1324,7 @@ async def get_installed_mcp():
 async def generate_mcp_config():
     """Generate full MCP config from installed tools."""
     from services.mcp_registry import generate_full_config
-    path = BASE_DIR / "data" / "mcp" / "installed.json"
+    path = DATA_BASE / "mcp" / "installed.json"
     if not path.exists():
         return JSONResponse({"mcpServers": {}})
     with open(path) as f:
@@ -1376,7 +1379,7 @@ async def analytics_summary():
 @app.get("/api/content")
 async def list_content():
     """List generated content files."""
-    content_dir = BASE_DIR / "outputs" / "content"
+    content_dir = OUTPUTS_BASE / "content"
     if not content_dir.exists():
         return JSONResponse([])
     files = sorted(content_dir.glob("*.md"), reverse=True)
@@ -1398,7 +1401,7 @@ async def list_content():
 @app.get("/api/designs")
 async def list_designs():
     """List generated design briefs."""
-    designs_dir = BASE_DIR / "data" / "designs"
+    designs_dir = DATA_BASE / "designs"
     if not designs_dir.exists():
         return JSONResponse([])
     files = sorted(designs_dir.glob("*.json"), reverse=True)
@@ -1423,7 +1426,7 @@ async def list_designs():
 @app.get("/api/videos")
 async def list_videos():
     """List generated video projects."""
-    videos_dir = BASE_DIR / "data" / "videos"
+    videos_dir = DATA_BASE / "videos"
     if not videos_dir.exists():
         return JSONResponse([])
     files = sorted(videos_dir.glob("*.json"), reverse=True)

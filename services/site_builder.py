@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 BASE_DIR = Path(__file__).parent.parent
-OUTPUT_DIR = BASE_DIR / "outputs" / "sites"
+OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
+OUTPUT_DIR = OUTPUTS_BASE / "sites"
 
 
 def _slugify(text):

@@ -3,12 +3,15 @@
 Uses fpdf2 (pure Python, no system dependencies).
 """
 
+import os
 import re
 from pathlib import Path
 from fpdf import FPDF
 
 BASE_DIR = Path(__file__).parent.parent
-OUTPUT_DIR = BASE_DIR / "outputs" / "proposals"
+DATA_BASE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
+OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
+OUTPUT_DIR = OUTPUTS_BASE / "proposals"
 
 # Brand colors
 ORANGE = (232, 93, 38)
@@ -309,7 +312,7 @@ def proposal_file_to_pdf(md_path):
 
 def convert_all_proposals():
     """Convert all existing markdown proposals to PDF. Returns list of paths."""
-    proposals_dir = BASE_DIR / "data" / "proposals"
+    proposals_dir = DATA_BASE / "proposals"
     if not proposals_dir.exists():
         return []
     results = []

@@ -7,8 +7,10 @@ from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-DATA_DIR = BASE_DIR / "data"
-OUTPUT_DIR = BASE_DIR / "outputs"
+# On Vercel/serverless the package directory is read-only. GOAT_DATA_DIR
+# (set in api/index.py to /tmp/goat-data on Vercel) overrides the default.
+DATA_DIR = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
+OUTPUT_DIR = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
 
 
 class BaseAgent:

@@ -5,13 +5,14 @@ No external services needed.
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 BASE_DIR = Path(__file__).parent.parent
-SCHEDULE_FILE = BASE_DIR / "data" / "config" / "schedules.json"
+SCHEDULE_FILE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data")) / "config" / "schedules.json"
 
 scheduler = BackgroundScheduler()
 _started = False
@@ -61,7 +62,8 @@ def _run_agent(agent_id: str, params: dict = None):
             result = agent.run()
 
         # Log the scheduled run
-        log_dir = BASE_DIR / "data" / "logs"
+        from core.paths import data_path
+        log_dir = data_path("logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         log_entry = {
             "agent_id": agent_id,
@@ -177,7 +179,8 @@ def list_schedules():
 
 def get_scheduled_run_logs(limit: int = 20):
     """Get recent scheduled run logs."""
-    log_file = BASE_DIR / "data" / "logs" / "scheduled_runs.json"
+    from core.paths import data_path
+    log_file = data_path("logs", "scheduled_runs.json")
     if not log_file.exists():
         return []
     with open(log_file) as f:
@@ -186,9 +189,14 @@ def get_scheduled_run_logs(limit: int = 20):
 
 
 def start_scheduler():
-    """Start the background scheduler and restore saved schedules."""
+    """Start the background scheduler and restore saved schedules.
+
+    No-op when GOAT_DISABLE_SCHEDULER=1 (Vercel serverless can't run a
+    persistent background process)."""
     global _started
     if _started:
+        return
+    if os.getenv("GOAT_DISABLE_SCHEDULER") == "1":
         return
 
     # Restore saved schedules

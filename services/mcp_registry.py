@@ -1,11 +1,12 @@
 """MCP Registry service — Model Context Protocol tools catalog and config generator."""
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
 
 
 # MCP Server catalog — curated list of useful MCP servers

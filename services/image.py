@@ -7,14 +7,16 @@ from pathlib import Path
 
 FAL_KEY = os.getenv("FAL_KEY", "")
 BASE_DIR = Path(__file__).parent.parent
-OUTPUT_DIR = BASE_DIR / "outputs" / "creatives"
+DATA_BASE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
+OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
+OUTPUT_DIR = OUTPUTS_BASE / "creatives"
 
 
 def get_key():
     """Get fal.ai key from env or config."""
     if FAL_KEY:
         return FAL_KEY
-    config_path = BASE_DIR / "data" / "config" / "user_profile.json"
+    config_path = DATA_BASE / "config" / "user_profile.json"
     if config_path.exists():
         with open(config_path) as f:
             cfg = json.load(f)

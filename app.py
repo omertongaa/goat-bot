@@ -780,11 +780,16 @@ async def core_list_agents():
 @app.get("/api/core/apps")
 async def core_list_apps():
     from services import apps as _apps_svc
+    cfg = load_config()
+    if cfg.get("composio_api_key"):
+        os.environ["COMPOSIO_API_KEY"] = cfg["composio_api_key"]
     cid = core_store.active_company_id()
+    # Refresh status from Composio if any connections exist
+    connections = _apps_svc.refresh_connection_status(cid)
     return JSONResponse({
         "company_id": cid,
         "catalog": _apps_svc.APPS_CATALOG,
-        "connections": _apps_svc.list_connections(cid),
+        "connections": connections,
         "composio_configured": bool(os.getenv("COMPOSIO_API_KEY", "").strip()),
     })
 

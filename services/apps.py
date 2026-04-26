@@ -1,14 +1,23 @@
-"""Apps registry — MCP-style integrations via composio.dev.
+"""Apps registry — MCP-style integrations via composio.dev (v3 API).
 
-Composio (composio.dev) is a managed integration layer that handles OAuth and
-API access for 100+ SaaS tools. We expose a curated catalog here, and the
-"Connect" flow goes through composio's hosted OAuth.
+Composio is a managed integration layer that handles OAuth and tool execution
+for 250+ SaaS apps. We expose a curated catalog with our own icons/categories
+and use Composio's REST API to:
 
-Without a COMPOSIO_API_KEY the catalog is still browsable but Connect buttons
-return a "configure key first" prompt. When the key is set, we initiate a real
-connection request via Composio's REST API.
+    1. Auto-create a managed auth_config when needed (per toolkit)
+    2. Initiate a connected_account (returns OAuth redirect URL)
+    3. List connections per company
 
-Stored connections live per-company under data/companies/{id}/apps.json.
+Stored connections live per-company under data/companies/{id}/apps.json so
+each company has its own keychain.
+
+Composio API:
+    GET  /api/v3/toolkits                  — list available apps
+    POST /api/v3/auth_configs              — create managed auth config
+    GET  /api/v3/auth_configs              — list existing
+    POST /api/v3/connected_accounts        — initiate OAuth
+    GET  /api/v3/connected_accounts        — list connections
+    Header: x-api-key: ak_xxx
 """
 
 import json
@@ -20,9 +29,12 @@ import requests
 
 from core.store import company_dir, active_company_id
 
-COMPOSIO_API = "https://backend.composio.dev/api/v1"
+COMPOSIO_API = "https://backend.composio.dev/api/v3"
+TIMEOUT = 15
 
-# Curated catalog. category, name, slug (Composio app slug), description, icon.
+# Curated catalog. Composio has hundreds of apps; we surface the most useful
+# ones with our own categorization, descriptions, and icons. The Composio
+# slug field maps directly to their toolkit identifier.
 APPS_CATALOG = [
     # Communication
     {"category": "communication", "name": "Gmail",          "slug": "gmail",          "icon": "📧", "desc": "Email gönder, oku, etiketle. Outreach takipleri için ideal."},
@@ -46,7 +58,7 @@ APPS_CATALOG = [
     {"category": "project",       "name": "Asana",          "slug": "asana",          "icon": "✅", "desc": "Task oluştur, atla."},
     {"category": "project",       "name": "Trello",         "slug": "trello",         "icon": "📌", "desc": "Kart ekle, board takip."},
     {"category": "project",       "name": "Jira",           "slug": "jira",           "icon": "🔧", "desc": "Issue tracker."},
-    {"category": "project",       "name": "Monday.com",     "slug": "monday",         "icon": "📋", "desc": "Item ekle, status güncelle."},
+    {"category": "project",       "name": "ClickUp",        "slug": "clickup",        "icon": "📋", "desc": "Task ve docs."},
 
     # Sales / Marketing
     {"category": "sales",         "name": "HubSpot",        "slug": "hubspot",        "icon": "🧲", "desc": "Lead, deal, kampanya yönet."},
@@ -58,7 +70,6 @@ APPS_CATALOG = [
     # Social
     {"category": "social",        "name": "Twitter / X",    "slug": "twitter",        "icon": "🐦", "desc": "Tweet at, mention sor."},
     {"category": "social",        "name": "LinkedIn",       "slug": "linkedin",       "icon": "💼", "desc": "Post paylaş, profil sorgu."},
-    {"category": "social",        "name": "Instagram",      "slug": "instagram",      "icon": "📸", "desc": "Post planla, DM oku."},
     {"category": "social",        "name": "Reddit",         "slug": "reddit",         "icon": "👽", "desc": "Subreddit izle, post ekle."},
     {"category": "social",        "name": "YouTube",        "slug": "youtube",        "icon": "▶️", "desc": "Video upload, analytics."},
 
@@ -66,14 +77,13 @@ APPS_CATALOG = [
     {"category": "dev",           "name": "GitHub",         "slug": "github",         "icon": "🐙", "desc": "Repo, issue, PR yönet."},
     {"category": "dev",           "name": "GitLab",         "slug": "gitlab",         "icon": "🦊", "desc": "Issue, MR, pipeline."},
     {"category": "dev",           "name": "Vercel",         "slug": "vercel",         "icon": "▲", "desc": "Deploy bilgisi, env yönet."},
-    {"category": "dev",           "name": "Cloudflare",     "slug": "cloudflare",     "icon": "🌩️", "desc": "DNS, worker, R2."},
 
     # Files / Storage
     {"category": "files",         "name": "Dropbox",        "slug": "dropbox",        "icon": "📦", "desc": "Dosya yükle, paylaş."},
-    {"category": "files",         "name": "OneDrive",       "slug": "onedrive",       "icon": "☁️", "desc": "Microsoft cloud storage."},
+    {"category": "files",         "name": "OneDrive",       "slug": "one_drive",      "icon": "☁️", "desc": "Microsoft cloud storage."},
 
     # Analytics
-    {"category": "analytics",     "name": "Google Analytics","slug": "googleanalytics","icon": "📈", "desc": "Trafik raporu çek."},
+    {"category": "analytics",     "name": "Google Analytics","slug": "google_analytics","icon": "📈", "desc": "Trafik raporu çek."},
     {"category": "analytics",     "name": "Mixpanel",       "slug": "mixpanel",       "icon": "📊", "desc": "Event analytics."},
 ]
 
@@ -100,58 +110,158 @@ def save_connections(company_id: str, data: dict) -> None:
     p.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-# ── Composio integration ───────────────────────────────────────────
+# ── Composio HTTP helpers ──────────────────────────────────────────
+
+def _headers() -> dict:
+    key = os.getenv("COMPOSIO_API_KEY", "").strip()
+    return {"x-api-key": key, "Content-Type": "application/json"}
+
+
+def _has_key() -> bool:
+    return bool(os.getenv("COMPOSIO_API_KEY", "").strip())
+
+
+def _get_or_create_auth_config(slug: str) -> Optional[str]:
+    """Return an auth_config_id for the given toolkit slug, creating one with
+    Composio-managed auth if none exists."""
+    # Look up existing
+    try:
+        r = requests.get(
+            f"{COMPOSIO_API}/auth_configs?limit=100",
+            headers=_headers(), timeout=TIMEOUT,
+        )
+        if r.ok:
+            for item in r.json().get("items", []):
+                tk = item.get("toolkit") or {}
+                if tk.get("slug") == slug:
+                    return item.get("id") or (item.get("auth_config") or {}).get("id")
+    except Exception:
+        pass
+
+    # Create one with managed auth
+    try:
+        r = requests.post(
+            f"{COMPOSIO_API}/auth_configs",
+            headers=_headers(),
+            json={
+                "toolkit": {"slug": slug},
+                "name": f"goat-{slug}",
+                "auth_config": {"type": "use_composio_managed_auth"},
+            },
+            timeout=TIMEOUT,
+        )
+        if r.ok:
+            data = r.json()
+            ac = data.get("auth_config") or {}
+            return ac.get("id") or data.get("id")
+    except Exception:
+        pass
+    return None
+
+
+# ── Public API ─────────────────────────────────────────────────────
 
 def initiate_connection(slug: str, company_id: Optional[str] = None) -> dict:
-    """Start a Composio OAuth flow for the given app slug. Returns a dict
-    containing the redirect URL the user should visit, or an error."""
+    """Start a Composio OAuth flow for the given toolkit slug.
+    Returns a dict with redirect_url the user should visit."""
     company_id = company_id or active_company_id()
-    api_key = os.getenv("COMPOSIO_API_KEY", "").strip()
-    if not api_key:
+    if not _has_key():
         return {
             "ok": False,
-            "error": "COMPOSIO_API_KEY ayarlanmamış. composio.dev'den ücretsiz key al ve .env'e ekle.",
+            "error": "COMPOSIO_API_KEY ayarlanmamış. composio.dev'den ücretsiz key al.",
             "setup_url": "https://app.composio.dev/developers",
         }
 
-    try:
-        # Composio v1: /connections/initiate with appName
-        resp = requests.post(
-            f"{COMPOSIO_API}/connectedAccounts",
-            headers={"x-api-key": api_key, "Content-Type": "application/json"},
-            json={
-                "integrationId": slug,
-                "entityId": company_id,
-                "redirectUri": os.getenv("APPS_REDIRECT_URI", "http://localhost:7778/apps?connected=" + slug),
-            },
-            timeout=15,
-        )
-        if resp.status_code >= 400:
-            return {"ok": False, "error": f"Composio HTTP {resp.status_code}: {resp.text[:200]}"}
-        data = resp.json()
-        url = data.get("redirectUrl") or data.get("authUrl") or data.get("url")
-        connection_id = data.get("id") or data.get("connectionId")
+    auth_config_id = _get_or_create_auth_config(slug)
+    if not auth_config_id:
+        return {"ok": False, "error": f"'{slug}' için auth config oluşturulamadı"}
 
-        # Persist pending connection so we can show it as "connecting" in the UI
+    try:
+        r = requests.post(
+            f"{COMPOSIO_API}/connected_accounts",
+            headers=_headers(),
+            json={
+                "auth_config": {"id": auth_config_id},
+                "connection": {"user_id": company_id},
+            },
+            timeout=TIMEOUT,
+        )
+        if not r.ok:
+            return {"ok": False, "error": f"Composio HTTP {r.status_code}: {r.text[:200]}"}
+        data = r.json()
+        url = data.get("redirect_url") or data.get("redirect_uri")
+        cid = data.get("id")
+        status = data.get("status", "INITIATED")
+
+        # Persist
         conns = list_connections(company_id)
         conns[slug] = {
             "slug": slug,
-            "status": "pending",
-            "connection_id": connection_id,
+            "status": status.lower() if status else "pending",
+            "connection_id": cid,
+            "auth_config_id": auth_config_id,
             "redirect_url": url,
         }
         save_connections(company_id, conns)
-        return {"ok": True, "redirect_url": url, "connection_id": connection_id}
+        return {"ok": True, "redirect_url": url, "connection_id": cid, "status": status}
     except Exception as e:
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def refresh_connection_status(company_id: Optional[str] = None) -> dict:
+    """Hit Composio to refresh ACTIVE/INITIATED state of all stored connections.
+    Returns updated connections dict."""
+    company_id = company_id or active_company_id()
+    if not _has_key():
+        return list_connections(company_id)
+    conns = list_connections(company_id)
+    if not conns:
+        return conns
+    try:
+        r = requests.get(
+            f"{COMPOSIO_API}/connected_accounts?user_ids={company_id}&limit=100",
+            headers=_headers(), timeout=TIMEOUT,
+        )
+        if not r.ok:
+            return conns
+        items = r.json().get("items", [])
+        # Map by toolkit slug → status
+        by_slug = {}
+        for it in items:
+            tk = it.get("toolkit") or {}
+            sl = tk.get("slug")
+            if sl:
+                by_slug[sl] = (it.get("status") or "").lower()
+        changed = False
+        for sl, conn in conns.items():
+            new_status = by_slug.get(sl)
+            if new_status and new_status != conn.get("status"):
+                conn["status"] = new_status
+                changed = True
+        if changed:
+            save_connections(company_id, conns)
+    except Exception:
+        pass
+    return conns
+
+
 def disconnect(slug: str, company_id: Optional[str] = None) -> dict:
-    """Forget a connection locally. Doesn't revoke OAuth on the provider."""
+    """Forget a connection locally + delete on Composio if connection_id exists."""
     company_id = company_id or active_company_id()
     conns = list_connections(company_id)
-    if slug in conns:
-        del conns[slug]
-        save_connections(company_id, conns)
-        return {"ok": True}
-    return {"ok": False, "error": "Connection not found"}
+    if slug not in conns:
+        return {"ok": False, "error": "Connection not found"}
+
+    conn_id = conns[slug].get("connection_id")
+    if conn_id and _has_key():
+        try:
+            requests.delete(
+                f"{COMPOSIO_API}/connected_accounts/{conn_id}",
+                headers=_headers(), timeout=TIMEOUT,
+            )
+        except Exception:
+            pass
+
+    del conns[slug]
+    save_connections(company_id, conns)
+    return {"ok": True}

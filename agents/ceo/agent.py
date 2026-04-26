@@ -23,6 +23,7 @@ Actions the CEO can emit:
 """
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -32,6 +33,17 @@ from agents.base import BaseAgent
 from core import store, activity_log
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Anthropic SDK is optional — only used when ANTHROPIC_API_KEY is set
+try:
+    import anthropic  # type: ignore
+    _ANTHROPIC_AVAILABLE = True
+except ImportError:
+    _ANTHROPIC_AVAILABLE = False
+
+# Default model — Sonnet 4.6 is the best balance of quality + speed for
+# orchestration. Can be overridden with ANTHROPIC_MODEL.
+DEFAULT_MODEL = "claude-sonnet-4-6"
 
 CEO_SYSTEM_PROMPT = """Sen GOAT şirketinin CEO'susun. Kullanıcıyı dinle, şirketi yönet.
 
@@ -75,13 +87,23 @@ class CEOAgent(BaseAgent):
     category = "master"
 
     def run(self, message: str = "", history: Optional[list] = None) -> dict:
-        """Process a single user message. Returns {response, actions, metrics}."""
+        """Process a single user message. Returns {response, actions, metrics}.
+
+        Resolution chain (each falls back to the next):
+            1. Anthropic API directly (best quality, works on Vercel)
+            2. Claude CLI subprocess (works locally with `claude` installed)
+            3. Keyword-based intent matcher (always works, low quality)
+        """
         history = history or []
         company_id = store.active_company_id()
         company = store.load_company(company_id) or {}
         state = self._snapshot(company_id)
 
-        reply_text, actions = self._chat_with_claude(message, history, company, state)
+        reply_text, actions = (None, [])
+        if os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE:
+            reply_text, actions = self._chat_with_anthropic_api(message, history, company, state)
+        if reply_text is None:
+            reply_text, actions = self._chat_with_claude(message, history, company, state)
         if reply_text is None:
             reply_text, actions = self._fallback_reply(message, company, state)
 
@@ -96,6 +118,63 @@ class CEOAgent(BaseAgent):
             "executed": executed,
             "state_snapshot": state,
         }
+
+    def _chat_with_anthropic_api(self, message: str, history: list, company: dict, state: dict):
+        """Direct Anthropic API call with prompt caching on the system prompt."""
+        try:
+            client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+
+            # Build messages from history (alternating user/assistant)
+            messages = []
+            for h in history[-12:]:
+                role = "user" if h.get("role") == "user" else "assistant"
+                content = (h.get("content") or "").strip()
+                if content:
+                    messages.append({"role": role, "content": content})
+            messages.append({"role": "user", "content": message})
+
+            # Compose system blocks; cache the static prompt
+            company_brief = json.dumps({
+                "company": {
+                    "name": company.get("name"),
+                    "niche": company.get("niche"),
+                    "target_cities": company.get("target_cities", []),
+                    "target_industries": company.get("target_industries", []),
+                },
+                "state": state,
+            }, ensure_ascii=False)
+            system_blocks = [
+                {
+                    "type": "text",
+                    "text": CEO_SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {"type": "text", "text": "GÜNCEL DURUM:\n" + company_brief},
+            ]
+
+            model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
+            resp = client.messages.create(
+                model=model,
+                max_tokens=1024,
+                system=system_blocks,
+                messages=messages,
+            )
+
+            # Track cost
+            try:
+                from core.cost_tracker import record
+                u = resp.usage
+                record("claude.token_in", units=getattr(u, "input_tokens", 0))
+                record("claude.token_out", units=getattr(u, "output_tokens", 0))
+            except Exception:
+                pass
+
+            full = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+            if not full:
+                return None, []
+            return self._parse_response(full)
+        except Exception:
+            return None, []
 
     # ── Internals ─────────────────────────────────────────────────────
 

@@ -750,6 +750,98 @@ async def board_page(request: Request):
     return templates.TemplateResponse("board.html", {"request": request})
 
 
+@app.get("/apps", response_class=HTMLResponse)
+async def apps_page(request: Request):
+    return templates.TemplateResponse("apps.html", {"request": request})
+
+
+@app.get("/api/core/agents")
+async def core_list_agents():
+    """List every agent the orchestrator can dispatch, with role + category."""
+    out = []
+    for agent_id in AGENT_MODULES.keys():
+        try:
+            agent = get_agent_instance(agent_id)
+            out.append({
+                "id": agent.agent_id,
+                "name": agent.name,
+                "role": agent.role,
+                "category": agent.category,
+                "needs_approval": agent.agent_id in (
+                    "outreach", "social", "admanager", "youtube",
+                    "videomaker", "videoproducer", "instagramdm",
+                ),
+            })
+        except Exception:
+            pass
+    return JSONResponse({"agents": out})
+
+
+@app.get("/api/core/apps")
+async def core_list_apps():
+    from services import apps as _apps_svc
+    cid = core_store.active_company_id()
+    return JSONResponse({
+        "company_id": cid,
+        "catalog": _apps_svc.APPS_CATALOG,
+        "connections": _apps_svc.list_connections(cid),
+        "composio_configured": bool(os.getenv("COMPOSIO_API_KEY", "").strip()),
+    })
+
+
+@app.post("/api/core/apps/{slug}/connect")
+async def core_connect_app(slug: str):
+    from services import apps as _apps_svc
+    cfg = load_config()
+    if cfg.get("composio_api_key"):
+        os.environ["COMPOSIO_API_KEY"] = cfg["composio_api_key"]
+    return JSONResponse(_apps_svc.initiate_connection(slug))
+
+
+@app.post("/api/core/apps/{slug}/disconnect")
+async def core_disconnect_app(slug: str):
+    from services import apps as _apps_svc
+    return JSONResponse(_apps_svc.disconnect(slug))
+
+
+@app.post("/api/core/agents/{agent_id}/quick-run")
+async def core_agent_quick_run(agent_id: str, request: Request):
+    """Quick-run any agent with custom params from the Board's agent panel."""
+    if agent_id not in AGENT_MODULES:
+        return JSONResponse({"error": "Agent not found"}, status_code=404)
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    params = body.get("params", {}) if isinstance(body, dict) else {}
+    title = body.get("title", f"{agent_id} run") if isinstance(body, dict) else f"{agent_id} run"
+
+    cfg = load_config()
+    for src, dst in [
+        ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+        ("instantly_api_key", "INSTANTLY_API_KEY"),
+        ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+        ("composio_api_key", "COMPOSIO_API_KEY"),
+    ]:
+        if cfg.get(src):
+            os.environ[dst] = cfg[src]
+
+    import asyncio
+    def _run():
+        agent = get_agent_instance(agent_id)
+        return core_runtime.execute_in_ticket(
+            agent_id=agent_id, run_fn=agent.run, params=params, title=title,
+        )
+    ticket = await asyncio.to_thread(_run)
+    return JSONResponse({
+        "ticket_id": ticket["id"],
+        "status": ticket["status"],
+        "cost_usd": ticket.get("cost_usd", 0.0),
+        "needs_approval": ticket.get("needs_approval", False),
+    })
+
+
 # ── CEO chat ───────────────────────────────────────────────────────
 CEO_HISTORIES: dict = {}
 CEO_MAX_HISTORY = 24

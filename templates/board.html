@@ -186,6 +186,36 @@ aside.left {
 .goal-item .title { font-size: 12px; font-weight: 500; margin-bottom: 3px; line-height: 1.3; }
 .goal-item .metric { font-size: 10.5px; color: var(--dim); font-weight: 500; }
 
+.agent-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.agent-item:hover { background: var(--surface-2); }
+.agent-item .av {
+  width: 22px; height: 22px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.agent-item .info { flex: 1; min-width: 0; }
+.agent-item .nm { font-size: 12px; font-weight: 500; color: var(--text-2); }
+.agent-item .rl { font-size: 10px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-item .lock { font-size: 11px; color: var(--yellow); opacity: 0.7; }
+.agent-cat-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  color: var(--dim-2);
+  padding: 8px 8px 4px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
 .new-button {
   width: 100%;
   padding: 7px;
@@ -811,6 +841,7 @@ aside.right {
     </div>
     <div class="nav-tabs">
       <a class="nav-tab active" href="/board">Board</a>
+      <a class="nav-tab" href="/apps">Apps</a>
       <a class="nav-tab" href="/classic">Classic</a>
     </div>
     <div class="spacer"></div>
@@ -838,6 +869,11 @@ aside.right {
       <h3>Active Goals <span class="chevron">›</span></h3>
       <div id="goalsList"></div>
       <button class="new-button" onclick="openGoalModal()">＋ Yeni hedef</button>
+    </div>
+
+    <div class="nav-section">
+      <h3>Agents <span class="chevron">›</span></h3>
+      <div id="agentsList"></div>
     </div>
 
     <div class="nav-section">
@@ -931,22 +967,213 @@ const AGENT_COLORS = {
   mcphub: '#64748b', taskplanner: '#0891b2',
 };
 
-let STATE = { dashboard: null, companies: [], ceoOpen: false };
+let STATE = { dashboard: null, companies: [], agents: [], ceoOpen: false };
 
 async function loadDashboard() {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.innerHTML = '<span class="spinning">↻</span> Yenile';
   try {
-    const [dash, companies] = await Promise.all([
+    const [dash, companies, agents] = await Promise.all([
       fetch('/api/core/dashboard').then(r => r.json()),
       fetch('/api/core/companies').then(r => r.json()),
+      fetch('/api/core/agents').then(r => r.json()),
     ]);
     STATE.dashboard = dash;
     STATE.companies = companies.companies || [];
+    STATE.agents = agents.agents || [];
     renderCompanies(companies.active);
+    renderAgents(STATE.agents);
     renderMain(dash);
   } catch (e) { console.error(e); }
   finally { if (btn) btn.innerHTML = '↻ Yenile'; }
+}
+
+const CATEGORY_LABELS = {
+  master: 'Master', acquisition: 'Acquisition', sales: 'Sales',
+  creative: 'Creative', marketing: 'Marketing', intelligence: 'Intelligence',
+  education: 'Education', delivery: 'Delivery', production: 'Production',
+  system: 'System', '': 'Other',
+};
+
+function renderAgents(agents) {
+  const el = document.getElementById('agentsList');
+  if (!el) return;
+  // Group by category
+  const groups = {};
+  for (const a of agents) {
+    if (a.id === 'ceo') continue;  // CEO is the chat itself
+    const cat = a.category || 'other';
+    (groups[cat] = groups[cat] || []).push(a);
+  }
+  const order = ['master','acquisition','sales','creative','marketing','intelligence','education','delivery','production','system','other'];
+  let html = '';
+  for (const cat of order) {
+    const list = groups[cat];
+    if (!list || !list.length) continue;
+    html += `<div class="agent-cat-head">${CATEGORY_LABELS[cat] || cat}</div>`;
+    for (const a of list) {
+      const color = AGENT_COLORS[a.id] || '#64748b';
+      html += `
+        <div class="agent-item" onclick="openAgentRun('${a.id}', ${JSON.stringify(a).replaceAll('"', '&quot;')})">
+          <div class="av" style="background:${color}">${(a.id || '?').charAt(0).toUpperCase()}</div>
+          <div class="info">
+            <div class="nm">${escapeHtml(a.name || a.id)}</div>
+            <div class="rl">${escapeHtml(a.role || '')}</div>
+          </div>
+          ${a.needs_approval ? '<span class="lock" title="Onay gerekir">🔒</span>' : ''}
+        </div>
+      `;
+    }
+  }
+  el.innerHTML = html || '<div class="empty" style="padding:14px 8px;">Agent yok</div>';
+}
+
+function openAgentRun(agentId, agentDetails) {
+  const a = typeof agentDetails === 'string' ? JSON.parse(agentDetails.replaceAll('&quot;', '"')) : agentDetails;
+  const fields = paramFieldsFor(agentId);
+  modal(`
+    <h3>${escapeHtml(a.name || agentId)}</h3>
+    <div class="sub">${escapeHtml(a.role || '')} · <span style="color:var(--accent)">${a.category || ''}</span></div>
+    <label>Title (opsiyonel)</label>
+    <input id="qrTitle" placeholder="${agentId} run">
+    ${fields}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="quickRunAgent('${agentId}')">▶ Çalıştır</button>
+      <button class="btn" onclick="askCEOAbout('${agentId}')">CEO'ya sor</button>
+    </div>
+  `);
+}
+
+function paramFieldsFor(agentId) {
+  const fields = {
+    scout: `
+      <label>Sorgu</label><input id="qrQuery" placeholder="restoran">
+      <label>Şehir</label><input id="qrLocation" placeholder="İstanbul">
+      <label>Limit (max 100)</label><input id="qrLimit" type="number" value="50" max="100">
+    `,
+    auditor: `
+      <label>URL (boş bırakılırsa hot leadler taranır)</label>
+      <input id="qrUrl" placeholder="https://example.com">
+      <label>Max lead</label><input id="qrMaxLeads" type="number" value="10">
+    `,
+    designer: `
+      <label>Tasarım türü</label>
+      <select id="qrDesignType">
+        <option value="logo">Logo</option><option value="social_post">Sosyal post</option>
+        <option value="banner">Banner</option><option value="ad">Reklam</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Tema</label><input id="qrTheme" placeholder="modern, minimalist">
+    `,
+    videomaker: `
+      <label>Video türü</label>
+      <select id="qrVideoType">
+        <option value="reels">Reels</option><option value="youtube_short">YouTube Short</option>
+        <option value="ad_video">Reklam</option><option value="explainer">Açıklayıcı</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Konu</label><input id="qrTopic" placeholder="otomasyon">
+    `,
+    content: `
+      <label>İçerik türü</label>
+      <select id="qrContentType">
+        <option value="blog">Blog</option><option value="social">Sosyal</option>
+        <option value="email">Email</option><option value="newsletter">Newsletter</option>
+      </select>
+      <label>Konu</label><input id="qrTopic" placeholder="restoran otomasyonu">
+    `,
+    brandkit: `
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Sektör</label><input id="qrIndustry" placeholder="dijital ajans">
+      <label>Stil</label>
+      <select id="qrStyle">
+        <option value="modern">Modern</option><option value="minimal">Minimal</option>
+        <option value="bold">Bold</option><option value="warm">Sıcak</option>
+      </select>
+    `,
+    admanager: `
+      <label>Platform</label>
+      <select id="qrPlatform">
+        <option value="meta">Meta (FB/Instagram)</option><option value="google">Google</option>
+        <option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option>
+      </select>
+      <label>Kampanya türü</label>
+      <select id="qrCampaignType">
+        <option value="lead_gen">Lead generation</option><option value="awareness">Bilinirlik</option>
+        <option value="conversion">Dönüşüm</option>
+      </select>
+      <label>Bütçe ($)</label><input id="qrBudget" placeholder="1000">
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    social: `
+      <label>İşlem</label>
+      <select id="qrAction">
+        <option value="strategy">Strateji</option><option value="hashtags">Hashtag araştır</option>
+        <option value="bio">Bio yaz</option><option value="growth">Büyüme planı</option>
+      </select>
+      <label>Platform</label>
+      <select id="qrPlatform">
+        <option value="instagram">Instagram</option><option value="linkedin">LinkedIn</option>
+        <option value="twitter">Twitter</option><option value="youtube">YouTube</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    presenter: `
+      <label>Şablon</label>
+      <select id="qrTemplate">
+        <option value="pitch_deck">Pitch deck</option><option value="proposal">Teklif sunumu</option>
+        <option value="report">Rapor</option><option value="training">Eğitim</option>
+      </select>
+      <label>Konu</label><input id="qrTopic">
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    youtube: `
+      <label>İşlem</label>
+      <select id="qrAction">
+        <option value="optimize">SEO optimize</option><option value="upload">Upload</option>
+        <option value="strategy">Strateji</option><option value="schedule">Takvim</option>
+      </select>
+      <label>Başlık</label><input id="qrTitle2">
+      <label>Konu</label><input id="qrTopic">
+    `,
+  };
+  return fields[agentId] || '<div style="color:var(--dim);font-size:11px;margin-bottom:14px;">Bu agent için ekstra parametre yok.</div>';
+}
+
+async function quickRunAgent(agentId) {
+  const params = {};
+  const get = id => (document.getElementById(id) || {}).value;
+  const num = id => { const v = get(id); return v ? parseInt(v, 10) : undefined; };
+  if (agentId === 'scout') Object.assign(params, { query: get('qrQuery'), location: get('qrLocation'), limit: num('qrLimit') || 50 });
+  if (agentId === 'auditor') Object.assign(params, { url: get('qrUrl'), max_leads: num('qrMaxLeads') || 10 });
+  if (agentId === 'designer') Object.assign(params, { design_type: get('qrDesignType'), business_name: get('qrBusiness'), theme: get('qrTheme') });
+  if (agentId === 'videomaker') Object.assign(params, { video_type: get('qrVideoType'), business_name: get('qrBusiness'), topic: get('qrTopic') });
+  if (agentId === 'content') Object.assign(params, { content_type: get('qrContentType'), topic: get('qrTopic') });
+  if (agentId === 'brandkit') Object.assign(params, { business_name: get('qrBusiness'), industry: get('qrIndustry'), style: get('qrStyle') });
+  if (agentId === 'admanager') Object.assign(params, { platform: get('qrPlatform'), campaign_type: get('qrCampaignType'), budget: get('qrBudget'), business_name: get('qrBusiness') });
+  if (agentId === 'social') Object.assign(params, { action: get('qrAction'), platform: get('qrPlatform'), business_name: get('qrBusiness') });
+  if (agentId === 'presenter') Object.assign(params, { template: get('qrTemplate'), topic: get('qrTopic'), business_name: get('qrBusiness') });
+  if (agentId === 'youtube') Object.assign(params, { action: get('qrAction'), title: get('qrTitle2'), topic: get('qrTopic') });
+
+  const title = get('qrTitle') || `${agentId} run`;
+  closeModal();
+
+  const r = await fetch(`/api/core/agents/${agentId}/quick-run`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, params }),
+  });
+  const d = await r.json();
+  if (d.ticket_id) {
+    setTimeout(() => loadDashboard(), 200);
+  }
+}
+
+function askCEOAbout(agentId) {
+  closeModal();
+  if (!STATE.ceoOpen) toggleCEO();
+  document.getElementById('ceoInput').value = `${agentId}'a iş ver:`;
+  document.getElementById('ceoInput').focus();
 }
 
 function renderCompanies(activeId) {

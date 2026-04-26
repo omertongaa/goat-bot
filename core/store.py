@@ -1,22 +1,21 @@
-"""Company-scoped JSON persistence.
+"""Company-scoped persistence with two backends.
 
-Layout:
-    data/
-      active_company.json          # {"id": "default"}
-      companies/
-        {company_id}/
-          profile.json             # Company entity
-          tickets/{ticket_id}.json # Ticket entities
-          goals/{goal_id}.json     # Goal entities
-          budgets.json             # {agent_id: Budget}
-          activity.jsonl           # append-only log (see activity_log.py)
-          artifacts/               # agent outputs (proposals, images, videos)
-          leads/raw|qualified      # legacy subdirs after migration
-          ...
+Backend selection (lazy via env):
+    - If UPSTASH_REDIS_REST_URL+TOKEN are set → durable Redis KV (Vercel safe)
+    - Otherwise → JSON files under GOAT_DATA_DIR (default ./data)
 
-Concurrency: write-temp-then-rename for atomic writes. No locking — goat is
-single-process. If multi-process becomes necessary, swap in fcntl or move to
-SQLite.
+Local dev hits files; Vercel hits Redis. Same interface either way.
+
+KV layout (when active):
+    goat:active:{?}                  → "company_id"
+    goat:companies                   → SET of company_ids
+    goat:company:{cid}               → company profile JSON
+    goat:tickets:{cid}               → SET of ticket_ids (for listing)
+    goat:ticket:{cid}:{tid}          → ticket JSON
+    goat:goals:{cid}                 → SET of goal_ids
+    goat:goal:{cid}:{gid}            → goal JSON
+    goat:budgets:{cid}               → budgets dict {agent_id: budget}
+    goat:activity:{cid}              → LIST of activity entries (appended)
 """
 
 import json
@@ -31,6 +30,12 @@ COMPANIES_DIR = DATA_ROOT / "companies"
 ACTIVE_COMPANY_FILE = DATA_ROOT / "active_company.json"
 
 DEFAULT_COMPANY_ID = "default"
+
+
+def _kv() -> bool:
+    """True when Upstash KV is configured and should be used."""
+    from core import kv as _kv_mod
+    return _kv_mod.is_enabled()
 
 
 def _ensure(path: Path) -> Path:
@@ -58,11 +63,23 @@ def _read_json(path: Path, default=None):
 # ── Active company ─────────────────────────────────────────────────
 
 def active_company_id() -> str:
+    if _kv():
+        from core import kv as _kv_mod
+        cid = _kv_mod.get_json("active_company")
+        if isinstance(cid, str):
+            return cid
+        if isinstance(cid, dict):
+            return cid.get("id", DEFAULT_COMPANY_ID)
+        return DEFAULT_COMPANY_ID
     data = _read_json(ACTIVE_COMPANY_FILE, {})
     return (data or {}).get("id", DEFAULT_COMPANY_ID)
 
 
 def set_active_company(company_id: str) -> None:
+    if _kv():
+        from core import kv as _kv_mod
+        _kv_mod.set_json("active_company", company_id)
+        return
     _write_json(ACTIVE_COMPANY_FILE, {"id": company_id})
 
 
@@ -87,6 +104,12 @@ def artifacts_dir(company_id: str) -> Path:
 # ── Companies ──────────────────────────────────────────────────────
 
 def list_companies() -> list:
+    if _kv():
+        from core import kv as _kv_mod
+        ids = _kv_mod.smembers("companies")
+        if not ids:
+            return []
+        return [c for c in _kv_mod.mget_json([f"company:{i}" for i in ids]) if c]
     if not COMPANIES_DIR.exists():
         return []
     out = []
@@ -100,10 +123,18 @@ def list_companies() -> list:
 
 
 def load_company(company_id: str) -> Optional[dict]:
+    if _kv():
+        from core import kv as _kv_mod
+        return _kv_mod.get_json(f"company:{company_id}")
     return _read_json(company_dir(company_id) / "profile.json")
 
 
 def save_company(company: dict) -> None:
+    if _kv():
+        from core import kv as _kv_mod
+        _kv_mod.set_json(f"company:{company['id']}", company)
+        _kv_mod.sadd("companies", company["id"])
+        return
     _write_json(company_dir(company["id"]) / "profile.json", company)
 
 
@@ -128,10 +159,19 @@ def ticket_path(company_id: str, ticket_id: str) -> Path:
 
 
 def save_ticket(ticket: dict) -> None:
+    if _kv():
+        from core import kv as _kv_mod
+        cid = ticket["company_id"]; tid = ticket["id"]
+        _kv_mod.set_json(f"ticket:{cid}:{tid}", ticket)
+        _kv_mod.sadd(f"tickets:{cid}", tid)
+        return
     _write_json(ticket_path(ticket["company_id"], ticket["id"]), ticket)
 
 
 def load_ticket(company_id: str, ticket_id: str) -> Optional[dict]:
+    if _kv():
+        from core import kv as _kv_mod
+        return _kv_mod.get_json(f"ticket:{company_id}:{ticket_id}")
     return _read_json(ticket_path(company_id, ticket_id))
 
 
@@ -142,12 +182,22 @@ def list_tickets(
     goal_id: Optional[str] = None,
     limit: int = 500,
 ) -> list:
-    tdir = tickets_dir(company_id)
+    if _kv():
+        from core import kv as _kv_mod
+        ids = _kv_mod.smembers(f"tickets:{company_id}")
+        if not ids:
+            return []
+        items = [t for t in _kv_mod.mget_json([f"ticket:{company_id}:{i}" for i in ids]) if t]
+    else:
+        tdir = tickets_dir(company_id)
+        items = []
+        for f in tdir.glob("*.json"):
+            t = _read_json(f)
+            if t:
+                items.append(t)
+
     out = []
-    for f in tdir.glob("*.json"):
-        t = _read_json(f)
-        if not t:
-            continue
+    for t in items:
         if status and t.get("status") != status:
             continue
         if agent_id and t.get("agent_id") != agent_id:
@@ -166,20 +216,36 @@ def goal_path(company_id: str, goal_id: str) -> Path:
 
 
 def save_goal(goal: dict) -> None:
+    if _kv():
+        from core import kv as _kv_mod
+        cid = goal["company_id"]; gid = goal["id"]
+        _kv_mod.set_json(f"goal:{cid}:{gid}", goal)
+        _kv_mod.sadd(f"goals:{cid}", gid)
+        return
     _write_json(goal_path(goal["company_id"], goal["id"]), goal)
 
 
 def load_goal(company_id: str, goal_id: str) -> Optional[dict]:
+    if _kv():
+        from core import kv as _kv_mod
+        return _kv_mod.get_json(f"goal:{company_id}:{goal_id}")
     return _read_json(goal_path(company_id, goal_id))
 
 
 def list_goals(company_id: str, status: Optional[str] = None) -> list:
-    gdir = goals_dir(company_id)
+    if _kv():
+        from core import kv as _kv_mod
+        ids = _kv_mod.smembers(f"goals:{company_id}")
+        items = [g for g in _kv_mod.mget_json([f"goal:{company_id}:{i}" for i in ids]) if g] if ids else []
+    else:
+        gdir = goals_dir(company_id)
+        items = []
+        for f in gdir.glob("*.json"):
+            g = _read_json(f)
+            if g:
+                items.append(g)
     out = []
-    for f in gdir.glob("*.json"):
-        g = _read_json(f)
-        if not g:
-            continue
+    for g in items:
         if status and g.get("status") != status:
             continue
         out.append(g)
@@ -195,10 +261,17 @@ def budgets_path(company_id: str) -> Path:
 
 def load_budgets(company_id: str) -> dict:
     """Returns {agent_id: Budget dict}. Empty if no budgets set."""
+    if _kv():
+        from core import kv as _kv_mod
+        return _kv_mod.get_json(f"budgets:{company_id}", {}) or {}
     return _read_json(budgets_path(company_id), {}) or {}
 
 
 def save_budgets(company_id: str, budgets: dict) -> None:
+    if _kv():
+        from core import kv as _kv_mod
+        _kv_mod.set_json(f"budgets:{company_id}", budgets)
+        return
     _write_json(budgets_path(company_id), budgets)
 
 

@@ -35,6 +35,15 @@ def append(
         subject=subject,
         details=details or {},
     ))
+    from core import kv as _kv_mod
+    if _kv_mod.is_enabled():
+        _kv_mod.rpush_json(f"activity:{company_id}", entry)
+        # Trim to last 1000 entries to keep KV usage modest
+        n = _kv_mod.llen(f"activity:{company_id}")
+        if n > 1000:
+            _kv_mod.ltrim(f"activity:{company_id}", n - 1000, -1)
+        return entry
+
     p = log_path(company_id)
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "a", encoding="utf-8") as f:
@@ -49,26 +58,29 @@ def read(
     subject: Optional[str] = None,
 ) -> list:
     """Read most recent entries, newest first."""
-    p = log_path(company_id)
-    if not p.exists():
-        return []
-
-    # Read all lines — for 10K+ entries consider reverse-seeking, but JSONL
-    # append-only stays small in practice.
-    entries = []
-    with open(p, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except Exception:
-                continue
+    from core import kv as _kv_mod
+    if _kv_mod.is_enabled():
+        # Get the most-recent N entries from the tail of the list
+        entries = _kv_mod.lrange_json(f"activity:{company_id}", -limit, -1)
+    else:
+        p = log_path(company_id)
+        if not p.exists():
+            return []
+        entries = []
+        with open(p, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entries.append(json.loads(line))
+                except Exception:
+                    continue
+        entries = entries[-limit:]
 
     if kind:
         entries = [e for e in entries if e.get("kind") == kind]
     if subject:
         entries = [e for e in entries if e.get("subject") == subject]
 
-    return list(reversed(entries[-limit:]))
+    return list(reversed(entries))

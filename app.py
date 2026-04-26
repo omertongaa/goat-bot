@@ -717,6 +717,19 @@ async def core_set_budget(request: Request):
     return JSONResponse(budget)
 
 
+@app.get("/api/core/system")
+async def core_system_status():
+    """Shows whether durable state, AI, and Composio are configured.
+    Used by the Board to render setup banners."""
+    from core import kv as _kv
+    return JSONResponse({
+        "kv_enabled": _kv.is_enabled(),
+        "anthropic_configured": bool(os.getenv("ANTHROPIC_API_KEY", "").strip()),
+        "composio_configured": bool(os.getenv("COMPOSIO_API_KEY", "").strip()),
+        "vercel": bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV")),
+    })
+
+
 @app.get("/api/core/dashboard")
 async def core_dashboard_summary():
     cid = core_store.active_company_id()

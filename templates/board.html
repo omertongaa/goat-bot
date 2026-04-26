@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>goat · Board</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f97316'/%3E%3Ctext x='50' y='72' font-family='Inter, sans-serif' font-size='62' font-weight='800' text-anchor='middle' fill='white'%3Eg%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 <style>
 :root {
   --bg: #09090b;
@@ -410,6 +412,33 @@ main { display: flex; flex-direction: column; overflow: hidden; background: var(
 .card.card-in_progress { border-left: 2px solid var(--blue); }
 .card.card-completed { opacity: 0.75; }
 
+.setup-banner {
+  margin: 12px 20px 0;
+  padding: 12px 16px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.setup-banner .icon { font-size: 22px; flex-shrink: 0; }
+.setup-banner strong { color: var(--text); }
+.setup-banner code {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+.setup-banner.error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .empty {
   padding: 40px 14px;
   text-align: center;
@@ -749,6 +778,42 @@ aside.right {
   color: var(--text);
   border-bottom-right-radius: 3px;
 }
+.ceo-msg .bubble.md { line-height: 1.55; }
+.ceo-msg .bubble.md h1,
+.ceo-msg .bubble.md h2,
+.ceo-msg .bubble.md h3 { font-size: 13px; font-weight: 700; margin: 8px 0 4px; color: var(--text); letter-spacing: -0.01em; }
+.ceo-msg .bubble.md h1:first-child,
+.ceo-msg .bubble.md h2:first-child,
+.ceo-msg .bubble.md h3:first-child { margin-top: 0; }
+.ceo-msg .bubble.md p { margin: 4px 0; }
+.ceo-msg .bubble.md ul,
+.ceo-msg .bubble.md ol { padding-left: 20px; margin: 4px 0; }
+.ceo-msg .bubble.md li { margin: 2px 0; }
+.ceo-msg .bubble.md strong { font-weight: 600; color: var(--text); }
+.ceo-msg .bubble.md em { color: var(--text-2); }
+.ceo-msg .bubble.md code {
+  background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent);
+}
+.ceo-msg .bubble.md pre {
+  background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 5px;
+  overflow-x: auto; margin: 6px 0;
+}
+.ceo-msg .bubble.md pre code { background: none; color: var(--text-2); padding: 0; }
+.ceo-msg .bubble.md table {
+  width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px;
+}
+.ceo-msg .bubble.md th,
+.ceo-msg .bubble.md td {
+  border: 1px solid var(--border); padding: 4px 7px; text-align: left;
+}
+.ceo-msg .bubble.md th { background: rgba(0,0,0,0.25); font-weight: 600; }
+.ceo-msg .bubble.md hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.ceo-msg .bubble.md blockquote {
+  border-left: 2px solid var(--accent); padding-left: 8px;
+  color: var(--text-2); margin: 6px 0;
+}
+.ceo-msg .bubble.md a { color: var(--accent); text-decoration: underline; }
 .ceo-actions {
   margin-top: 6px;
   display: flex;
@@ -899,6 +964,7 @@ aside.right {
         <button class="header-tool" onclick="openCompanyModal()">＋ Yeni şirket</button>
       </div>
     </div>
+    <div id="setupBanner" class="setup-banner" style="display:none;"></div>
     <div class="board" id="board"></div>
   </main>
 
@@ -978,19 +1044,48 @@ async function loadDashboard() {
   const btn = document.getElementById('refreshBtn');
   if (btn) btn.innerHTML = '<span class="spinning">↻</span> Yenile';
   try {
-    const [dash, companies, agents] = await Promise.all([
+    const [dash, companies, agents, system] = await Promise.all([
       fetch('/api/core/dashboard').then(r => r.json()),
       fetch('/api/core/companies').then(r => r.json()),
       fetch('/api/core/agents').then(r => r.json()),
+      fetch('/api/core/system').then(r => r.json()),
     ]);
     STATE.dashboard = dash;
     STATE.companies = companies.companies || [];
     STATE.agents = agents.agents || [];
+    STATE.system = system;
+    renderBanner(system);
     renderCompanies(companies.active);
     renderAgents(STATE.agents);
     renderMain(dash);
   } catch (e) { console.error(e); }
   finally { if (btn) btn.innerHTML = '↻ Yenile'; }
+}
+
+function renderBanner(sys) {
+  const el = document.getElementById('setupBanner');
+  if (!el) return;
+  // Show critical durable-state warning on Vercel without KV
+  if (sys.vercel && !sys.kv_enabled) {
+    el.className = 'setup-banner error';
+    el.innerHTML = `
+      <div class="icon">⚠️</div>
+      <div>
+        <strong>Durable state kapalı.</strong> Şu an Vercel ephemeral filesystem'de çalışıyorsun — cold start sonrası tüm ticket / goal / activity silinir.<br>
+        Çözüm: Local terminal'de bir kez <code>vercel integration add upstash/upstash-kv</code> çalıştır (≈30sn). Ardından <code>vercel deploy --prod</code>.
+      </div>
+    `;
+    el.style.display = '';
+  } else if (!sys.anthropic_configured) {
+    el.className = 'setup-banner';
+    el.innerHTML = `
+      <div class="icon">🤖</div>
+      <div><strong>CEO sınırlı modda.</strong> Anthropic API key ayarlı değil → CEO sadece keyword matcher kullanıyor. <code>ANTHROPIC_API_KEY</code> env'e ekle.</div>
+    `;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 const CATEGORY_LABELS = {
@@ -1568,9 +1663,12 @@ async function sendCEO() {
       const icon = tc.ok ? '⚡' : '✕';
       return `<span class="${cls}" title="${escapeHtml(JSON.stringify(tc.input || {}))}">${icon} ${escapeHtml(tc.name)}</span>`;
     }).join('');
+    const md = (typeof marked !== 'undefined' && data.response)
+      ? marked.parse(data.response, { breaks: true, gfm: true })
+      : escapeHtml(data.response || '');
     ceoEl.innerHTML = `
       <div class="who">CEO</div>
-      <div class="bubble">${escapeHtml(data.response || '')}</div>
+      <div class="bubble md">${md}</div>
       ${(acts || tools) ? `<div class="ceo-actions">${tools}${acts}</div>` : ''}
     `;
     log.appendChild(ceoEl);

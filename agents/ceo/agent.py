@@ -99,9 +99,9 @@ class CEOAgent(BaseAgent):
         company = store.load_company(company_id) or {}
         state = self._snapshot(company_id)
 
-        reply_text, actions = (None, [])
+        reply_text, actions, tool_calls = (None, [], [])
         if os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE:
-            reply_text, actions = self._chat_with_anthropic_api(message, history, company, state)
+            reply_text, actions, tool_calls = self._chat_with_anthropic_api(message, history, company, state)
         if reply_text is None:
             reply_text, actions = self._chat_with_claude(message, history, company, state)
         if reply_text is None:
@@ -135,15 +135,30 @@ class CEOAgent(BaseAgent):
             "response": reply_text,
             "actions": actions,
             "executed": executed,
+            "tool_calls": tool_calls,
             "state_snapshot": state,
         }
 
     def _chat_with_anthropic_api(self, message: str, history: list, company: dict, state: dict):
-        """Direct Anthropic API call with prompt caching on the system prompt."""
-        try:
-            client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+        """Direct Anthropic API call with prompt caching + agentic tool-use loop.
 
-            # Build messages from history (alternating user/assistant)
+        If the company has Composio connections (Gmail, Slack, etc.), tool
+        schemas are passed in and the model can actually invoke real-world
+        actions. We loop until the model stops emitting tool_use blocks
+        (capped at MAX_TOOL_STEPS to prevent runaway loops).
+        """
+        try:
+            client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+
+            # Pull tools for the user's connected Composio apps
+            company_id = company.get("id") or "default"
+            tools = []
+            try:
+                from services import composio_tools as _ct
+                tools = _ct.tools_for_anthropic(user_id=company_id)
+            except Exception:
+                tools = []
+
             messages = []
             for h in history[-12:]:
                 role = "user" if h.get("role") == "user" else "assistant"
@@ -152,7 +167,6 @@ class CEOAgent(BaseAgent):
                     messages.append({"role": role, "content": content})
             messages.append({"role": "user", "content": message})
 
-            # Compose system blocks; cache the static prompt
             company_brief = json.dumps({
                 "company": {
                     "name": company.get("name"),
@@ -161,39 +175,82 @@ class CEOAgent(BaseAgent):
                     "target_industries": company.get("target_industries", []),
                 },
                 "state": state,
+                "connected_apps": [t["name"] for t in tools] if tools else [],
             }, ensure_ascii=False)
             system_blocks = [
-                {
-                    "type": "text",
-                    "text": CEO_SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                },
+                {"type": "text", "text": CEO_SYSTEM_PROMPT,
+                 "cache_control": {"type": "ephemeral"}},
                 {"type": "text", "text": "GÜNCEL DURUM:\n" + company_brief},
             ]
 
             model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
-            resp = client.messages.create(
-                model=model,
-                max_tokens=1024,
-                system=system_blocks,
-                messages=messages,
-            )
 
-            # Track cost
-            try:
-                from core.cost_tracker import record
-                u = resp.usage
-                record("claude.token_in", units=getattr(u, "input_tokens", 0))
-                record("claude.token_out", units=getattr(u, "output_tokens", 0))
-            except Exception:
-                pass
+            # Agentic loop — stops when model returns end_turn (no tool_use)
+            MAX_TOOL_STEPS = 6
+            tool_calls: list = []  # for UI: [{name, ok, input, error?}]
+            final_text = ""
 
-            full = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-            if not full:
-                return None, []
-            return self._parse_response(full)
+            for step in range(MAX_TOOL_STEPS):
+                kwargs = {
+                    "model": model,
+                    "max_tokens": 1024,
+                    "system": system_blocks,
+                    "messages": messages,
+                }
+                if tools:
+                    kwargs["tools"] = tools
+
+                resp = client.messages.create(**kwargs)
+
+                # Track cost per step
+                try:
+                    from core.cost_tracker import record
+                    u = resp.usage
+                    record("claude.token_in", units=getattr(u, "input_tokens", 0))
+                    record("claude.token_out", units=getattr(u, "output_tokens", 0))
+                except Exception:
+                    pass
+
+                # Collect text + tool_use blocks
+                step_text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+                if step_text:
+                    final_text = step_text  # last non-empty text wins
+
+                tool_uses = [b for b in resp.content if getattr(b, "type", "") == "tool_use"]
+                if not tool_uses or resp.stop_reason != "tool_use":
+                    break
+
+                # Append assistant turn (must include all blocks verbatim)
+                messages.append({"role": "assistant", "content": [_block_to_dict(b) for b in resp.content]})
+
+                # Execute every tool_use, build matching tool_result blocks
+                from services import composio_tools as _ct
+                tool_results = []
+                for tu in tool_uses:
+                    name = tu.name
+                    args = tu.input or {}
+                    res = _ct.execute_tool(name, user_id=company_id, arguments=args)
+                    tool_calls.append({
+                        "name": name,
+                        "ok": res.get("ok", False),
+                        "input": args,
+                        "error": res.get("error"),
+                    })
+                    payload = res.get("data") if res.get("ok") else {"error": res.get("error", "failed")}
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": json.dumps(payload, ensure_ascii=False)[:8000],
+                        "is_error": not res.get("ok", False),
+                    })
+                messages.append({"role": "user", "content": tool_results})
+
+            if not final_text:
+                return None, [], tool_calls
+            text, actions = self._parse_response(final_text)
+            return text, actions, tool_calls
         except Exception:
-            return None, []
+            return None, [], []
 
     # ── Internals ─────────────────────────────────────────────────────
 
@@ -455,6 +512,22 @@ def _extract_num(text: str) -> Optional[int]:
 
 def _matches(text: str, keywords: list) -> bool:
     return any(k in text for k in keywords)
+
+
+def _block_to_dict(block) -> dict:
+    """Serialize an Anthropic content block back to the JSON format that
+    /v1/messages accepts on subsequent turns (text or tool_use)."""
+    btype = getattr(block, "type", None)
+    if btype == "text":
+        return {"type": "text", "text": getattr(block, "text", "")}
+    if btype == "tool_use":
+        return {
+            "type": "tool_use",
+            "id": block.id,
+            "name": block.name,
+            "input": block.input or {},
+        }
+    return {"type": "text", "text": ""}
 
 
 def _looks_like_real_id(value, prefix: str) -> bool:

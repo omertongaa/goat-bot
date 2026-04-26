@@ -766,6 +766,11 @@ aside.right {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
 }
+.ceo-actions .act-pill-err {
+  background: var(--red-soft);
+  border-color: rgba(239,68,68,0.35);
+  color: var(--red);
+}
 .ceo-typing {
   color: var(--dim);
   font-style: italic;
@@ -1558,10 +1563,15 @@ async function sendCEO() {
     const acts = (data.executed || []).filter(e => e.ok).map(e =>
       `<span class="act-pill">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 10) : ''}</span>`
     ).join('');
+    const tools = (data.tool_calls || []).map(tc => {
+      const cls = tc.ok ? 'act-pill' : 'act-pill act-pill-err';
+      const icon = tc.ok ? '⚡' : '✕';
+      return `<span class="${cls}" title="${escapeHtml(JSON.stringify(tc.input || {}))}">${icon} ${escapeHtml(tc.name)}</span>`;
+    }).join('');
     ceoEl.innerHTML = `
       <div class="who">CEO</div>
       <div class="bubble">${escapeHtml(data.response || '')}</div>
-      ${acts ? `<div class="ceo-actions">${acts}</div>` : ''}
+      ${(acts || tools) ? `<div class="ceo-actions">${tools}${acts}</div>` : ''}
     `;
     log.appendChild(ceoEl);
     log.scrollTop = log.scrollHeight;

@@ -888,6 +888,7 @@ async def core_ceo_chat(request: Request):
         "response": result.get("response", ""),
         "actions": result.get("actions", []),
         "executed": result.get("executed", []),
+        "tool_calls": result.get("tool_calls", []),
         "state": result.get("state_snapshot", {}),
     })
 

@@ -98,6 +98,8 @@ class Ticket:
     completed_at: Optional[str] = None
     # Freeform error message if status == "failed"
     error: Optional[str] = None
+    # Step-by-step log lines from agent.run_log — exposed in drawer
+    run_log: list = field(default_factory=list)
 
 
 @dataclass

@@ -144,18 +144,31 @@ def _execute_existing_ticket(company_id: str, ticket: dict, agent, run_params: d
         ticket["artifacts"] = result.get("artifacts", [])
         ticket["cost_usd"] = ctx.total_usd()
         ticket["cost_breakdown"] = ctx.breakdown()
+        if hasattr(agent, "run_log"):
+            ticket["run_log"] = list(agent.run_log)
 
         if ctx.total_usd() > 0:
             store.add_spend(company_id, ticket["agent_id"], ctx.total_usd())
 
-        if ticket.get("needs_approval") or result.get("needs_approval"):
+        agent_says_review = bool(result.get("needs_approval"))
+        require_review = agent_runtime._should_require_approval(
+            company_id, ticket["agent_id"], agent_says_review
+        ) and (ticket.get("needs_approval") or agent_says_review)
+        if require_review:
             ticket["needs_approval"] = True
             agent_runtime._transition(ticket, "needs_review", actor="heartbeat")
         else:
+            ticket["needs_approval"] = False
             status = "completed" if result.get("status") != "error" else "failed"
             if status == "failed":
                 ticket["error"] = result.get("summary", "Agent reported error")
             agent_runtime._transition(ticket, status, actor="heartbeat")
+            action = (ticket.get("result") or {}).get("approval_action")
+            if action and status == "completed":
+                try:
+                    agent_runtime._execute_approval_action(company_id, ticket, action)
+                except Exception:
+                    pass
 
     except Exception as e:
         ticket["error"] = f"{type(e).__name__}: {e}"

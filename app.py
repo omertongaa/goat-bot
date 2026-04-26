@@ -633,6 +633,14 @@ async def core_approve_ticket(ticket_id: str):
     t = core_runtime.approve(cid, ticket_id)
     if not t:
         return JSONResponse({"error": "not found"}, status_code=404)
+    # After approval, immediately advance the system — pick up downstream
+    # tickets that may have been waiting on this approval
+    import asyncio
+    try:
+        from core import heartbeat as _hb
+        await asyncio.to_thread(_hb.tick, company_id=cid)
+    except Exception:
+        pass
     return JSONResponse(t)
 
 
@@ -675,6 +683,36 @@ async def core_create_goal(request: Request):
     return JSONResponse(goal)
 
 
+@app.get("/api/core/goals/{goal_id}/progress")
+async def core_goal_progress(goal_id: str):
+    """Goal'un ticket'ları arasında ilerleme oranı."""
+    cid = core_store.active_company_id()
+    tickets = core_store.list_tickets(cid, goal_id=goal_id)
+    if not tickets:
+        return JSONResponse({"goal_id": goal_id, "total": 0, "completed": 0,
+                             "in_progress": 0, "needs_review": 0, "failed": 0,
+                             "percent": 0, "tickets": []})
+    counts = {"completed": 0, "approved": 0, "in_progress": 0, "needs_review": 0,
+              "failed": 0, "paused_budget": 0, "pending": 0}
+    for t in tickets:
+        s = t.get("status", "pending")
+        counts[s] = counts.get(s, 0) + 1
+    done = counts["completed"] + counts["approved"]
+    total = len(tickets)
+    return JSONResponse({
+        "goal_id": goal_id,
+        "total": total,
+        "completed": done,
+        "in_progress": counts["in_progress"],
+        "needs_review": counts["needs_review"],
+        "failed": counts["failed"] + counts["paused_budget"],
+        "pending": counts["pending"],
+        "percent": round(100 * done / total) if total else 0,
+        "tickets": [{"id": t["id"], "status": t.get("status"), "agent_id": t.get("agent_id"),
+                     "title": t.get("title", "")} for t in tickets],
+    })
+
+
 @app.post("/api/core/goals/{goal_id}/plan")
 async def core_plan_goal(goal_id: str):
     from core import planner
@@ -684,6 +722,13 @@ async def core_plan_goal(goal_id: str):
         return JSONResponse({"error": "not found"}, status_code=404)
     plan = planner.plan_goal(cid, goal)
     tickets = planner.materialize_plan(cid, goal_id, plan)
+    # Kick heartbeat so plan tickets start running immediately
+    import asyncio
+    try:
+        from core import heartbeat as _hb
+        await asyncio.to_thread(_hb.tick, company_id=cid)
+    except Exception:
+        pass
     return JSONResponse({"goal_id": goal_id, "plan": plan,
                          "tickets": [{"id": t["id"], "agent_id": t["agent_id"], "title": t["title"]} for t in tickets]})
 
@@ -717,16 +762,40 @@ async def core_set_budget(request: Request):
     return JSONResponse(budget)
 
 
+@app.post("/api/core/work_mode")
+async def core_set_work_mode(request: Request):
+    """Switch the active company's work mode: manual / auto / beast."""
+    body = await request.json()
+    mode = (body.get("mode") or "auto").lower()
+    if mode not in ("manual", "auto", "beast"):
+        return JSONResponse({"error": "mode must be manual|auto|beast"}, status_code=400)
+    cid = core_store.active_company_id()
+    company = core_store.load_company(cid) or {}
+    settings = company.get("settings", {}) or {}
+    settings["work_mode"] = mode
+    company["settings"] = settings
+    company["id"] = cid
+    if not company.get("name"):
+        company["name"] = cid.title()
+    core_store.save_company(company)
+    core_activity.append(cid, "work_mode_changed", actor="user", subject=f"mode:{mode}",
+                         details={"mode": mode})
+    return JSONResponse({"ok": True, "mode": mode})
+
+
 @app.get("/api/core/system")
 async def core_system_status():
-    """Shows whether durable state, AI, and Composio are configured.
-    Used by the Board to render setup banners."""
+    """Shows whether durable state, AI, Composio are configured + work mode."""
     from core import kv as _kv
+    cid = core_store.active_company_id()
+    company = core_store.load_company(cid) or {}
+    settings = company.get("settings", {}) or {}
     return JSONResponse({
         "kv_enabled": _kv.is_enabled(),
         "anthropic_configured": bool(os.getenv("ANTHROPIC_API_KEY", "").strip()),
         "composio_configured": bool(os.getenv("COMPOSIO_API_KEY", "").strip()),
         "vercel": bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV")),
+        "work_mode": settings.get("work_mode") or "auto",
     })
 
 
@@ -743,17 +812,32 @@ async def core_dashboard_summary():
             "id": t["id"], "title": t.get("title", ""), "agent_id": t.get("agent_id", ""),
             "cost_usd": t.get("cost_usd", 0.0), "created_at": t.get("created_at", ""),
             "needs_approval": t.get("needs_approval", False),
+            "goal_id": t.get("goal_id"),
+            "error": (t.get("error") or "")[:160] if s in ("failed", "paused_budget") else "",
         })
         c = float(t.get("cost_usd", 0.0) or 0.0)
         total_cost += c
         aid = t.get("agent_id", "unknown")
         cost_by_agent[aid] = round(cost_by_agent.get(aid, 0.0) + c, 4)
+    # Add per-goal progress so sidebar can render bars without N+1 calls
+    active_goals = core_store.list_goals(cid, status="active")
+    for g in active_goals:
+        gtickets = [t for t in tickets if t.get("goal_id") == g["id"]]
+        if not gtickets:
+            g["progress"] = {"total": 0, "completed": 0, "percent": 0}
+            continue
+        done = sum(1 for t in gtickets if t.get("status") in ("completed", "approved"))
+        g["progress"] = {
+            "total": len(gtickets), "completed": done,
+            "percent": round(100 * done / len(gtickets)) if gtickets else 0,
+        }
+
     return JSONResponse({
         "company_id": cid,
         "company": core_store.load_company(cid),
         "counts": {k: len(v) for k, v in by_status.items()},
         "tickets_by_status": by_status,
-        "goals": core_store.list_goals(cid, status="active"),
+        "goals": active_goals,
         "budgets": core_store.load_budgets(cid),
         "activity": core_activity.read(cid, limit=40),
         "totals": {"cost_usd": round(total_cost, 4), "cost_by_agent": cost_by_agent,
@@ -877,14 +961,22 @@ async def core_ceo_chat(request: Request):
     cid = core_store.active_company_id()
     history = CEO_HISTORIES.setdefault(cid, [])
 
-    # Inject keys like the regular run endpoint
+    # Inject keys from the active company's profile (works on Vercel where
+    # /data/config/user_profile.json doesn't exist) plus legacy single-file config
+    company = core_store.load_company(cid) or {}
+    company_keys = company.get("api_keys", {}) or {}
     cfg = load_config()
     for src, dst in [
         ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
         ("instantly_api_key", "INSTANTLY_API_KEY"),
+        ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+        ("composio_api_key", "COMPOSIO_API_KEY"),
+        ("scraper_actor", "SCRAPER_ACTOR"),
+        ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
     ]:
-        if cfg.get(src):
-            os.environ[dst] = cfg[src]
+        v = company_keys.get(src) or cfg.get(src)
+        if v:
+            os.environ[dst] = v
 
     import asyncio
     def _run():
@@ -896,6 +988,20 @@ async def core_ceo_chat(request: Request):
     history.append({"role": "assistant", "content": result.get("response", "")})
     if len(history) > CEO_MAX_HISTORY * 2:
         CEO_HISTORIES[cid] = history[-CEO_MAX_HISTORY * 2:]
+
+    # Auto-execution: if CEO created any tickets, kick the heartbeat
+    # immediately so user sees agents starting work right away (not waiting
+    # for the hourly cron).
+    created_ticket = any(
+        e.get("ok") and e.get("kind") in ("create_ticket", "plan_goal")
+        for e in (result.get("executed") or [])
+    )
+    if created_ticket:
+        try:
+            from core import heartbeat as _hb
+            await asyncio.to_thread(_hb.tick, company_id=cid)
+        except Exception:
+            pass
 
     return JSONResponse({
         "response": result.get("response", ""),
@@ -925,6 +1031,45 @@ async def core_heartbeat_tick():
     import asyncio
     summary = await asyncio.to_thread(core_heartbeat.tick)
     return JSONResponse(summary)
+
+
+@app.get("/api/cron/heartbeat")
+async def cron_heartbeat(request: Request):
+    """Triggered by Vercel Cron every 2 minutes. Vercel adds an
+    Authorization: Bearer ${CRON_SECRET} header automatically when
+    CRON_SECRET env is set on the project."""
+    secret = os.getenv("CRON_SECRET", "").strip()
+    if secret:
+        auth = request.headers.get("authorization", "")
+        if auth != f"Bearer {secret}":
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
+    # Inject company API keys into env per-company before each tick so
+    # agents that depend on Apify/fal/etc. can run autonomously
+    from core import heartbeat as core_heartbeat, store as _store
+    import asyncio
+
+    def _tick_all():
+        results = []
+        for company in _store.list_companies():
+            cid = company.get("id")
+            keys = company.get("api_keys", {}) or {}
+            for src, dst in [
+                ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+                ("instantly_api_key", "INSTANTLY_API_KEY"),
+                ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+                ("composio_api_key", "COMPOSIO_API_KEY"),
+                ("scraper_actor", "SCRAPER_ACTOR"),
+                ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
+            ]:
+                v = keys.get(src) if isinstance(keys, dict) else None
+                if v:
+                    os.environ[dst] = v
+            results.append({"company": cid, **core_heartbeat.tick(company_id=cid)})
+        return results
+
+    summary = await asyncio.to_thread(_tick_all)
+    return JSONResponse({"ok": True, "ticks": summary, "at": datetime.now().isoformat()})
 
 
 # ═══════════════════════════════════════════

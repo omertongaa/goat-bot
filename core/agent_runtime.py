@@ -25,14 +25,30 @@ from core.models import Ticket, now_iso, new_id, to_dict
 
 
 # Agents whose run produces external side-effects (sending emails, posting to
-# social, uploading videos, spending on ad platforms). Tickets for these are
-# auto-flagged needs_approval=True — the user must approve in the board before
-# side-effects fire. Individual agents may additionally set
-# needs_approval via their returned dict for finer control.
+# social, uploading videos, spending on ad platforms).
 MUTATION_AGENTS = {
     "outreach", "social", "admanager", "youtube", "videomaker", "videoproducer",
     "instagramdm",
 }
+
+# Work modes determine auto-approval behavior:
+#   manual — every ticket needs approval (even non-mutation)
+#   auto   — only MUTATION_AGENTS need approval (default)
+#   beast  — nothing needs approval; system runs continuously
+def _company_work_mode(company_id: str) -> str:
+    company = store.load_company(company_id) or {}
+    settings = company.get("settings", {}) or {}
+    return (settings.get("work_mode") or "auto").lower()
+
+
+def _should_require_approval(company_id: str, agent_id: str, agent_says_yes: bool) -> bool:
+    mode = _company_work_mode(company_id)
+    if mode == "beast":
+        return False
+    if mode == "manual":
+        return True
+    # auto: mutation agents always, non-mutation only if agent itself asks
+    return agent_id in MUTATION_AGENTS or agent_says_yes
 
 
 def create_ticket(
@@ -55,7 +71,7 @@ def create_ticket(
         goal_id=goal_id,
         parent_ticket_id=parent_ticket_id,
         params=params or {},
-        needs_approval=needs_approval or (agent_id in MUTATION_AGENTS),
+        needs_approval=_should_require_approval(company_id, agent_id, needs_approval),
     ))
     store.save_ticket(t)
     activity_log.append(
@@ -129,6 +145,10 @@ def execute_in_ticket(
         ticket["artifacts"] = result.get("artifacts", [])
         ticket["cost_usd"] = ctx.total_usd()
         ticket["cost_breakdown"] = ctx.breakdown()
+        # Capture agent's step-by-step log for drawer Agent Logs tab
+        agent_obj = getattr(run_fn, "__self__", None)
+        if agent_obj is not None and hasattr(agent_obj, "run_log"):
+            ticket["run_log"] = list(agent_obj.run_log)
 
         # Update budget spend (if budget exists for this agent)
         if ctx.total_usd() > 0:
@@ -139,15 +159,28 @@ def execute_in_ticket(
                     details={"agent_id": agent_id, "budget": updated},
                 )
 
-        # Approval gate or terminal success
-        if ticket.get("needs_approval") or result.get("needs_approval"):
+        # Approval gate or terminal success — gated by work mode
+        agent_says_review = bool(result.get("needs_approval"))
+        require_review = _should_require_approval(company_id, agent_id, agent_says_review) and (
+            ticket.get("needs_approval") or agent_says_review
+        )
+        if require_review:
             ticket["needs_approval"] = True
             _transition(ticket, "needs_review")
         else:
+            # Beast mode: even mutation agents auto-approve
+            ticket["needs_approval"] = False
             final_status = "completed" if result.get("status") != "error" else "failed"
             if final_status == "failed":
                 ticket["error"] = result.get("summary", "Agent reported error status")
             _transition(ticket, final_status)
+            # If there's an approval action, fire it now (beast mode)
+            action = (ticket.get("result") or {}).get("approval_action")
+            if action and final_status == "completed":
+                try:
+                    _execute_approval_action(company_id, ticket, action)
+                except Exception:
+                    pass
 
     except Exception as e:
         ticket["error"] = f"{type(e).__name__}: {e}"

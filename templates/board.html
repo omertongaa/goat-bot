@@ -120,6 +120,33 @@ header {
 .header-tool:hover { border-color: var(--dim); color: var(--text); }
 .header-tool.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .header-tool.primary:hover { background: #ea580c; border-color: #ea580c; }
+
+.mode-switch {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 1px;
+  margin-right: 4px;
+}
+.mode-switch button {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  border-radius: 4px;
+  transition: all 0.12s;
+}
+.mode-switch button:hover { color: var(--text); }
+.mode-switch button.active {
+  color: var(--text);
+  background: var(--surface-3);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.mode-switch button[data-mode="manual"].active { color: var(--blue); }
+.mode-switch button[data-mode="auto"].active { color: var(--accent); }
+.mode-switch button[data-mode="beast"].active { color: var(--red); }
 header select {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -187,6 +214,11 @@ aside.left {
 .goal-item:hover { border-color: var(--border); background: var(--surface-3); }
 .goal-item .title { font-size: 12px; font-weight: 500; margin-bottom: 3px; line-height: 1.3; }
 .goal-item .metric { font-size: 10.5px; color: var(--dim); font-weight: 500; }
+.goal-item .prog-bar { height: 3px; background: var(--surface-3); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.goal-item .prog-bar .fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s; }
+.goal-item .prog-meta { font-size: 9.5px; color: var(--dim); margin-top: 4px; display: flex; justify-content: space-between; }
+.goal-item.active { box-shadow: 0 0 0 2px var(--accent); }
+.col .card.dim { opacity: 0.25; }
 
 .agent-item {
   display: flex; align-items: center; gap: 8px;
@@ -411,6 +443,20 @@ main { display: flex; flex-direction: column; overflow: hidden; background: var(
 .card.card-approved { border-left: 2px solid var(--green); }
 .card.card-in_progress { border-left: 2px solid var(--blue); }
 .card.card-completed { opacity: 0.75; }
+.card .err {
+  font-size: 10.5px;
+  color: var(--red);
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 4px;
+  border-left: 2px solid var(--red);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
 
 .setup-banner {
   margin: 12px 20px 0;
@@ -915,6 +961,11 @@ aside.right {
       <a class="nav-tab" href="/classic">Classic</a>
     </div>
     <div class="spacer"></div>
+    <div class="mode-switch">
+      <button data-mode="manual" onclick="setWorkMode('manual')" title="Her ticket için onay iste">🛡 Manual</button>
+      <button data-mode="auto" onclick="setWorkMode('auto')" title="Sadece email/sosyal/video gibi mutation aksiyonları onay ister" class="active">⚡ Auto</button>
+      <button data-mode="beast" onclick="setWorkMode('beast')" title="Hiçbir onay sorma — sürekli çalış">🔥 Beast</button>
+    </div>
     <select id="companySelect" onchange="switchCompany()"></select>
     <button class="header-tool" onclick="runHeartbeat()" title="Heartbeat'i şimdi tetikle">⏱ Heartbeat</button>
     <button class="header-tool primary" onclick="loadDashboard()" id="refreshBtn">↻ Yenile</button>
@@ -1062,7 +1113,25 @@ async function loadDashboard() {
   finally { if (btn) btn.innerHTML = '↻ Yenile'; }
 }
 
+function renderModeSwitch(mode) {
+  const buttons = document.querySelectorAll('.mode-switch button');
+  buttons.forEach(b => b.classList.toggle('active', b.dataset.mode === (mode || 'auto')));
+}
+
+async function setWorkMode(mode) {
+  const r = await fetch('/api/core/work_mode', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode}),
+  });
+  if (r.ok) {
+    renderModeSwitch(mode);
+    // Auto-tick if switching to beast — picks up any pending review tickets
+    if (mode === 'beast') runHeartbeat();
+  }
+}
+
 function renderBanner(sys) {
+  if (sys.work_mode) renderModeSwitch(sys.work_mode);
   const el = document.getElementById('setupBanner');
   if (!el) return;
   // Show critical durable-state warning on Vercel without KV
@@ -1328,6 +1397,9 @@ function renderMain(dash) {
       const card = document.createElement('div');
       card.className = `card card-${col.id}`;
       card.onclick = () => openTicket(t.id);
+      card.dataset.tid = t.id;
+      card.dataset.gid = t.goal_id || '';
+      const errBlock = t.error ? `<div class="err" title="${escapeHtml(t.error)}">⚠ ${escapeHtml(t.error)}</div>` : '';
       card.innerHTML = `
         <div class="title">${escapeHtml(t.title || t.id)}</div>
         <div class="row">
@@ -1337,6 +1409,7 @@ function renderMain(dash) {
           </span>
           <span class="cost ${cost ? '' : 'zero'}">${cost || '—'}</span>
         </div>
+        ${errBlock}
       `;
       body.appendChild(card);
     }
@@ -1351,15 +1424,30 @@ function renderMain(dash) {
   gl.innerHTML = '';
   for (const g of (dash.goals || [])) {
     const el = document.createElement('div');
-    el.className = 'goal-item';
-    el.onclick = () => planGoal(g.id);
+    el.className = 'goal-item' + (STATE.activeGoalId === g.id ? ' active' : '');
+    el.onclick = () => toggleGoalFocus(g.id);
+    el.ondblclick = () => planGoal(g.id);
+    const p = g.progress || {total: 0, completed: 0, percent: 0};
+    const meta = p.total
+      ? `<div class="prog-bar"><div class="fill" style="width:${p.percent}%"></div></div>
+         <div class="prog-meta"><span>${p.completed}/${p.total} ticket</span><span>%${p.percent}</span></div>`
+      : `<div class="prog-meta"><span style="color:var(--dim);">Henüz plan yok — çift tık ile planla</span></div>`;
     el.innerHTML = `
       <div class="title">${escapeHtml(g.title)}</div>
       <div class="metric">${escapeHtml(g.target_metric || '—')}</div>
+      ${meta}
     `;
     gl.appendChild(el);
   }
   if (!(dash.goals || []).length) gl.innerHTML = '<div class="empty" style="padding:14px 8px;">Henüz hedef yok</div>';
+
+  // Apply goal focus dimming on board cards
+  if (STATE.activeGoalId) {
+    document.querySelectorAll('.col .card').forEach(c => {
+      const matches = c.dataset.gid === STATE.activeGoalId;
+      c.classList.toggle('dim', !matches);
+    });
+  }
 
   // Budgets
   const bl = document.getElementById('budgetsList');
@@ -1445,6 +1533,11 @@ async function openTicket(id) {
         </div>`;
     }
 
+    const errorBlock = t.error ? `
+      <div style="margin-top:14px; padding:14px; border-radius:8px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3);">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--red); font-weight:700; margin-bottom:6px;">⚠ HATA</div>
+        <div style="font-size:12.5px; color:var(--text); line-height:1.5;">${escapeHtml(t.error)}</div>
+      </div>` : '';
     body.innerHTML = `
       <div class="chips">
         <span class="chip"><span class="agent-avatar" style="background:${AGENT_COLORS[t.agent_id] || '#64748b'};width:12px;height:12px;font-size:7px;">${(t.agent_id || '?').charAt(0)}</span>${escapeHtml(t.agent_id || '')}</span>
@@ -1452,6 +1545,7 @@ async function openTicket(id) {
         <span class="chip">${cost}</span>
         ${t.needs_approval ? '<span class="chip status-needs_review">onay gerekir</span>' : ''}
       </div>
+      ${errorBlock}
       ${actions}
       <h4>ID</h4>
       <pre>${t.id}</pre>
@@ -1461,6 +1555,11 @@ async function openTicket(id) {
       <pre>${escapeHtml(JSON.stringify(t.params || {}, null, 2))}</pre>
       <h4>Result</h4>
       <pre>${escapeHtml(JSON.stringify(t.result || {}, null, 2))}</pre>
+      <h4>Agent Logs</h4>
+      ${(t.run_log && t.run_log.length) ? `
+        <div style="font-family:'JetBrains Mono', monospace; font-size:11px; line-height:1.6; max-height:280px; overflow-y:auto; background:var(--bg); border:1px solid var(--border-soft); border-radius:6px; padding:8px 10px;">
+          ${t.run_log.map(l => `<div><span style="color:var(--dim);">${formatTime(l.time)}</span> · <span style="color:var(--text-2);">${escapeHtml(l.message)}</span></div>`).join('')}
+        </div>` : '<em style="color:var(--dim-2); font-size:11px;">Henüz log yok</em>'}
       <h4>Cost Breakdown</h4>
       <pre>${escapeHtml(breakdown)}</pre>
       <h4>Artifacts</h4>
@@ -1472,7 +1571,6 @@ async function openTicket(id) {
         <dt>completed</dt><dd>${t.completed_at || '—'}</dd>
         <dt>approved_by</dt><dd>${t.approved_by || '—'}</dd>
       </dl>
-      ${t.error ? `<h4>Hata</h4><pre style="color:var(--red);">${escapeHtml(t.error)}</pre>` : ''}
     `;
     drawer.classList.add('open');
   } catch (e) { console.error(e); }
@@ -1505,8 +1603,15 @@ async function rejectTicket(id) {
 async function planGoal(goalId) {
   const r = await fetch(`/api/core/goals/${goalId}/plan`, { method: 'POST' });
   const d = await r.json();
-  alert(`Plan oluşturuldu: ${(d.tickets || []).length} ticket yaratıldı. Board'da göreceksin.`);
+  if ((d.tickets || []).length) {
+    STATE.activeGoalId = goalId;
+  }
   loadDashboard();
+}
+
+function toggleGoalFocus(goalId) {
+  STATE.activeGoalId = STATE.activeGoalId === goalId ? null : goalId;
+  if (STATE.dashboard) renderMain(STATE.dashboard);
 }
 
 async function runHeartbeat() {

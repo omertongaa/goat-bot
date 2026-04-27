@@ -1614,10 +1614,33 @@ async function openTicket(id) {
 
     let actions = '';
     if (t.status === 'needs_review') {
+      // If the agent attached delivery channels (e.g. outreach with multiple
+      // send-via options), let the user pick which to use during approval.
+      const approvalAction = (t.result && t.result.approval_action) || {};
+      const channels = (approvalAction.preview && approvalAction.preview.channels) || [];
+      const hasChannels = Array.isArray(channels) && channels.length > 0;
+      const channelOptions = hasChannels ? `
+        <h4 style="margin-top:14px;">Hangi kanaldan göndereyim?</h4>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+          ${channels.map(c => `
+            <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface-2); border:1px solid var(--border-soft); border-radius:6px; cursor:${c.ready ? 'pointer' : 'not-allowed'}; opacity:${c.ready ? '1' : '0.5'};">
+              <input type="radio" name="dchan_${t.id}" value="${escapeHtml(c.kind)}" ${c.ready ? '' : 'disabled'} ${(c.ready && c.kind === 'instantly') ? 'checked' : ''}>
+              <span style="font-size:18px;">${c.icon || ''}</span>
+              <span style="flex:1;">${escapeHtml(c.label)}</span>
+              ${!c.ready ? '<span style="color:var(--yellow); font-size:10px;">⚠ kurulum gerek</span>' : ''}
+            </label>
+          `).join('')}
+        </div>
+      ` : '';
       actions = `
+        ${channelOptions}
         <div class="actions-row">
           <button class="btn primary" onclick="approveTicket('${t.id}')">✓ Onayla</button>
           <button class="btn danger" onclick="rejectTicket('${t.id}')">✕ Reddet</button>
+          ${hasChannels ? `
+            <button class="btn small" onclick="downloadCampaign('${t.id}', 'csv')">📥 CSV</button>
+            <button class="btn small" onclick="downloadCampaign('${t.id}', 'md')">📝 MD</button>
+          ` : ''}
         </div>`;
     }
 
@@ -1676,8 +1699,19 @@ function dotColor(status) {
 function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
 
 async function approveTicket(id) {
-  await fetch(`/api/core/tickets/${id}/approve`, { method: 'POST' });
+  // Pick the selected delivery channel (if any radios visible)
+  const radio = document.querySelector(`input[name="dchan_${id}"]:checked`);
+  const channel = radio ? radio.value : null;
+  await fetch(`/api/core/tickets/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(channel ? { channel } : {}),
+  });
   closeDrawer(); loadDashboard();
+}
+
+function downloadCampaign(ticketId, fmt) {
+  window.open(`/api/core/tickets/${ticketId}/export?format=${fmt}`, '_blank');
 }
 async function rejectTicket(id) {
   const reason = prompt('Red nedeni (opsiyonel):') || '';

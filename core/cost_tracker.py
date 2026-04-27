@@ -32,6 +32,7 @@ DEFAULT_PRICES = {
     # fal.ai
     "fal.image.sdxl": 0.025,
     "fal.image.flux": 0.05,
+    "fal.video.kling": 0.35,        # ~5s Kling 2 master video
 
     # ElevenLabs
     "elevenlabs.char": 0.00015,

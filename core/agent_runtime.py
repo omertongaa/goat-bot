@@ -252,7 +252,7 @@ def _execute_approval_action(company_id: str, ticket: dict, action: dict) -> Non
     kind = action.get("kind")
     if kind == "activate_campaign":
         from services.email import activate_campaign, get_api_key
-        campaign_id = action.get("campaign_id")
+        campaign_id = action.get("instantly_campaign_id") or action.get("campaign_id")
         config = store.load_company(company_id) or {}
         api_key = config.get("api_keys", {}).get("instantly_api_key") or get_api_key()
         if not (campaign_id and api_key):
@@ -263,6 +263,17 @@ def _execute_approval_action(company_id: str, ticket: dict, action: dict) -> Non
             "campaign_activated" if ok else "campaign_activation_failed",
             actor="system", subject=ticket["id"],
             details={"campaign_id": campaign_id},
+        )
+    elif kind == "deliver_campaign":
+        # No single tool wired — the user picked a delivery channel via UI.
+        # The frontend posts /api/core/tickets/{id}/deliver?channel=... after
+        # approval. Here we just log that approval was granted and channel
+        # selection is pending.
+        activity_log.append(
+            company_id, "campaign_awaiting_delivery", actor="system",
+            subject=ticket["id"],
+            details={"campaign_id": action.get("campaign_id"),
+                     "channels": action.get("preview", {}).get("channels", [])},
         )
 
 

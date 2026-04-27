@@ -27,8 +27,14 @@ class VideoProducerAgent(BaseAgent):
     # Kie.ai config
     KIE_API_URL = "https://api.kie.ai/api/v1/jobs"
     KIE_MODEL = "grok-imagine/text-to-video"
-    KIE_POLL_INTERVAL = 10  # seconds
-    KIE_MAX_POLLS = 60  # 10 minutes max
+    KIE_POLL_INTERVAL = 10
+    KIE_MAX_POLLS = 60
+
+    # fal.ai video — Kling 2 master is high-quality + reliable on fal queue
+    FAL_VIDEO_MODEL = "fal-ai/kling-video/v2/master/text-to-video"
+    FAL_QUEUE_BASE = "https://queue.fal.run"
+    FAL_POLL_INTERVAL = 8
+    FAL_MAX_POLLS = 75   # ~10 min
 
     # ElevenLabs config
     TTS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
@@ -182,6 +188,7 @@ Sadece JSON array döndür, başka metin yazma."""
 
         kie_key = os.environ.get("KIE_AI_API_KEY", "")
         elevenlabs_key = os.environ.get("ELEVENLABS_API_KEY", "")
+        fal_key = os.environ.get("FAL_KEY", "")
 
         if not kie_key:
             cfg = self.load_config()
@@ -189,6 +196,11 @@ Sadece JSON array döndür, başka metin yazma."""
         if not elevenlabs_key:
             cfg = self.load_config()
             elevenlabs_key = cfg.get("elevenlabs_api_key", "")
+        if not fal_key:
+            cfg = self.load_config()
+            fal_key = cfg.get("fal_key", "")
+        # Prefer fal.ai when available (single key drives image + video)
+        use_fal = bool(fal_key)
 
         self.log(f"Generating assets for {len(scenes)} scenes")
 
@@ -201,10 +213,11 @@ Sadece JSON array döndür, başka metin yazma."""
         tts_generated = 0
         tts_failed = 0
 
-        # Step 1: Generate videos via Kie.ai
-        if kie_key:
+        # Step 1: Generate videos
+        if use_fal or kie_key:
             video_scenes = [s for s in scenes if s.get("needsVideo", False) and s.get("videoPrompt")]
-            self.log(f"Generating {len(video_scenes)} videos via Kie.ai...")
+            provider = "fal.ai/kling" if use_fal else "Kie.ai"
+            self.log(f"Generating {len(video_scenes)} videos via {provider}...")
 
             # Batch in groups of 5
             for i in range(0, len(video_scenes), 5):
@@ -220,21 +233,33 @@ Sadece JSON array döndür, başka metin yazma."""
                         videos_generated += 1
                         continue
 
-                    task_id = self._create_kie_task(kie_key, scene["videoPrompt"])
+                    if use_fal:
+                        task_id = self._create_fal_video(fal_key, scene["videoPrompt"])
+                    else:
+                        task_id = self._create_kie_task(kie_key, scene["videoPrompt"])
                     if task_id:
                         task_ids.append({"task_id": task_id, "scene_id": scene_id})
-                        self.log(f"Scene {scene_id}: Kie.ai task created → {task_id}")
+                        self.log(f"Scene {scene_id}: {provider} task → {task_id[:24]}")
                     else:
                         videos_failed += 1
-                        self.log(f"Scene {scene_id}: Kie.ai task creation failed")
+                        self.log(f"Scene {scene_id}: {provider} task creation failed")
 
                 # Poll and download batch
                 for task in task_ids:
-                    video_url = self._poll_kie_task(kie_key, task["task_id"])
+                    if use_fal:
+                        video_url = self._poll_fal_task(fal_key, task["task_id"])
+                    else:
+                        video_url = self._poll_kie_task(kie_key, task["task_id"])
                     if video_url:
                         success = self._download_file(video_url, self.VIDEOS_DIR / f"v{task['scene_id']}.mp4")
                         if success:
                             videos_generated += 1
+                            try:
+                                from core.cost_tracker import record
+                                record("fal.video.kling" if use_fal else "kie.video.6s",
+                                       units=1, meta={"scene_id": task["scene_id"]})
+                            except Exception:
+                                pass
                             self.log(f"Scene {task['scene_id']}: Video downloaded ✓")
                         else:
                             videos_failed += 1
@@ -410,7 +435,57 @@ Sadece JSON array döndür, başka metin yazma."""
         }
 
     # ═══════════════════════════════════════
-    # HELPERS: Kie.ai
+    # HELPERS: fal.ai (text-to-video via Kling on queue)
+    # ═══════════════════════════════════════
+
+    def _create_fal_video(self, api_key, prompt):
+        """POST a job to fal.ai queue. Returns request_id."""
+        try:
+            resp = requests.post(
+                f"{self.FAL_QUEUE_BASE}/{self.FAL_VIDEO_MODEL}",
+                headers={"Authorization": f"Key {api_key}",
+                         "Content-Type": "application/json"},
+                json={"prompt": prompt, "duration": "5", "aspect_ratio": "16:9"},
+                timeout=30,
+            )
+            if resp.status_code in (200, 202):
+                return resp.json().get("request_id")
+            self.log(f"fal.ai error: {resp.status_code} — {resp.text[:200]}")
+            return None
+        except Exception as e:
+            self.log(f"fal.ai request failed: {e}")
+            return None
+
+    def _poll_fal_task(self, api_key, request_id):
+        """Poll fal.ai queue for completion. Returns video URL or None."""
+        import time
+        status_url = f"{self.FAL_QUEUE_BASE}/{self.FAL_VIDEO_MODEL}/requests/{request_id}/status"
+        result_url = f"{self.FAL_QUEUE_BASE}/{self.FAL_VIDEO_MODEL}/requests/{request_id}"
+        for _ in range(self.FAL_MAX_POLLS):
+            try:
+                r = requests.get(status_url,
+                                 headers={"Authorization": f"Key {api_key}"},
+                                 timeout=15)
+                if r.status_code == 200:
+                    s = r.json().get("status", "")
+                    if s == "COMPLETED":
+                        rr = requests.get(result_url,
+                                          headers={"Authorization": f"Key {api_key}"},
+                                          timeout=20)
+                        if rr.status_code == 200:
+                            data = rr.json()
+                            video = data.get("video") or {}
+                            return video.get("url") if isinstance(video, dict) else None
+                        return None
+                    if s in ("FAILED", "CANCELED"):
+                        return None
+            except Exception:
+                pass
+            time.sleep(self.FAL_POLL_INTERVAL)
+        return None
+
+    # ═══════════════════════════════════════
+    # HELPERS: Kie.ai (legacy fallback)
     # ═══════════════════════════════════════
 
     def _create_kie_task(self, api_key, prompt):

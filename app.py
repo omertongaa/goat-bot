@@ -141,6 +141,15 @@ async def core_onboarding_complete(request: Request):
     settings.setdefault("work_mode", "auto")
     company["settings"] = settings
     core_store.save_company(company)
+
+    # Sensible default budgets — protect user from runaway fal.ai/apify spend
+    if keys.get("fal_key"):
+        core_store.set_budget(cid, "videoproducer", 30.0)   # user-stated cap
+        core_store.set_budget(cid, "designer", 5.0)
+        core_store.set_budget(cid, "videomaker", 5.0)
+    if keys.get("apify_token"):
+        core_store.set_budget(cid, "scout", 10.0)
+
     core_activity.append(cid, "onboarding_completed", actor="user", subject=cid,
                          details={"name": company["name"]})
     return JSONResponse({"ok": True})
@@ -666,13 +675,25 @@ async def core_get_ticket(ticket_id: str):
 
 
 @app.post("/api/core/tickets/{ticket_id}/approve")
-async def core_approve_ticket(ticket_id: str):
+async def core_approve_ticket(ticket_id: str, request: Request):
     cid = core_store.active_company_id()
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    channel = body.get("channel") if isinstance(body, dict) else None
     t = core_runtime.approve(cid, ticket_id)
     if not t:
         return JSONResponse({"error": "not found"}, status_code=404)
-    # After approval, immediately advance the system — pick up downstream
-    # tickets that may have been waiting on this approval
+    # If user picked a delivery channel for an outreach campaign, route it now
+    if channel:
+        try:
+            from core import outreach_dispatcher as _od
+            _od.deliver(cid, t, channel)
+        except Exception as e:
+            core_activity.append(cid, "delivery_failed", actor="system",
+                                 subject=ticket_id, details={"error": str(e)})
     import asyncio
     try:
         from core import heartbeat as _hb
@@ -680,6 +701,38 @@ async def core_approve_ticket(ticket_id: str):
     except Exception:
         pass
     return JSONResponse(t)
+
+
+@app.get("/api/core/tickets/{ticket_id}/export")
+async def core_ticket_export(ticket_id: str, format: str = "csv"):
+    """Export campaign leads as CSV or Markdown — tool-agnostic delivery."""
+    cid = core_store.active_company_id()
+    t = core_store.load_ticket(cid, ticket_id)
+    if not t:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    result = t.get("result") or {}
+    leads = result.get("leads") or []
+    sequence = result.get("sequence") or []
+
+    from fastapi.responses import PlainTextResponse
+    if format == "md":
+        lines = [f"# {t.get('title')}\n"]
+        for s in sequence:
+            lines.append(f"## Email {s.get('step')} (gün {s.get('delay_days', 0)})")
+            lines.append(f"**Subject:** {s.get('subject', '')}\n")
+            lines.append(s.get("body", "") + "\n")
+        return PlainTextResponse("\n".join(lines), media_type="text/markdown",
+                                 headers={"Content-Disposition": f'attachment; filename="campaign-{ticket_id}.md"'})
+    # CSV
+    import csv, io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["email", "first_name", "company", "city", "category"])
+    for l in leads:
+        w.writerow([l.get("email", ""), l.get("first_name", ""),
+                    l.get("company_name", ""), l.get("city", ""), l.get("category", "")])
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
+                             headers={"Content-Disposition": f'attachment; filename="leads-{ticket_id}.csv"'})
 
 
 @app.post("/api/core/tickets/{ticket_id}/reject")

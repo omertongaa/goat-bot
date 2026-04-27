@@ -22,143 +22,151 @@ class OutreachAgent(BaseAgent):
     category = "sales"
 
     def run(self, auto_activate=False) -> dict:
+        """Tool-agnostic outreach: always generate the campaign (sequence + leads)
+        first, then offer multiple delivery channels (Instantly, Composio Gmail,
+        manual export). User picks during approval — system stays dynamic."""
         config = self.load_config()
-        api_key = config.get("instantly_api_key") or get_api_key()
-
-        # Check API key
-        if not api_key:
-            return {
-                "status": "needs_key",
-                "summary": "Instantly.ai API anahtarı gerekli. Henüz ayarlanmamış.",
-                "metrics": {},
-                "recommendations": [
-                    "Instantly.ai hesabı aç: https://instantly.ai",
-                    "API anahtarını al: Settings → Integrations → API",
-                    "goat'ye ekle: ayarlardan veya .env dosyasından",
-                ],
-            }
-
-        # Test connection
-        self.log("Instantly.ai bağlantısı test ediliyor...")
-        if not test_connection(api_key):
-            return {
-                "status": "error",
-                "summary": "Instantly.ai bağlantısı başarısız. API anahtarını kontrol et.",
-                "metrics": {},
-                "recommendations": ["API anahtarının doğru olduğundan emin ol"],
-            }
-        self.log("Bağlantı başarılı.")
-
-        # Load qualified leads
-        leads = self._load_hot_leads()
-        if not leads:
-            return {
-                "status": "error",
-                "summary": "Sıcak lead yok. Önce Scout ve Filter çalıştır.",
-                "metrics": {},
-                "recommendations": ["Önce 'müşteri adaylarını ara' ve 'leadleri puanla' komutlarını çalıştır"],
-            }
-
-        # Filter to only leads with email
-        email_leads = [l for l in leads if l.get("lead", {}).get("email")]
-        if not email_leads:
-            return {
-                "status": "error",
-                "summary": "Email adresi olan sıcak lead yok.",
-                "metrics": {"total_hot": len(leads), "with_email": 0},
-                "recommendations": ["Daha fazla lead bulmak için Scout'u tekrar çalıştır"],
-            }
-
-        self.log(f"{len(email_leads)} email'li sıcak lead bulundu.")
-
-        # Generate email sequence
-        agency_name = config.get("agency_name", "goat Agency")
+        agency_name = config.get("agency_name") or config.get("name") or "goat Agency"
         owner_name = config.get("owner_name", "")
         niche = config.get("niche", "işletme")
-        sequence = self._generate_sequence(agency_name, owner_name, niche)
 
-        # Create campaign
+        # Load qualified leads (still fall back gracefully if none)
+        leads = self._load_hot_leads()
+        email_leads = [l for l in leads if l.get("lead", {}).get("email")]
+        self.log(f"Yüklenen leadler: {len(leads)} (emaili olan: {len(email_leads)})")
+
+        # Always generate the email sequence — value-first, no API blocking
+        self.log("Email dizisi hazırlanıyor...")
+        sequence = self._generate_sequence(agency_name, owner_name, niche)
+        self.log(f"{len(sequence)} adımlı dizi hazır")
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         campaign_name = f"goat_{niche}_{timestamp}"
-        self.log(f"Kampanya oluşturuluyor: {campaign_name}")
 
-        campaign_id = create_campaign(campaign_name, api_key)
-        if not campaign_id:
-            return {
-                "status": "error",
-                "summary": "Kampanya oluşturulamadı. Instantly.ai API'sini kontrol et.",
-                "metrics": {},
-                "recommendations": ["Instantly.ai hesabında email hesabı bağlı mı kontrol et"],
-            }
-
-        self.log(f"Kampanya oluşturuldu: {campaign_id}")
-
-        # Add leads
-        instantly_leads = []
+        # Build the lead payload regardless of provider
+        prepared_leads = []
         for l in email_leads:
             lead = l.get("lead", {})
-            instantly_leads.append({
-                "email": lead["email"],
-                "first_name": lead.get("name", "").split()[0] if lead.get("name") else "",
+            prepared_leads.append({
+                "email": lead.get("email", ""),
+                "first_name": (lead.get("name", "").split()[0] if lead.get("name") else ""),
                 "company_name": lead.get("name", ""),
-                "custom_variables": {
-                    "business_type": lead.get("category", niche),
-                    "city": lead.get("location", ""),
-                    "rating": str(lead.get("rating", "")),
-                },
+                "city": lead.get("location", ""),
+                "category": lead.get("category", niche),
+                "rating": lead.get("rating"),
             })
 
-        success = add_leads_to_campaign(campaign_id, instantly_leads, api_key)
-        if not success:
-            self.log("Lead'ler eklenemedi.")
+        # Detect available delivery channels — system suggests, user picks
+        channels = self._available_channels(config)
+        self.log(f"Mevcut gönderim kanalları: {', '.join(c['kind'] for c in channels) or 'yok'}")
 
-        self.log(f"{len(instantly_leads)} lead kampanyaya eklendi.")
+        # If Instantly is configured AND wired, ALSO push as draft so it's ready
+        instantly_campaign_id = None
+        instantly_key = config.get("instantly_api_key") or get_api_key()
+        if instantly_key and prepared_leads:
+            try:
+                self.log("Instantly.ai'da draft kampanya oluşturuluyor (opsiyonel)...")
+                if test_connection(instantly_key):
+                    cid = create_campaign(campaign_name, instantly_key)
+                    if cid:
+                        ok = add_leads_to_campaign(cid, prepared_leads, instantly_key)
+                        if ok:
+                            instantly_campaign_id = cid
+                            self.log(f"Instantly draft hazır: {cid}")
+            except Exception as e:
+                self.log(f"Instantly hazırlığı atlandı: {e}")
 
-        # Save campaign data
+        # Save campaign as artifact
         campaign_data = {
-            "campaign_id": campaign_id,
+            "campaign_id": instantly_campaign_id or f"draft_{timestamp}",
             "campaign_name": campaign_name,
             "created_at": datetime.now().isoformat(),
             "status": "draft",
-            "leads_count": len(instantly_leads),
+            "agency": agency_name,
+            "niche": niche,
+            "leads_count": len(prepared_leads),
             "sequence": sequence,
-            "leads": instantly_leads,
+            "leads": prepared_leads,
+            "instantly_draft_id": instantly_campaign_id,
+            "delivery_channels": channels,
         }
-        self.save_data(f"campaigns/{campaign_id}.json", campaign_data)
+        self.save_data(f"campaigns/{campaign_data['campaign_id']}.json", campaign_data)
+
+        if not prepared_leads:
+            summary = f"Email dizisi hazır ({len(sequence)} adım). Henüz email'li lead yok — Scout/Filter çalıştır, sonra gönderebilirsin."
+        elif instantly_campaign_id:
+            summary = f"{len(prepared_leads)} lead için kampanya hazır + Instantly'ye draft olarak yüklendi. Onayınla aktifleşir."
+        else:
+            connect_options = ", ".join(c["label"] for c in channels) or "manuel indirme"
+            summary = f"{len(prepared_leads)} lead için email dizisi hazır. Gönderim kanalı seç: {connect_options}."
 
         results = {
             "status": "ok",
-            "summary": f"Kampanya hazır: {len(instantly_leads)} lead eklendi. Onay bekleniyor.",
+            "summary": summary,
             "needs_approval": True,
             "approval_action": {
-                "kind": "activate_campaign",
-                "campaign_id": campaign_id,
+                "kind": "activate_campaign" if instantly_campaign_id else "deliver_campaign",
+                "campaign_id": campaign_data["campaign_id"],
+                "instantly_campaign_id": instantly_campaign_id,
                 "preview": {
-                    "leads_count": len(instantly_leads),
+                    "leads_count": len(prepared_leads),
                     "sequence_steps": len(sequence),
                     "first_subject": sequence[0]["subject"] if sequence else "",
+                    "channels": channels,
                 },
             },
             "metrics": {
-                "campaign_id": campaign_id,
+                "campaign_id": campaign_data["campaign_id"],
                 "campaign_name": campaign_name,
-                "leads_added": len(instantly_leads),
+                "leads_added": len(prepared_leads),
                 "total_hot": len(leads),
                 "with_email": len(email_leads),
                 "sequence_steps": len(sequence),
                 "status": "awaiting_approval",
             },
+            "campaign_id": campaign_data["campaign_id"],
+            "instantly_draft_id": instantly_campaign_id,
             "sequence": sequence,
+            "leads": prepared_leads,
             "recommendations": [
-                "Kampanya draft olarak hazırlandı; Board'dan onayla",
-                "Email hesabının Instantly.ai'da bağlı olduğundan emin ol",
-                "Onay sonrası kampanya aktifleşecek",
+                "Drawer'dan gönderim kanalı seç + onayla",
+                "İstersen CSV/Markdown indir, manuel gönder",
+                ("Instantly.ai aktif" if instantly_campaign_id else "Instantly key yoksa Composio Gmail veya export kullan"),
             ],
         }
 
         self.save_output("outreach_campaign_report.json", results)
         self.log("Kampanya raporu kaydedildi.")
         return results
+
+    def _available_channels(self, config: dict) -> list:
+        """Return delivery options the user can pick from. System suggests
+        what's available, doesn't force a single tool."""
+        import os
+        out = []
+        if config.get("instantly_api_key") or os.getenv("INSTANTLY_API_KEY"):
+            out.append({"kind": "instantly", "label": "Instantly.ai",
+                        "ready": True, "icon": "📨"})
+        # Composio Gmail / SendGrid via connections
+        if os.getenv("COMPOSIO_API_KEY") or config.get("composio_api_key"):
+            try:
+                from services import composio_tools as _ct
+                cid = config.get("id") or "default"
+                connected = _ct.list_connected_toolkits(cid)
+                if "gmail" in connected:
+                    out.append({"kind": "composio_gmail", "label": "Gmail (Composio)",
+                                "ready": True, "icon": "📧"})
+                else:
+                    out.append({"kind": "composio_gmail", "label": "Gmail bağlanmadı — /apps üstünden bağla",
+                                "ready": False, "icon": "📧"})
+            except Exception:
+                pass
+        # Always offer manual export as a safety net
+        out.append({"kind": "export_csv", "label": "CSV indir (manuel gönderim)",
+                    "ready": True, "icon": "📥"})
+        out.append({"kind": "export_md", "label": "Email dizisini Markdown indir",
+                    "ready": True, "icon": "📝"})
+        return out
 
     def _load_hot_leads(self) -> list:
         """Load hot leads from latest qualified file."""

@@ -53,6 +53,7 @@ def _resolve_run_params(agent_id: str, params: dict) -> dict:
 
 def tick(company_id: Optional[str] = None) -> dict:
     """Run one heartbeat. If company_id is None, iterates all companies."""
+    import os as _os
     company_ids = (
         [company_id] if company_id
         else [c["id"] for c in store.list_companies()[:MAX_COMPANIES_PER_TICK]]
@@ -63,6 +64,20 @@ def tick(company_id: Optional[str] = None) -> dict:
 
     for cid in company_ids:
         summary["companies_checked"] += 1
+
+        # Inject company API keys into env so agents can reach Apify, fal.ai, etc.
+        company = store.load_company(cid) or {}
+        for src, dst in [
+            ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+            ("instantly_api_key", "INSTANTLY_API_KEY"),
+            ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+            ("composio_api_key", "COMPOSIO_API_KEY"),
+            ("scraper_actor", "SCRAPER_ACTOR"),
+            ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
+        ]:
+            v = (company.get("api_keys") or {}).get(src) or (company.get("settings") or {}).get(src)
+            if v:
+                _os.environ[dst] = v
 
         # 1) Plan any goal that has no tickets yet
         goals = store.list_goals(cid, status="active")

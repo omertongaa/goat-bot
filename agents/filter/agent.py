@@ -34,9 +34,12 @@ class FilterAgent(BaseAgent):
 
         leads = self._load_latest_leads()
         if not leads:
+            self.log("Cache boş — Scout otomatik tetikleniyor")
+            leads = self.ensure_leads(min_count=10)
+        if not leads:
             return {
                 "status": "error",
-                "summary": "No leads to filter. Run Scout first.",
+                "summary": "Lead bulunamadı (Apify auto-fetch da başarısız). APIFY_TOKEN kontrol et.",
                 "metrics": {},
                 "leads": [],
                 "recommendations": ["Run Scout agent first to find leads"],

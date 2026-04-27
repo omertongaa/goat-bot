@@ -69,11 +69,36 @@ def get_agent_instance(agent_id: str):
 
 
 def load_config():
+    """Merge legacy user_profile.json with the active company's profile,
+    so callers see all api_keys and settings flattened to the top level."""
+    legacy = {}
     path = DATA_BASE / "config" / "user_profile.json"
     if path.exists():
-        with open(path) as f:
-            return json.load(f)
-    return {}
+        try:
+            with open(path) as f:
+                legacy = json.load(f) or {}
+        except Exception:
+            legacy = {}
+    # Merge in active company profile
+    try:
+        from core import store as _store
+        cid = _store.active_company_id()
+        company = _store.load_company(cid) or {}
+        flat = dict(legacy)
+        flat["id"] = cid
+        for fld in ("name", "owner_name", "niche", "target_cities", "target_industries"):
+            v = company.get(fld)
+            if v:
+                flat[fld] = v
+        flat.setdefault("agency_name", company.get("name") or legacy.get("agency_name", ""))
+        for k, v in (company.get("api_keys") or {}).items():
+            if v:
+                flat[k] = v
+        for k, v in (company.get("settings") or {}).items():
+            flat.setdefault(k, v)
+        return flat
+    except Exception:
+        return legacy
 
 
 def load_pipeline_stats():

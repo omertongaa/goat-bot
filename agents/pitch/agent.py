@@ -24,11 +24,20 @@ class PitchAgent(BaseAgent):
         leads = self._load_hot_leads()
 
         if not leads:
+            self.log("Hot lead yok — Scout'u otomatik çağırıyorum")
+            raw = self.ensure_leads(min_count=5)
+            if raw:
+                # Treat raw leads as hot for pitch purposes (best effort)
+                leads = [{"lead": l, "qualification": "hot", "score": 5}
+                         for l in raw[:10]]
+                self.log(f"Auto-fetch'ten {len(leads)} lead kullanıyorum")
+
+        if not leads:
             return {
                 "status": "error",
-                "summary": "Sıcak lead yok. Önce Scout ve Filter çalıştır.",
+                "summary": "Lead bulunamadı (Apify auto-fetch da başarısız). APIFY_TOKEN'ı kontrol et.",
                 "metrics": {},
-                "recommendations": ["Önce lead bul ve puanla"],
+                "recommendations": ["APIFY_TOKEN'ı .env'e ekle", "Niş + hedef şehir tanımlı mı kontrol et"],
             }
 
         # Pick the lead

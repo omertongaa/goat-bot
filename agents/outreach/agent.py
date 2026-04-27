@@ -32,6 +32,13 @@ class OutreachAgent(BaseAgent):
 
         # Load qualified leads (still fall back gracefully if none)
         leads = self._load_hot_leads()
+        if not leads:
+            self.log("Hot lead yok — Scout + email enrichment otomatik")
+            raw = self.ensure_leads(min_count=10, with_email=True)
+            leads = [{"lead": l, "qualification": "hot", "score": 5}
+                     for l in raw[:20]]
+            if leads:
+                self.log(f"Auto-fetch'ten {len(leads)} email'li lead bulundu")
         email_leads = [l for l in leads if l.get("lead", {}).get("email")]
         self.log(f"Yüklenen leadler: {len(leads)} (emaili olan: {len(email_leads)})")
 

@@ -93,6 +93,96 @@ class BaseAgent:
         except Exception:
             return legacy
 
+    def ensure_leads(self, min_count: int = 5, with_email: bool = False) -> list:
+        """Lead havuzu boşsa otomatik Scout çalıştır + email enrichment.
+
+        Pitch, Filter, Outreach gibi downstream agent'lar bunu çağırır:
+            leads = self.ensure_leads(min_count=10)
+        Hiç fail etmez — Scout başarısız olsa bile boş list döner."""
+        # 1. Mevcut qualified leads'a bak
+        try:
+            qual = sorted((DATA_DIR / "leads" / "qualified").glob("*.json"),
+                          reverse=True)
+            if qual:
+                with open(qual[0]) as f:
+                    data = json.load(f)
+                leads = data.get("leads", [])
+                if with_email:
+                    leads = [l for l in leads if l.get("lead", {}).get("email")
+                             or l.get("email")]
+                if len(leads) >= min_count:
+                    return leads
+        except Exception:
+            pass
+
+        # 2. Raw leads — varsa filter'a girmeden de döndürebiliriz
+        try:
+            raw = sorted((DATA_DIR / "leads" / "raw").glob("*.json"), reverse=True)
+            if raw:
+                with open(raw[0]) as f:
+                    data = json.load(f)
+                cached = data.get("leads", [])
+                if cached and len(cached) >= min_count:
+                    if with_email:
+                        cached = [l for l in cached if l.get("email")]
+                        if not cached:
+                            return []
+                    self.log(f"Cache'ten {len(cached)} lead kullanıyorum")
+                    return cached
+        except Exception:
+            pass
+
+        # 3. Boş — otomatik Scout tetikle
+        if not os.environ.get("APIFY_TOKEN", "").strip():
+            self.log("APIFY_TOKEN yok — auto-fetch atlandı")
+            return []
+
+        cfg = self.load_config()
+        niche = cfg.get("niche") or (cfg.get("target_industries") or ["restoran"])[0]
+        city = (cfg.get("target_cities") or [""])[0]
+
+        self.log(f"Hot lead yok, Scout otomatik çalıştırıyor: {niche} / {city}")
+        try:
+            from services.scraper import scrape_b2b_leads
+            new_leads = scrape_b2b_leads(query=niche, location=city,
+                                         max_results=max(min_count * 2, 20),
+                                         log=self.log)
+            if not new_leads:
+                self.log("Scout sonuç dönmedi")
+                return []
+
+            # Email enrichment for downstream
+            if with_email:
+                without_email = [l for l in new_leads if not l.get("email")]
+                if without_email and os.environ.get("EMAIL_FINDER_PROVIDERS", "").strip():
+                    try:
+                        from services.email_finder import enrich_leads
+                        enrich_leads(without_email, log=self.log)
+                    except Exception:
+                        pass
+
+            # Persist as raw so other agents can use it too
+            try:
+                from datetime import datetime as _dt
+                slug = niche.lower().replace(" ", "_")[:30]
+                fname = f"leads/raw/auto_{_dt.now().strftime('%Y%m%d_%H%M%S')}_{slug}.json"
+                self.save_data(fname, {
+                    "query": niche, "location": city,
+                    "scraped_at": _dt.now().isoformat(),
+                    "auto_fetched_by": self.agent_id,
+                    "count": len(new_leads), "leads": new_leads,
+                })
+            except Exception:
+                pass
+
+            self.log(f"Scout {len(new_leads)} lead getirdi")
+            if with_email:
+                new_leads = [l for l in new_leads if l.get("email")]
+            return new_leads
+        except Exception as e:
+            self.log(f"Auto-fetch hatası: {e}")
+            return []
+
     def call_claude(self, prompt: str, timeout: int = 120):
         """Call Claude CLI if available. Returns response text or None."""
         try:

@@ -642,14 +642,10 @@ def stream_chat_events(message: str, history: list, company_id: str):
                         step_text += chunk
                         yield {"kind": "text_delta", "text": chunk}
                 final = stream.get_final_message()
-        except Exception as e:
-            # Anthropic failure (e.g. balance too low, rate limit) — fall back
-            # to the non-streaming CEOAgent which has Claude CLI + keyword path.
-            api_failed = True
-            err = str(e)
-            if "balance" in err.lower() or "credit" in err.lower():
-                yield {"kind": "text_delta",
-                       "text": "⚠ Anthropic API kredisi bitti. Claude CLI'a geçiyorum...\n\n"}
+        except Exception:
+            # Silent fallback to non-streaming CEOAgent (Claude CLI / keyword
+            # path). User shouldn't see plumbing details — just gets the
+            # response from the working backend.
             for ev in _emit_fallback():
                 yield ev
             return

@@ -555,8 +555,10 @@ def stream_chat_events(message: str, history: list, company_id: str):
     company = store.load_company(company_id) or {}
     snap = _snapshot_for_company(company_id)
 
-    if not (os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE):
-        # Fallback: run non-streaming and emit final
+    def _emit_fallback():
+        """Run the non-streaming CEO (which has its own Claude CLI / keyword
+        fallback chain) and emit the response as a single text_delta + done.
+        Used when Anthropic API is missing OR fails (e.g. quota exceeded)."""
         agent = CEOAgent()
         result = agent.run(message=message, history=history)
         yield {"kind": "text_delta", "text": result.get("response", "")}
@@ -564,9 +566,18 @@ def stream_chat_events(message: str, history: list, company_id: str):
                "actions": result.get("actions", []),
                "executed": result.get("executed", []),
                "tool_calls": result.get("tool_calls", [])}
+
+    if not (os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE):
+        for ev in _emit_fallback():
+            yield ev
         return
 
-    client = anthropic.Anthropic()
+    try:
+        client = anthropic.Anthropic()
+    except Exception:
+        for ev in _emit_fallback():
+            yield ev
+        return
     try:
         from services import composio_tools as _ct
         tools = _ct.tools_for_anthropic(user_id=company_id)
@@ -597,6 +608,7 @@ def stream_chat_events(message: str, history: list, company_id: str):
     accumulated_text = ""
     tool_calls: list = []
 
+    api_failed = False
     for step in range(MAX_TOOL_STEPS):
         kwargs = {"model": model, "max_tokens": 1024,
                   "system": system_blocks, "messages": messages}
@@ -604,13 +616,25 @@ def stream_chat_events(message: str, history: list, company_id: str):
             kwargs["tools"] = tools
 
         # Anthropic SDK supports streaming via messages.stream()
-        with client.messages.stream(**kwargs) as stream:
-            step_text = ""
-            for chunk in stream.text_stream:
-                if chunk:
-                    step_text += chunk
-                    yield {"kind": "text_delta", "text": chunk}
-            final = stream.get_final_message()
+        try:
+            with client.messages.stream(**kwargs) as stream:
+                step_text = ""
+                for chunk in stream.text_stream:
+                    if chunk:
+                        step_text += chunk
+                        yield {"kind": "text_delta", "text": chunk}
+                final = stream.get_final_message()
+        except Exception as e:
+            # Anthropic failure (e.g. balance too low, rate limit) — fall back
+            # to the non-streaming CEOAgent which has Claude CLI + keyword path.
+            api_failed = True
+            err = str(e)
+            if "balance" in err.lower() or "credit" in err.lower():
+                yield {"kind": "text_delta",
+                       "text": "⚠ Anthropic API kredisi bitti. Claude CLI'a geçiyorum...\n\n"}
+            for ev in _emit_fallback():
+                yield ev
+            return
 
         try:
             from core.cost_tracker import record

@@ -1,0 +1,14 @@
+{
+  "business_name": "Tester Lokanta Pazarlama",
+  "platform": "meta",
+  "platform_name": "Meta Ads",
+  "campaign_type": "lead_gen",
+  "budget": "1000",
+  "target_audience": "restoran otomasyonu sektöründe KOBİ sahipleri, İstanbul",
+  "cities": [
+    "İstanbul"
+  ],
+  "campaign_plan": "Credit balance is too low",
+  "ad_copies": "Credit balance is too low",
+  "created_at": "20260427_113855"
+}

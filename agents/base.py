@@ -51,12 +51,47 @@ class BaseAgent:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
     def load_config(self) -> dict:
-        """Load the user's agency profile."""
+        """Load the user's agency profile.
+
+        Order of resolution:
+            1. Active company profile (data/companies/{id}/profile.json)
+               — flattened so legacy keys like agency_name still work
+            2. Legacy data/config/user_profile.json
+        Both are merged with company taking precedence.
+        """
+        # Legacy file
+        legacy = {}
         config_path = DATA_DIR / "config" / "user_profile.json"
         if config_path.exists():
-            with open(config_path) as f:
-                return json.load(f)
-        return {}
+            try:
+                with open(config_path) as f:
+                    legacy = json.load(f) or {}
+            except Exception:
+                legacy = {}
+        # Company schema → flatten to legacy-shaped dict
+        try:
+            from core import store as _store
+            cid = _store.active_company_id()
+            company = _store.load_company(cid) or {}
+            flat = {
+                "id": cid,
+                "agency_name": company.get("name") or legacy.get("agency_name", ""),
+                "name": company.get("name") or legacy.get("name", ""),
+                "owner_name": company.get("owner_name") or legacy.get("owner_name", ""),
+                "niche": company.get("niche") or legacy.get("niche", ""),
+                "target_cities": company.get("target_cities") or legacy.get("target_cities", []),
+                "target_industries": company.get("target_industries") or legacy.get("target_industries", []),
+            }
+            # Mix in api_keys at flat top-level (legacy callers expect that)
+            for k, v in (company.get("api_keys") or {}).items():
+                flat.setdefault(k, v)
+            for k, v in (company.get("settings") or {}).items():
+                flat.setdefault(k, v)
+            # Final merge: legacy fills any gaps
+            merged = {**legacy, **{k: v for k, v in flat.items() if v}}
+            return merged
+        except Exception:
+            return legacy
 
     def call_claude(self, prompt: str, timeout: int = 120):
         """Call Claude CLI if available. Returns response text or None."""

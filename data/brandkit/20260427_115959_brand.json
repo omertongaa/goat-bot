@@ -1,0 +1,18 @@
+{
+  "business_name": "Tester Lokanta Pazarlama",
+  "industry": "restoran",
+  "style": "modern",
+  "values": "profesyonel, yenilikçi, güvenilir",
+  "colors": {
+    "primary": "#e85d26",
+    "secondary": "#1a1a2e",
+    "accent": "#00ff41",
+    "background": "#fafafa",
+    "text": "#1a1a1a",
+    "muted": "#8a8a98"
+  },
+  "brand_guide": "Credit balance is too low",
+  "html_path": "/Users/arspar/Downloads/GOATSTARTER/goat-bot/outputs/brandkit/20260427_115959_brand_board.html",
+  "logo_path": null,
+  "created_at": "20260427_115959"
+}

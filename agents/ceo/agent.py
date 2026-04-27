@@ -99,11 +99,23 @@ class CEOAgent(BaseAgent):
         company = store.load_company(company_id) or {}
         state = self._snapshot(company_id)
 
+        # Resolution chain — local Claude Code subprocess is the PRIMARY path
+        # (works on the user's machine without API costs). Anthropic API is
+        # only used when explicitly opted in via GOAT_PRIMARY_LLM=api or as a
+        # fallback when claude CLI is unavailable.
         reply_text, actions, tool_calls = (None, [], [])
-        if os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE:
-            reply_text, actions, tool_calls = self._chat_with_anthropic_api(message, history, company, state)
-        if reply_text is None:
+        primary = (os.getenv("GOAT_PRIMARY_LLM") or "cli").lower()
+
+        if primary == "cli":
             reply_text, actions = self._chat_with_claude(message, history, company, state)
+            if reply_text is None and os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE:
+                reply_text, actions, tool_calls = self._chat_with_anthropic_api(message, history, company, state)
+        else:
+            if os.getenv("ANTHROPIC_API_KEY") and _ANTHROPIC_AVAILABLE:
+                reply_text, actions, tool_calls = self._chat_with_anthropic_api(message, history, company, state)
+            if reply_text is None:
+                reply_text, actions = self._chat_with_claude(message, history, company, state)
+
         if reply_text is None:
             reply_text, actions = self._fallback_reply(message, company, state)
 
@@ -298,11 +310,17 @@ class CEOAgent(BaseAgent):
         convo.append({"role": "user", "content": message})
 
         prompt = self._format_for_cli(convo)
+        # Run Claude Code CLI WITHOUT inheriting ANTHROPIC_API_KEY so it uses
+        # the user's Claude subscription (Pro/Max plan) instead of the API.
+        # This is the default path — local-first, no API costs.
+        clean_env = {k: v for k, v in os.environ.items()
+                     if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
         try:
             res = subprocess.run(
                 ["claude", "-p", prompt, "--output-format", "text"],
                 capture_output=True, text=True, timeout=120,
                 cwd=str(BASE_DIR),
+                env=clean_env,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None, []

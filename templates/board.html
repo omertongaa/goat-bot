@@ -1007,7 +1007,7 @@ aside.right {
 
   <aside class="left">
     <div class="nav-section">
-      <h3>Workspace</h3>
+      <h3>Şirket</h3>
       <div class="totals">
         <div class="row">
           <span class="label">Toplam ticket</span>
@@ -1021,18 +1021,18 @@ aside.right {
     </div>
 
     <div class="nav-section">
-      <h3>Active Goals <span class="chevron">›</span></h3>
+      <h3>Hedefler <span class="chevron">›</span></h3>
       <div id="goalsList"></div>
       <button class="new-button" onclick="openGoalModal()">＋ Yeni hedef</button>
     </div>
 
     <div class="nav-section">
-      <h3>Agents <span class="chevron">›</span></h3>
+      <h3>Ajanlar <span class="chevron">›</span></h3>
       <div id="agentsList"></div>
     </div>
 
     <div class="nav-section">
-      <h3>Budgets</h3>
+      <h3>Bütçeler</h3>
       <div id="budgetsList"></div>
       <button class="new-button" onclick="openBudgetModal()">＋ Bütçe belirle</button>
     </div>
@@ -1061,7 +1061,7 @@ aside.right {
 
   <aside class="right">
     <div class="activity-head">
-      <h3>Activity</h3>
+      <h3>Hareket</h3>
       <span class="count" id="activityCount">—</span>
     </div>
     <div class="activity-list" id="activityList"></div>
@@ -1105,19 +1105,20 @@ aside.right {
   </div>
   <div class="ceo-input">
     <input id="ceoInput" type="text" placeholder="CEO'ya yaz..." onkeydown="if(event.key==='Enter')sendCEO()">
-    <button class="btn primary" onclick="sendCEO()">→</button>
+    <button class="btn primary" onclick="sendCEO()" title="Sohbet et">→</button>
+    <button class="btn" onclick="orchestrateCEO()" title="Görevi ajanlar arasında dağıt ve zincirleme yürüt" style="font-size:11px; padding: 9px 10px;">⚙ Görev</button>
   </div>
 </div>
 
 <script>
 const COLUMNS = [
-  { id: 'pending',       label: 'Pending',       desc: 'Sıraya alındı' },
-  { id: 'in_progress',   label: 'In Progress',   desc: 'Çalışıyor' },
-  { id: 'needs_review',  label: 'Needs Review',  desc: 'Onay bekliyor' },
-  { id: 'approved',      label: 'Approved',      desc: 'Onaylandı' },
-  { id: 'completed',     label: 'Completed',     desc: 'Tamamlandı' },
-  { id: 'failed',        label: 'Failed',        desc: 'Başarısız' },
-  { id: 'paused_budget', label: 'Paused',        desc: 'Bütçe aşıldı' },
+  { id: 'pending',       label: 'Sırada',       desc: 'Bekliyor' },
+  { id: 'in_progress',   label: 'Çalışıyor',    desc: 'Aktif' },
+  { id: 'needs_review',  label: 'Onay Bekler',  desc: 'Senin kararın' },
+  { id: 'approved',      label: 'Onaylı',       desc: 'Onaylandı' },
+  { id: 'completed',     label: 'Tamamlandı',   desc: 'Bitti' },
+  { id: 'failed',        label: 'Başarısız',    desc: 'Hata oldu' },
+  { id: 'paused_budget', label: 'Duruldu',      desc: 'Bütçe aşıldı' },
 ];
 
 const AGENT_COLORS = {
@@ -1236,10 +1237,10 @@ function renderBanner(sys) {
 }
 
 const CATEGORY_LABELS = {
-  master: 'Master', acquisition: 'Acquisition', sales: 'Sales',
-  creative: 'Creative', marketing: 'Marketing', intelligence: 'Intelligence',
-  education: 'Education', delivery: 'Delivery', production: 'Production',
-  system: 'System', '': 'Other',
+  master: 'Yönetim', acquisition: 'Müşteri Bulma', sales: 'Satış',
+  creative: 'Yaratıcı', marketing: 'Pazarlama', intelligence: 'Analiz',
+  education: 'Eğitim', delivery: 'Teslim', production: 'Üretim',
+  system: 'Sistem', '': 'Diğer',
 };
 
 function renderAgents(agents) {
@@ -1850,6 +1851,98 @@ function toggleCEO() {
 function suggestCEO(text) {
   document.getElementById('ceoInput').value = text.replaceAll('\\\'', "'");
   sendCEO();
+}
+
+async function orchestrateCEO() {
+  if (!STATE.ceoOpen) toggleCEO();
+  const input = document.getElementById('ceoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const log = document.getElementById('ceoLog');
+  const suggestions = document.getElementById('ceoSuggestions');
+  if (suggestions) suggestions.style.display = 'none';
+
+  const userEl = document.createElement('div');
+  userEl.className = 'ceo-msg user';
+  userEl.innerHTML = `<div class="who">sen → görev</div><div class="bubble">${escapeHtml(msg)}</div>`;
+  log.appendChild(userEl);
+
+  const ceoEl = document.createElement('div');
+  ceoEl.className = 'ceo-msg ceo';
+  ceoEl.innerHTML = `<div class="who">CEO orkestrasyon</div><div class="bubble md"></div><div class="ceo-actions"></div>`;
+  log.appendChild(ceoEl);
+  const bubble = ceoEl.querySelector('.bubble');
+  const pillsBox = ceoEl.querySelector('.ceo-actions');
+  let acc = '';
+
+  try {
+    const r = await fetch('/api/core/ceo/orchestrate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg}),
+    });
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const parts = buf.split('\n\n');
+      buf = parts.pop() || '';
+      for (const part of parts) {
+        const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+        if (!dataLine) continue;
+        let evt; try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; }
+        if (evt.kind === 'text_delta') {
+          acc += evt.text || '';
+          bubble.innerHTML = (typeof marked !== 'undefined')
+            ? marked.parse(acc, {breaks:true, gfm:true})
+            : escapeHtml(acc);
+          log.scrollTop = log.scrollHeight;
+        } else if (evt.kind === 'plan') {
+          const plan = (evt.steps || []).map(s => s.agent).join(' → ');
+          const pill = document.createElement('span');
+          pill.className = 'act-pill';
+          pill.style.background = 'rgba(168,85,247,0.15)';
+          pill.style.color = 'var(--purple)';
+          pill.style.borderColor = 'rgba(168,85,247,0.35)';
+          pill.textContent = `📋 ${plan}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'step_start') {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill tool-pending';
+          pill.dataset.step = evt.step;
+          pill.dataset.agent = evt.agent;
+          pill.innerHTML = `<span class="spinning" style="display:inline-block;">⚙</span> ${evt.agent}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'step_done') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].find(x => x.dataset.step == evt.step);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.style.background = 'var(--green-soft)';
+            p.style.color = 'var(--green)';
+            p.style.borderColor = 'rgba(34,197,94,0.35)';
+            p.innerHTML = `✓ ${evt.agent}`;
+            p.title = evt.summary || '';
+            if (evt.ticket_id) { p.style.cursor = 'pointer'; p.onclick = () => openTicket(evt.ticket_id); }
+          }
+        } else if (evt.kind === 'step_error') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].find(x => x.dataset.step == evt.step);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.classList.add('act-pill-err');
+            p.innerHTML = `✕ ${evt.agent}`;
+            p.title = evt.error || '';
+          }
+        } else if (evt.kind === 'done') {
+          setTimeout(loadDashboard, 500);
+        }
+      }
+    }
+  } catch (e) {
+    bubble.innerHTML += '<br><span style="color:var(--red);">⚠ Bağlantı hatası</span>';
+  }
 }
 
 async function sendCEO() {

@@ -1138,6 +1138,50 @@ async def core_ceo_chat(request: Request):
     })
 
 
+@app.post("/api/core/ceo/orchestrate")
+async def core_ceo_orchestrate(request: Request):
+    """CEO multi-agent orchestration: tek mesaj → plan → ajanlar zinciri.
+
+    Her ajan bir öncekinin çıktısı bağlamında çalışır. Live SSE stream:
+        plan / step_start / step_done / step_error / text_delta / done
+    """
+    body = await request.json()
+    message = (body.get("message") or "").strip()
+    if not message:
+        return JSONResponse({"error": "message required"}, status_code=400)
+    cid = core_store.active_company_id()
+
+    company = core_store.load_company(cid) or {}
+    company_keys = company.get("api_keys", {}) or {}
+    cfg = load_config()
+    for src, dst in [
+        ("apify_token", "APIFY_TOKEN"), ("fal_key", "FAL_KEY"),
+        ("instantly_api_key", "INSTANTLY_API_KEY"),
+        ("anthropic_api_key", "ANTHROPIC_API_KEY"),
+        ("composio_api_key", "COMPOSIO_API_KEY"),
+        ("scraper_actor", "SCRAPER_ACTOR"),
+        ("email_finder_providers", "EMAIL_FINDER_PROVIDERS"),
+    ]:
+        v = company_keys.get(src) or cfg.get(src)
+        if v:
+            os.environ[dst] = v
+
+    from core import orchestrator as _orc
+
+    def event_gen():
+        try:
+            for evt in _orc.orchestrate(message, cid):
+                yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'kind':'error','message':str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
+    })
+
+
 @app.post("/api/core/ceo/chat/stream")
 async def core_ceo_chat_stream(request: Request):
     """SSE streaming endpoint — emits text deltas, tool starts/ends, action

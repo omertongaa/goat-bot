@@ -1,28 +1,20 @@
 """goat CLI — command-line interface for the goat control plane.
 
-Works without the FastAPI server running — operates directly on the
-data/ store. Useful when you want to drive the system from a terminal
-(e.g. before or in parallel with the web UI).
+Two modes:
+  • **Local** (default): operates directly on the local data/ store. Runs
+    agents in-process. Good for scripted / power-user flows.
+  • **Remote** (`--remote URL` or env GOAT_REMOTE): hits a deployed Vercel
+    instance via HTTP. State, agents, and CEO chat all run server-side.
 
-Usage examples:
+Usage:
     python cli.py status
-    python cli.py companies
-    python cli.py switch goat-ugc
-    python cli.py goal "Bu ay 50 restoran lead'i" --metric "50 hot leads"
-    python cli.py plan <goal_id>
-    python cli.py run scout --query kebapçı --location İstanbul --limit 30
-    python cli.py tickets
-    python cli.py show <ticket_id>
-    python cli.py approve <ticket_id>
-    python cli.py reject <ticket_id> --reason "not now"
-    python cli.py budget scout 20
-    python cli.py heartbeat
-    python cli.py chat "bu ay 50 hot lead bul"
-    python cli.py activity --limit 30
+    python cli.py --remote https://goat-bot-tau.vercel.app status
+    GOAT_REMOTE=https://goat-bot-tau.vercel.app python cli.py chat "selam"
 """
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -31,6 +23,22 @@ sys.path.insert(0, str(BASE_DIR))
 
 from core import store, activity_log, agent_runtime, heartbeat, planner
 from core.models import Goal, Company, new_id, to_dict
+
+
+# ── Remote mode helper ─────────────────────────────────────────────
+
+REMOTE_URL = None  # set by main() if --remote or GOAT_REMOTE present
+
+
+def _remote() -> bool:
+    return bool(REMOTE_URL)
+
+
+def _http(method: str, path: str, **kwargs):
+    import requests
+    url = REMOTE_URL.rstrip("/") + path
+    r = requests.request(method, url, timeout=60, **kwargs)
+    return r
 
 # ANSI colors for prettier output
 RED = "\033[31m"; GREEN = "\033[32m"; YELLOW = "\033[33m"
@@ -46,6 +54,34 @@ def _color_status(s: str) -> str:
 
 
 def cmd_status(args):
+    if _remote():
+        d = _http("GET", "/api/core/dashboard").json()
+        company = d.get("company") or {}
+        tickets_total = d.get("totals", {}).get("tickets", 0)
+        cost = d.get("totals", {}).get("cost_usd", 0)
+        counts = d.get("counts", {})
+        goals = d.get("goals", [])
+        budgets = d.get("budgets", {})
+        print(f"\n{BOLD}== goat status (remote) =={END}")
+        print(f"URL: {DIM}{REMOTE_URL}{END}")
+        print(f"Active company: {BOLD}{company.get('name','?')}{END}")
+        print(f"\n{BOLD}Tickets ({tickets_total} total, ${cost:.4f} spent){END}")
+        for s, n in sorted(counts.items()):
+            print(f"  {_color_status(s):20} {n}")
+        print(f"\n{BOLD}Active goals ({len(goals)}){END}")
+        for g in goals[:10]:
+            p = g.get("progress", {})
+            pct = p.get("percent", 0)
+            print(f"  · {g['title']}  {DIM}[{p.get('completed',0)}/{p.get('total',0)} %{pct}]{END}")
+        print(f"\n{BOLD}Budgets ({len(budgets)}){END}")
+        for aid, b in budgets.items():
+            spent = b.get("spent_usd", 0)
+            amt = b.get("amount_usd", 1)
+            pct = 100 * spent / amt if amt else 0
+            col = RED if pct >= 100 else (YELLOW if pct >= 80 else GREEN)
+            print(f"  {aid:15} {col}${spent:.2f} / ${amt:.2f}{END}")
+        print()
+        return
     cid = store.active_company_id()
     company = store.load_company(cid) or {}
     tickets = store.list_tickets(cid, limit=500)
@@ -198,6 +234,58 @@ def cmd_heartbeat(args):
 
 def cmd_chat(args):
     """Single-shot CEO conversation."""
+    if _remote():
+        # Stream from /api/core/ceo/chat/stream — print text deltas live
+        import requests
+        marker = "<<<ACTIONS>>>"
+        accumulated = ""
+        printed_len = 0
+        blocked = False
+        with requests.post(REMOTE_URL.rstrip("/") + "/api/core/ceo/chat/stream",
+                           json={"message": args.message}, stream=True, timeout=180) as r:
+            print(f"\n{BOLD}CEO:{END} ", end="", flush=True)
+            buf = ""
+            for chunk in r.iter_content(chunk_size=None, decode_unicode=True):
+                buf += chunk
+                while "\n\n" in buf:
+                    part, buf = buf.split("\n\n", 1)
+                    line = next((l for l in part.split("\n") if l.startswith("data: ")), None)
+                    if not line:
+                        continue
+                    try:
+                        evt = json.loads(line[6:])
+                    except Exception:
+                        continue
+                    k = evt.get("kind")
+                    if k == "text_delta":
+                        if blocked:
+                            continue
+                        accumulated += evt.get("text", "")
+                        if marker in accumulated:
+                            visible = accumulated.split(marker)[0]
+                            sys.stdout.write(visible[printed_len:])
+                            sys.stdout.flush()
+                            blocked = True
+                            continue
+                        # Hold back partial-marker tails
+                        safe = accumulated
+                        for n in range(len(marker)-1, 0, -1):
+                            if accumulated.endswith(marker[:n]):
+                                safe = accumulated[:-n]
+                                break
+                        if len(safe) > printed_len:
+                            sys.stdout.write(safe[printed_len:])
+                            sys.stdout.flush()
+                            printed_len = len(safe)
+                    elif k == "tool_start":
+                        print(f"\n{BLUE}[{evt.get('name')} çağrılıyor…]{END}", flush=True)
+                    elif k == "tool_end":
+                        mark_ok = GREEN+"✓"+END if evt.get("ok") else RED+"✗"+END
+                        print(f" {mark_ok}", flush=True)
+                    elif k == "action":
+                        print(f"\n{DIM}[{evt.get('kind')} {evt.get('id','')[:14]}]{END}", flush=True)
+            print()
+        return
     import importlib, app as app_mod
     spec = app_mod.AGENT_MODULES.get("ceo")
     mod_path, cls_name = spec.rsplit(":", 1)
@@ -225,6 +313,8 @@ def cmd_activity(args):
 
 def main():
     ap = argparse.ArgumentParser(prog="goat", description="goat CLI")
+    ap.add_argument("--remote", default=os.getenv("GOAT_REMOTE", ""),
+                    help="Drive a deployed instance via HTTP (e.g. https://goat-bot-tau.vercel.app)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("status", help="Show company + tickets + budgets overview").set_defaults(func=cmd_status)
@@ -255,6 +345,9 @@ def main():
     p = sub.add_parser("activity", help="Show recent activity log"); p.add_argument("--limit", type=int, default=30); p.set_defaults(func=cmd_activity)
 
     args = ap.parse_args()
+    global REMOTE_URL
+    if args.remote:
+        REMOTE_URL = args.remote.rstrip("/")
     args.func(args)
 
 

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat · Dosyalar</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f97316'/%3E%3Ctext x='50' y='72' font-family='Inter, sans-serif' font-size='62' font-weight='800' text-anchor='middle' fill='white'%3Eg%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090b; --surface: #0f0f12; --surface-2: #16161b; --surface-3: #1d1d24;
+  --border: #26262e; --text: #f5f5f7; --text-2: #c3c3cc; --dim: #7a7a85;
+  --accent: #f97316; --green: #22c55e; --blue: #3b82f6; --purple: #a855f7;
+  --radius: 10px; --radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg); color: var(--text); font-size: 13px;
+  -webkit-font-smoothing: antialiased; min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+
+header {
+  display: flex; align-items: center; padding: 0 24px; height: 56px;
+  background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent), #ea580c);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 13px;
+}
+.bread { color: var(--dim); font-size: 12px; font-weight: 500; }
+.nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+.nav-tab { padding: 6px 12px; font-size: 12px; color: var(--dim); border-radius: var(--radius-sm); font-weight: 500; }
+.nav-tab:hover { color: var(--text-2); background: var(--surface-2); }
+.nav-tab.active { color: var(--text); background: var(--surface-2); }
+.spacer { flex: 1; }
+
+.container { max-width: 1280px; margin: 0 auto; padding: 26px 24px; }
+
+.heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.heading h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.heading .count { color: var(--dim); font-size: 13px; }
+
+.filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.chip-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-2); padding: 6px 12px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 500;
+}
+.chip-btn:hover { border-color: var(--dim); color: var(--text); }
+.chip-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.search-box {
+  width: 100%; max-width: 400px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 9px 13px; border-radius: var(--radius-sm);
+  font-size: 13px; margin-bottom: 18px;
+}
+.search-box:focus { outline: none; border-color: var(--accent); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.file {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px; cursor: pointer;
+  transition: all 0.15s; display: flex; flex-direction: column; gap: 6px;
+}
+.file:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+.file .head { display: flex; align-items: center; gap: 10px; }
+.file .ico {
+  width: 38px; height: 38px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  font-size: 19px; flex-shrink: 0;
+}
+.file .name { font-size: 13px; font-weight: 600; word-break: break-word; }
+.file .meta {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  font-size: 10.5px; color: var(--dim); text-transform: uppercase;
+  letter-spacing: 0.04em; font-weight: 500;
+}
+.file .meta .agent { color: var(--blue); }
+.file .meta .kind { color: var(--purple); }
+.file .footer {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 10.5px; color: var(--dim); margin-top: 4px;
+}
+.file .size { font-family: 'JetBrains Mono', monospace; }
+
+.empty {
+  padding: 60px 20px; text-align: center; color: var(--dim);
+  background: var(--surface); border: 1px dashed var(--border);
+  border-radius: var(--radius); font-size: 13px;
+}
+.empty .big { font-size: 32px; margin-bottom: 12px; }
+
+/* Preview drawer */
+.drawer {
+  position: fixed; top: 0; right: 0; width: 700px; max-width: 100vw;
+  height: 100vh; background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: -20px 0 60px rgba(0,0,0,0.5);
+  transform: translateX(100%); transition: transform 0.25s ease;
+  z-index: 10; display: flex; flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-head {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+}
+.drawer-head h3 { font-size: 14px; font-weight: 600; flex: 1; word-break: break-word; }
+.drawer-head .close { color: var(--dim); font-size: 22px; padding: 4px 10px; border-radius: 6px; }
+.drawer-head .close:hover { background: var(--surface-2); color: var(--text); }
+.drawer-body { flex: 1; overflow: auto; padding: 16px 20px; }
+.drawer-body img { max-width: 100%; border-radius: 8px; }
+.drawer-body iframe { width: 100%; height: 70vh; border: 1px solid var(--border); border-radius: 8px; }
+.drawer-body pre {
+  white-space: pre-wrap; word-wrap: break-word; font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; line-height: 1.55; color: var(--text-2);
+  background: var(--bg); border: 1px solid var(--border);
+  padding: 14px; border-radius: 8px; overflow: auto; max-height: 75vh;
+}
+.drawer-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.btn { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border);
+       background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 500; }
+.btn:hover { background: var(--surface-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">
+    <div class="logo-mark">g</div>
+    <div>goat</div>
+  </a>
+  <div class="bread">· Dosyalar</div>
+  <div class="nav-tabs">
+    <a class="nav-tab" href="/board">Board</a>
+    <a class="nav-tab active" href="/files">Dosyalar</a>
+    <a class="nav-tab" href="/apps">Apps</a>
+    <a class="nav-tab" href="/classic">Classic</a>
+  </div>
+  <div class="spacer"></div>
+</header>
+
+<div class="container">
+  <div class="heading">
+    <h1>📁 Üretilen Dosyalar</h1>
+    <span class="count" id="totalCount">— dosya</span>
+  </div>
+
+  <input class="search-box" id="searchBox" placeholder="🔍 Dosya, ajan veya tip ara…" oninput="render()">
+
+  <div class="filter-bar" id="filterBar"></div>
+
+  <div id="grid" class="grid"></div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3 id="drawerTitle">Dosya</h3>
+    <button class="close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot">
+    <a class="btn primary" id="downloadBtn" download>⬇ İndir</a>
+    <a class="btn" id="openTabBtn" target="_blank">🔗 Yeni sekmede aç</a>
+  </div>
+</div>
+
+<script>
+let STATE = { files: [], filter: 'all' };
+
+const KIND_ICON = {
+  'PDF': '📄', 'Markdown': '📝', 'Web sayfası': '🌐',
+  'Görsel': '🖼️', 'GIF': '🎞️', 'Video': '🎬', 'Ses': '🎵',
+  'JSON': '🧾', 'Metin': '📃', 'CSV': '📊', 'Dosya': '📦',
+};
+
+const FILTERS = [
+  { id: 'all', label: 'Hepsi' },
+  { id: 'Görsel', label: '🖼️ Görseller' },
+  { id: 'PDF', label: '📄 PDF' },
+  { id: 'Markdown', label: '📝 Yazılar' },
+  { id: 'Web sayfası', label: '🌐 Sayfalar' },
+  { id: 'Video', label: '🎬 Video' },
+  { id: 'JSON', label: '🧾 Veri' },
+  { id: 'CSV', label: '📊 CSV' },
+];
+
+async function load() {
+  const r = await fetch('/api/core/files?limit=500');
+  const d = await r.json();
+  STATE.files = d.files || [];
+  render();
+}
+
+function render() {
+  const fb = document.getElementById('filterBar');
+  fb.innerHTML = FILTERS.map(f =>
+    `<button class="chip-btn ${STATE.filter === f.id ? 'active' : ''}"
+       onclick="setFilter('${f.id}')">${f.label}</button>`
+  ).join('');
+
+  const search = (document.getElementById('searchBox').value || '').toLowerCase();
+  const filtered = STATE.files.filter(f => {
+    if (STATE.filter !== 'all' && f.type !== STATE.filter) return false;
+    if (!search) return true;
+    return (f.name + ' ' + f.agent + ' ' + f.kind + ' ' + f.path).toLowerCase().includes(search);
+  });
+
+  document.getElementById('totalCount').textContent = `${filtered.length} dosya`;
+
+  const grid = document.getElementById('grid');
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column: 1 / -1;">
+      <div class="big">📂</div>
+      <div>Henüz dosya yok. Bir ajan çalıştır, üretilen dosyalar buraya düşsün.</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(f => `
+    <div class="file" onclick='openFile(${JSON.stringify(f).replaceAll("'","&apos;")})'>
+      <div class="head">
+        <div class="ico">${KIND_ICON[f.type] || '📦'}</div>
+        <div style="flex:1; min-width: 0;">
+          <div class="name">${escapeHtml(f.name)}</div>
+          <div class="meta">
+            <span class="agent">${escapeHtml(f.agent || '')}</span>
+            <span class="kind">${escapeHtml(f.kind || '')}</span>
+            <span>${escapeHtml(f.type || '')}</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <span>${formatTime(f.modified)}</span>
+        <span class="size">${formatSize(f.size)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setFilter(id) { STATE.filter = id; render(); }
+
+function openFile(f) {
+  const drawer = document.getElementById('drawer');
+  const body = document.getElementById('drawerBody');
+  document.getElementById('drawerTitle').textContent = f.name;
+  document.getElementById('downloadBtn').href = f.url;
+  document.getElementById('openTabBtn').href = f.url;
+
+  body.innerHTML = '<div style="color:var(--dim);">Yükleniyor…</div>';
+  if (f.type === 'Görsel' || f.type === 'GIF') {
+    body.innerHTML = `<img src="${f.url}" alt="${escapeHtml(f.name)}">`;
+  } else if (f.type === 'Web sayfası') {
+    body.innerHTML = `<iframe src="${f.url}" sandbox="allow-same-origin"></iframe>`;
+  } else if (f.type === 'PDF') {
+    body.innerHTML = `<iframe src="${f.url}#view=FitH"></iframe>`;
+  } else if (f.type === 'Video') {
+    body.innerHTML = `<video src="${f.url}" controls style="max-width:100%;"></video>`;
+  } else if (f.type === 'Ses') {
+    body.innerHTML = `<audio src="${f.url}" controls style="width:100%;"></audio>`;
+  } else if (f.type === 'Markdown' || f.type === 'JSON' || f.type === 'CSV' || f.type === 'Metin') {
+    fetch(f.url).then(r => r.text()).then(text => {
+      let html = '';
+      if (f.type === 'Markdown' && typeof marked !== 'undefined') {
+        html = marked.parse(text);
+      } else if (f.type === 'JSON') {
+        try { html = '<pre>' + escapeHtml(JSON.stringify(JSON.parse(text), null, 2)) + '</pre>'; }
+        catch { html = '<pre>' + escapeHtml(text) + '</pre>'; }
+      } else {
+        html = '<pre>' + escapeHtml(text) + '</pre>';
+      }
+      body.innerHTML = html;
+    }).catch(() => {
+      body.innerHTML = '<div style="color:var(--red);">Yüklenemedi</div>';
+    });
+  } else {
+    body.innerHTML = `<div style="color:var(--dim);">Önizleme yok — yeni sekmede aç ya da indir.</div>`;
+  }
+
+  drawer.classList.add('open');
+}
+
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+function formatSize(b) {
+  if (b < 1024) return b + 'B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + 'KB';
+  return (b / (1024 * 1024)).toFixed(1) + 'MB';
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'şimdi';
+  if (mins < 60) return mins + ' dk';
+  if (mins < 1440) return Math.floor(mins / 60) + ' sa';
+  return Math.floor(mins / 1440) + ' gün';
+}
+
+load();
+setInterval(load, 30000);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+</body>
+</html>

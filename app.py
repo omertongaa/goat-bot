@@ -1006,6 +1006,28 @@ async def apps_page(request: Request):
     return templates.TemplateResponse("apps.html", {"request": request})
 
 
+@app.get("/files", response_class=HTMLResponse)
+async def files_page(request: Request):
+    return templates.TemplateResponse("files.html", {"request": request})
+
+
+@app.get("/api/core/files")
+async def core_list_files(limit: int = 200):
+    from core import files as _files
+    return JSONResponse({"files": _files.list_files(limit=limit)})
+
+
+@app.get("/api/core/files/raw")
+async def core_files_raw(path: str):
+    from core import files as _files
+    from fastapi.responses import FileResponse, PlainTextResponse
+    target = _files.safe_read_file(path)
+    if not target:
+        return JSONResponse({"error": "not allowed"}, status_code=403)
+    # Render markdown / json inline; force download otherwise depends on content-type
+    return FileResponse(str(target), filename=target.name)
+
+
 @app.get("/api/core/agents")
 async def core_list_agents():
     """List every agent the orchestrator can dispatch, with role + category."""

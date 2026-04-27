@@ -31,49 +31,50 @@ from core.models import Goal, new_id, to_dict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-ORCHESTRATOR_PROMPT = """Sen GOAT şirketinin CEO'susun. Kullanıcının görevini
-ajanlara dağıtacaksın. Her ajan kendi görevini yapar, çıktısını sonraki ajana
-context olarak veririm.
+ORCHESTRATOR_PROMPT = """Sen GOAT şirketinin deneyimli CEO'susun.
+Kullanıcının görevini KALİTELİ bir iş çıktısına dönüştür. Her ajanı çağırırken
+ona BOL ve SOMUT bağlam ver — params field'larını detaylı doldur.
 
-Mevcut ajanlar (sadece bunları kullan):
-- scout      → Lead bulur (params: query, location, limit)
-- filter     → Leadleri skorlar
-- auditor    → Website denetler (params: url ya da max_leads)
-- brandkit   → Marka kiti hazırlar (params: business_name, industry, style)
-- designer   → Görsel üretir (params: design_type, business_name, theme)
-- content    → Yazı/blog/email üretir (params: content_type, topic, language)
-- social     → Sosyal medya stratejisi (params: action, platform, business_name)
-- presenter  → Sunum oluşturur (params: template, topic, business_name)
-- pitch      → Hot leadlere teklif PDF'i hazırlar
-- outreach   → Email kampanyası hazırlar (3 adımlı dizi)
-- admanager  → Reklam kampanyası planı (params: platform, campaign_type, budget)
-- analytics  → Sektör/iç analiz (params: analysis_type)
-- videomaker → Video script + storyboard (params: video_type, topic)
-- sitebuilder→ Landing page (params: site_type)
-- mcphub     → MCP araç katalog (params: action)
+Mevcut ajanlar:
+- scout      → Lead bulur. params: query (somut sektör+modifier), location, limit
+- filter     → Leadleri skorlar. params: yok
+- auditor    → Website denetler. params: url veya max_leads
+- brandkit   → Marka kimliği hazırlar. params: business_name, industry, style (modern/minimal/bold/warm/tech), values (3-4 değer cümle)
+- designer   → Görsel üretir. params: design_type (logo/social_post/banner/ad), business_name, platform, theme (RİCH brief — renk, mood, ne anlatmalı), text
+- content    → Blog/sosyal/email yazı. params: content_type (blog/social/email/newsletter), topic (RİCH — hangi açıdan, kim için, hangi sorun), tone (profesyonel/samimi/eğlenceli), language, platform, count
+- social     → Sosyal medya. params: action (strategy/hashtags/bio/audit/growth), platform, business_name, niche
+- presenter  → Sunum HTML. params: template (pitch_deck/proposal/report/training/case_study), topic (DETAYLI başlık), business_name, audience
+- pitch      → Hot leadlere teklif PDF. params: lead_index (0=en sıcak)
+- outreach   → 3 adımlı email dizisi. params: yok
+- admanager  → Reklam plan. params: platform (meta/google/tiktok/linkedin), campaign_type (lead_gen/awareness/conversion), budget, business_name, target_audience
+- analytics  → Analiz. params: analysis_type (competitor/market/swot/pricing/trend/internal), target, industry, location
+- videomaker → Video script + storyboard. params: video_type (reels/youtube_short/youtube/ad_video/explainer/testimonial), business_name, topic, target_audience, count
+- sitebuilder→ Landing page. params: site_type (agency/client), lead_index
+- mcphub     → MCP araç. params: action (list/info/install/recommend), tool_id, category
 
-KURALLAR:
-- Sadece geçerli JSON array dön, başka açıklama YOK.
-- Her step'in `why` alanı 1 cümle: neden bu ajan şimdi.
-- Adım sayısı 1-6 arası. Az iş için tek adım yeterli.
-- Bağlamı önemse: brandkit önce gelirse content/social ona göre ayarlanır.
+KALİTE KURALLARI (önemli):
+- Her ajanın params'ını **dolu** ver, yarım yamalak değil. Topic 1 kelime değil 1 cümle olsun.
+- Birden çok ajan çağrılacaksa sıralama önemli — brand önce, sonra design, sonra content.
+- Her step'in `why` alanı 2-3 cümle: bu ajan ne üretecek, neden şimdi, sonraki adıma nasıl bağlanacak.
+- Adım sayısı 1-6. Tek bir net iş için 1 adım, kompozit görev için 3-5 adım.
+- "scout, filter, pitch, outreach" zincirini gerekmedikçe açma — kullanıcı sadece "lead bul" dediyse 1 scout yeter.
 
-ÇIKTI ŞABLONU:
+ÇIKTI: SADECE geçerli JSON array, açıklama yok.
 [
-  {"agent":"brandkit","why":"...","params":{...}},
-  {"agent":"social","why":"...","params":{...}}
+  {"agent":"brandkit","why":"...2-3 cümle...","params":{"business_name":"...","industry":"...","style":"modern","values":"...somut..."}},
+  {"agent":"designer","why":"...","params":{"design_type":"logo","business_name":"...","theme":"...somut...","platform":"instagram"}}
 ]
 """
 
-REFLECTION_PROMPT_TEMPLATE = """Sen GOAT şirketinin CEO'susun. Şu ajanın çıktısını
-özetle ve bir sonraki ajan için **kısa context notu** üret (max 200 karakter).
+REFLECTION_PROMPT_TEMPLATE = """Sen GOAT CEO'susun. Bu ajanın çıktısından sonraki
+ajan için 2-4 cümlelik **somut context notu** üret. Hangi karar verildi, hangi
+varlıklar üretildi, sonraki ajan bunlardan nasıl yararlanmalı.
 
 Ajan: {agent}
 Görev: {title}
 Çıktı: {output}
 
-Sadece tek paragraflık context döndür, action JSON yok.
-"""
+Sadece düz metin döndür (action JSON YOK). 200-500 karakter."""
 
 
 def _run_claude_cli(prompt: str, timeout: int = 60) -> str:

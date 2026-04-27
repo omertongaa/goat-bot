@@ -991,6 +991,7 @@ aside.right {
     </div>
     <div class="nav-tabs">
       <a class="nav-tab active" href="/board">Board</a>
+      <a class="nav-tab" href="/files">Dosyalar</a>
       <a class="nav-tab" href="/apps">Apps</a>
       <a class="nav-tab" href="/classic">Classic</a>
     </div>
@@ -1764,17 +1765,21 @@ function openGoalModal() {
 async function createGoal() {
   const title = document.getElementById('gTitle').value.trim();
   if (!title) return;
+  const desc = document.getElementById('gDesc').value;
+  const metric = document.getElementById('gMetric').value;
   const r = await fetch('/api/core/goals', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title, description: document.getElementById('gDesc').value,
-      target_metric: document.getElementById('gMetric').value,
-    }),
+    body: JSON.stringify({ title, description: desc, target_metric: metric }),
   });
   const goal = await r.json();
   closeModal();
-  // Otomatik plan
-  if (goal.id) await fetch(`/api/core/goals/${goal.id}/plan`, { method: 'POST' });
+  // Otomatik orchestrate — CEO planlasın ve ajanları çalıştırsın
+  // Build a richer message so orchestrator gets full context
+  const msg = [title, desc, metric ? ('Hedef ölçüsü: ' + metric) : ''].filter(Boolean).join('. ');
+  // Ensure CEO panel is open so user sees the live work
+  if (!STATE.ceoOpen) toggleCEO();
+  document.getElementById('ceoInput').value = msg;
+  await orchestrateCEO();
   loadDashboard();
 }
 

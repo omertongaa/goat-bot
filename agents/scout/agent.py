@@ -112,7 +112,7 @@ class ScoutAgent(BaseAgent):
         with_email = sum(1 for l in leads if l.get("email"))
         with_website = sum(1 for l in leads if l.get("website"))
         with_phone = sum(1 for l in leads if l.get("phone"))
-        avg_rating = sum(l.get("rating", 0) for l in leads) / len(leads) if leads else 0
+        avg_rating = sum((l.get("rating") or 0) for l in leads) / len(leads) if leads else 0
 
         fallback_warning = ""
         if used_fallback:

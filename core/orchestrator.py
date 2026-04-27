@@ -122,10 +122,12 @@ def _resolve_run_params(agent_id: str, params: dict, ctx_notes: list, company: d
     niche = company.get("niche") or "dijital pazarlama"
 
     if agent_id == "scout":
+        # Hard cap 100 / call — Apify usage'ı kontrolsüz tüketmeyelim.
+        requested = int(p.get("limit", 50))
         return {
             "query": p.get("query", niche),
             "location": p.get("location", (company.get("target_cities") or ["İstanbul"])[0]),
-            "limit": int(p.get("limit", 30)),
+            "limit": min(requested, 100),
         }
     if agent_id == "auditor":
         return {"url": p.get("url", ""), "max_leads": int(p.get("max_leads", 10))}

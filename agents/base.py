@@ -141,12 +141,14 @@ class BaseAgent:
         niche = cfg.get("niche") or (cfg.get("target_industries") or ["restoran"])[0]
         city = (cfg.get("target_cities") or [""])[0]
 
-        self.log(f"Hot lead yok, Scout otomatik çalıştırıyor: {niche} / {city}")
+        # Auto-fetch limit — kullanıcı uyarısı: "max 100 lead her aramada".
+        # Min_count 50'yi geçerse 50'de kalsın, hard cap 100 zaten scraper'da.
+        fetch_n = min(max(min_count, 20), 50)
+        self.log(f"Hot lead yok, Scout otomatik çalıştırıyor: {niche} / {city} (max {fetch_n})")
         try:
             from services.scraper import scrape_b2b_leads
             new_leads = scrape_b2b_leads(query=niche, location=city,
-                                         max_results=max(min_count * 2, 20),
-                                         log=self.log)
+                                         max_results=fetch_n, log=self.log)
             if not new_leads:
                 self.log("Scout sonuç dönmedi")
                 return []

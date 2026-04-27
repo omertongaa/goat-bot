@@ -19,8 +19,13 @@ import requests
 from pathlib import Path
 
 APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
-DEFAULT_MAX_LEADS = 100
+DEFAULT_MAX_LEADS = 50
+# HARD CAP — Apify usage'ı kontrolsüz şekilde artmasın diye her aramada
+# en fazla 100 lead. Kullanıcı param geçse bile bu cap'e bağlı.
 HARD_CAP = 100
+# Aynı (query, location) için son N saniye içinde scrape yapıldıysa cache'i kullan,
+# Apify'a gitme — limit doldurma.
+CACHE_TTL_SECONDS = 1800  # 30 dakika
 
 GMAPS_ACTORS = {
     "compass": "compass~google-maps-extractor",
@@ -33,44 +38,89 @@ def _selected_actor() -> str:
     return GMAPS_ACTORS.get(choice, GMAPS_ACTORS["compass"])
 
 
+def _cache_lookup(query: str, location: str, max_results: int, log=None):
+    """30dk içinde aynı (query, location) için scrape yapıldıysa cache'den döndür.
+    Apify usage'ı korumak için kritik — özellikle heartbeat/orchestrator'un aynı
+    aramayı tekrar tekrar tetiklemesini önler."""
+    try:
+        import time, json as _json
+        from pathlib import Path as _Path
+        from core.paths import data_path as _dp
+        raw_dir = _dp("leads", "raw")
+        if not raw_dir.exists():
+            return None
+        now = time.time()
+        normalized_q = query.strip().lower()
+        normalized_loc = (location or "").strip().lower()
+        for f in sorted(raw_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+            age = now - f.stat().st_mtime
+            if age > CACHE_TTL_SECONDS:
+                break
+            try:
+                data = _json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if (data.get("query", "").strip().lower() == normalized_q
+                and (data.get("location", "").strip().lower() == normalized_loc)):
+                cached = data.get("leads", [])[:max_results]
+                if cached:
+                    if log:
+                        log(f"Cache hit ({len(cached)} lead, {int(age)}sn yaş) — Apify çağrılmadı")
+                    return cached
+    except Exception:
+        pass
+    return None
+
+
 def scrape_google_maps(query: str, location: str = "", max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
-    """Scrape Google Maps for businesses. Falls back to B2B leads if no results."""
+    """Scrape Google Maps for businesses. Falls back to B2B leads if no results.
+    Hard cap: 100 lead per call. Cache: 30min."""
     token = APIFY_TOKEN or os.getenv("APIFY_TOKEN", "")
     if not token:
         if log:
-            log("No APIFY_TOKEN set — cannot scrape. Add it to .env")
+            log("APIFY_TOKEN ayarlı değil — Apify çağrılmadı.")
         return []
 
+    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
+    cached = _cache_lookup(query, location, max_results, log)
+    if cached is not None:
+        return cached
+
     if log:
-        log(f"Google Maps'te arıyorum: {query} {location}")
+        log(f"Google Maps Scraper'a soruyorum: '{query} {location}' (max {max_results})")
     leads = _run_google_maps(query, location, max_results, token, log)
 
     if not leads:
         if log:
-            log("Google Maps sonuç vermedi, B2B lead finder deneniyor...")
+            log("Google Maps sonuç vermedi, B2B Leads Finder deneniyor...")
         leads = _run_leads_finder(query, location, max_results, token, log)
 
-    return leads
+    return leads[:HARD_CAP]
 
 
 def scrape_b2b_leads(query: str, location: str = "", max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
-    """B2B lead finder first, falls back to Google Maps."""
+    """B2B lead finder first, falls back to Google Maps. Hard cap 100, 30min cache."""
     token = APIFY_TOKEN or os.getenv("APIFY_TOKEN", "")
     if not token:
         if log:
-            log("No APIFY_TOKEN set")
+            log("APIFY_TOKEN ayarlı değil.")
         return []
 
+    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
+    cached = _cache_lookup(query, location, max_results, log)
+    if cached is not None:
+        return cached
+
     if log:
-        log(f"B2B lead finder'da arıyorum: {query} {location}")
+        log(f"B2B Leads Finder'a soruyorum: '{query} {location}' (max {max_results})")
     leads = _run_leads_finder(query, location, max_results, token, log)
 
     if not leads:
         if log:
-            log("B2B sonuç vermedi, Google Maps deneniyor...")
+            log("B2B sonuç vermedi, Google Maps Scraper deneniyor...")
         leads = _run_google_maps(query, location, max_results, token, log)
 
-    return leads
+    return leads[:HARD_CAP]
 
 
 def _run_google_maps(query, location, max_results, token, log):

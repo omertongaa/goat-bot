@@ -186,16 +186,38 @@ class BaseAgent:
             return []
 
     def call_claude(self, prompt: str, timeout: int = 120):
-        """Call Claude CLI if available. Returns response text or None."""
+        """Call Claude CLI if available. Returns response text or None.
+
+        Error responses (credit exhausted, rate limited, auth failed) → None,
+        so callers fall back to template content rather than treating the
+        error message as the agent's output.
+        """
         try:
             result = subprocess.run(
                 ["claude", "-p", prompt, "--output-format", "text"],
                 capture_output=True, text=True, timeout=timeout,
                 cwd=str(BASE_DIR),
             )
-            if result.stdout and result.stdout.strip():
-                return result.stdout.strip()
-            return None
+            text = (result.stdout or "").strip()
+            if not text:
+                return None
+            # Detect error-shaped responses — these come back through stdout
+            # as plain text from Claude CLI on credit/auth issues
+            lowered = text.lower()
+            error_signals = (
+                "credit balance is too low",
+                "credit_balance_too_low",
+                "your credit balance",
+                "rate limit",
+                "rate_limit_error",
+                "authentication_error",
+                "invalid api key",
+                "anthropic api error",
+            )
+            if any(sig in lowered for sig in error_signals) and len(text) < 600:
+                self.log(f"Claude CLI hata sinyali döndü, fallback'a düşülüyor: {text[:120]}")
+                return None
+            return text
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None
 

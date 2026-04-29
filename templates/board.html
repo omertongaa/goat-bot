@@ -1323,6 +1323,14 @@ function paramFieldsFor(agentId) {
       </select>
       <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
       <label>Konu</label><input id="qrTopic" placeholder="otomasyon">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="qrMakeMp4" style="width:auto;margin:0">
+        <span>🎬 Gerçek MP4 üret (~$0.60, 3-5 dk)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="qrMakeStills" checked style="width:auto;margin:0">
+        <span>🖼 Sahne still görselleri (~$0.05, 30s)</span>
+      </label>
     `,
     content: `
       <label>İçerik türü</label>
@@ -1397,7 +1405,11 @@ async function quickRunAgent(agentId) {
   if (agentId === 'scout') Object.assign(params, { query: get('qrQuery'), location: get('qrLocation'), limit: num('qrLimit') || 50 });
   if (agentId === 'auditor') Object.assign(params, { url: get('qrUrl'), max_leads: num('qrMaxLeads') || 10 });
   if (agentId === 'designer') Object.assign(params, { design_type: get('qrDesignType'), business_name: get('qrBusiness'), theme: get('qrTheme') });
-  if (agentId === 'videomaker') Object.assign(params, { video_type: get('qrVideoType'), business_name: get('qrBusiness'), topic: get('qrTopic') });
+  if (agentId === 'videomaker') Object.assign(params, {
+    video_type: get('qrVideoType'), business_name: get('qrBusiness'), topic: get('qrTopic'),
+    make_mp4: !!(document.getElementById('qrMakeMp4') && document.getElementById('qrMakeMp4').checked),
+    make_stills: !!(document.getElementById('qrMakeStills') && document.getElementById('qrMakeStills').checked)
+  });
   if (agentId === 'content') Object.assign(params, { content_type: get('qrContentType'), topic: get('qrTopic') });
   if (agentId === 'brandkit') Object.assign(params, { business_name: get('qrBusiness'), industry: get('qrIndustry'), style: get('qrStyle') });
   if (agentId === 'admanager') Object.assign(params, { platform: get('qrPlatform'), campaign_type: get('qrCampaignType'), budget: get('qrBudget'), business_name: get('qrBusiness') });

@@ -1,68 +1,96 @@
-"""Apify scraper service — abstracts the Apify API for lead generation.
+"""Apify scraper service — sıkı limitlenmiş, çok-katmanlı koruma.
 
-Three modes:
-1. Google Maps — local businesses with address, phone, email, rating.
-   Two actor options controlled by SCRAPER_ACTOR env:
-     - "compass"     → compass~google-maps-extractor (default, broad data)
-     - "lukaskrivka" → lukaskrivka~google-maps-with-contact-details
-       ($2.10/1000 place, richer email+phone+social extraction, recommended
-       for Turkish SMB use case per benchmark research)
-2. B2B Leads (code_crafter~leads-finder) — business contacts with email, LinkedIn, job title
+Üç savunma katmanı kullanırız:
 
-Falls back from one to the other if no results found.
-Default and hard-cap of 100 leads per run.
+1. **Aktör input parametresi** (en katı — actor mantığını durdurur):
+   - compass / lukaskrivka → `maxCrawledPlacesPerSearch`
+   - code_crafter~leads-finder → `maxResults` + `maxItems` (her iki adı geçer)
+2. **Apify run-level URL paramları** (`?maxItems=N&timeout=300&memory=1024`):
+   - `maxItems`: pay-per-result aktörlerinde overcharge önler
+   - `timeout`: 300s sonra Apify run'ı 408'le keser
+   - `memory`: actor memory cap (MB)
+3. **Dataset fetch limit** (`?limit=N&clean=true`):
+   - Sadece istenen kadar item indirilir, geri kalanı hiç network'e gelmez
+
+Plus 30dk cache, 100 hard cap, kullanıcının `?max=25` isteği end-to-end korunur.
 """
 
 import os
 import time
+import json
 import requests
-from pathlib import Path
+from typing import Optional
 
 APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
-DEFAULT_MAX_LEADS = 50
-# HARD CAP — Apify usage'ı kontrolsüz şekilde artmasın diye her aramada
-# en fazla 100 lead. Kullanıcı param geçse bile bu cap'e bağlı.
+
+# Tüm cap'lerin merkezi — kullanıcı param yoksa default 25, hard cap 100.
+DEFAULT_MAX_LEADS = 25
 HARD_CAP = 100
-# Aynı (query, location) için son N saniye içinde scrape yapıldıysa cache'i kullan,
-# Apify'a gitme — limit doldurma.
-CACHE_TTL_SECONDS = 1800  # 30 dakika
+APIFY_MEMORY_MB = 1024              # actor memory cap
+APIFY_RUN_TIMEOUT_SEC = 300         # 5dk hard cap (Apify runtime kesi)
+APIFY_POLL_INTERVAL = 5
+APIFY_POLL_BUFFER = 60              # poll'u Apify timeout'undan biraz uzun tut
+CACHE_TTL_SECONDS = 1800            # 30dk
 
 GMAPS_ACTORS = {
     "compass": "compass~google-maps-extractor",
     "lukaskrivka": "lukaskrivka~google-maps-with-contact-details",
 }
+LEADS_FINDER_ACTOR = "code_crafter~leads-finder"
 
+
+# ── Helpers ────────────────────────────────────────────────────────────────
 
 def _selected_actor() -> str:
     choice = os.getenv("SCRAPER_ACTOR", "compass").strip().lower()
     return GMAPS_ACTORS.get(choice, GMAPS_ACTORS["compass"])
 
 
-def _cache_lookup(query: str, location: str, max_results: int, log=None):
-    """30dk içinde aynı (query, location) için scrape yapıldıysa cache'den döndür.
-    Apify usage'ı korumak için kritik — özellikle heartbeat/orchestrator'un aynı
-    aramayı tekrar tekrar tetiklemesini önler."""
+def _resolve_token() -> str:
+    """Try env first, then active company's api_keys."""
+    token = APIFY_TOKEN or os.getenv("APIFY_TOKEN", "").strip()
+    if token:
+        return token
     try:
-        import time, json as _json
-        from pathlib import Path as _Path
+        from core import store
+        company = store.load_company(store.active_company_id()) or {}
+        return (company.get("api_keys") or {}).get("apify_token", "")
+    except Exception:
+        return ""
+
+
+def _clamp(n, default=DEFAULT_MAX_LEADS, lo=1, hi=HARD_CAP) -> int:
+    """Sertçe sınırla — None / 0 / negatif değerleri default'a, üst sınırı hi'a."""
+    try:
+        v = int(n)
+        if v <= 0:
+            return default
+        return max(lo, min(v, hi))
+    except (TypeError, ValueError):
+        return default
+
+
+def _cache_lookup(query: str, location: str, max_results: int, log=None):
+    """30dk içinde aynı (query, location) için scrape varsa cache'den dön."""
+    try:
         from core.paths import data_path as _dp
         raw_dir = _dp("leads", "raw")
         if not raw_dir.exists():
             return None
         now = time.time()
-        normalized_q = query.strip().lower()
-        normalized_loc = (location or "").strip().lower()
+        nq = (query or "").strip().lower()
+        nl = (location or "").strip().lower()
         for f in sorted(raw_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
             age = now - f.stat().st_mtime
             if age > CACHE_TTL_SECONDS:
                 break
             try:
-                data = _json.loads(f.read_text(encoding="utf-8"))
+                data = json.loads(f.read_text(encoding="utf-8"))
             except Exception:
                 continue
-            if (data.get("query", "").strip().lower() == normalized_q
-                and (data.get("location", "").strip().lower() == normalized_loc)):
-                cached = data.get("leads", [])[:max_results]
+            if (data.get("query", "").strip().lower() == nq
+                    and data.get("location", "").strip().lower() == nl):
+                cached = (data.get("leads") or [])[:max_results]
                 if cached:
                     if log:
                         log(f"Cache hit ({len(cached)} lead, {int(age)}sn yaş) — Apify çağrılmadı")
@@ -72,249 +100,296 @@ def _cache_lookup(query: str, location: str, max_results: int, log=None):
     return None
 
 
-def scrape_google_maps(query: str, location: str = "", max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
-    """Scrape Google Maps for businesses. Falls back to B2B leads if no results.
-    Hard cap: 100 lead per call. Cache: 30min."""
-    token = APIFY_TOKEN or os.getenv("APIFY_TOKEN", "")
+def _run_apify_actor(actor_id: str, payload: dict, max_items: int, token: str,
+                     log=None, max_charge_usd: Optional[float] = None) -> list:
+    """Tek merkezi Apify runner. Üç katmanlı limit:
+       1) actor input payload (verilen şekilde — caller doldurur)
+       2) URL params: maxItems + timeout + memory
+       3) dataset fetch: ?limit=max_items
+    Hata durumlarında [] döner ve log'lar."""
+    max_items = _clamp(max_items)
+
+    # Build run kickoff URL with all the safety caps Apify supports server-side
+    params = {
+        "token": token,
+        "maxItems": max_items,
+        "timeout": APIFY_RUN_TIMEOUT_SEC,
+        "memory": APIFY_MEMORY_MB,
+    }
+    if max_charge_usd is not None and max_charge_usd > 0:
+        params["maxTotalChargeUsd"] = max_charge_usd
+
+    if log:
+        log(f"Apify '{actor_id}' başlıyor (maxItems={max_items}, timeout={APIFY_RUN_TIMEOUT_SEC}s, memory={APIFY_MEMORY_MB}MB)")
+
+    try:
+        resp = requests.post(
+            f"https://api.apify.com/v2/acts/{actor_id}/runs",
+            params=params,
+            json=payload,
+            timeout=30,
+        )
+    except Exception as e:
+        if log:
+            log(f"Apify istek hatası: {e}")
+        return []
+
+    if resp.status_code not in (200, 201):
+        if log:
+            log(f"Apify start failed {resp.status_code}: {resp.text[:300]}")
+        return []
+
+    run_data = resp.json().get("data") or {}
+    run_id = run_data.get("id")
+    if not run_id:
+        if log:
+            log(f"Apify run id yok: {resp.text[:200]}")
+        return []
+
+    if log:
+        log(f"  run id: {run_id} — pollluyorum...")
+
+    # Poll for status
+    dataset_id = _poll_apify_run(run_id, token, log)
+    if not dataset_id:
+        return []
+
+    # Fetch dataset with limit + clean (strip empty fields, single-line items)
+    items = _fetch_dataset(dataset_id, token, max_items, log)
+
+    # Cost attribution — actor responses sometimes include charge info
+    try:
+        from core.cost_tracker import record
+        usage = run_data.get("stats") or {}
+        kind = (
+            "apify.gmaps.lukaskrivka" if "lukaskrivka" in actor_id
+            else "apify.gmaps.compass" if "compass" in actor_id
+            else "apify.leads_finder" if "leads-finder" in actor_id
+            else "apify.run"
+        )
+        record(kind, units=len(items), meta={
+            "actor": actor_id,
+            "max_items": max_items,
+            "compute_units": usage.get("computeUnits"),
+        })
+    except Exception:
+        pass
+
+    return items
+
+
+def _poll_apify_run(run_id: str, token: str, log=None) -> Optional[str]:
+    """Poll until SUCCEEDED → return defaultDatasetId. Apify side timeout
+    olduğunda kendisi 408 döner; yine de poll buffer ile yarış."""
+    max_polls = (APIFY_RUN_TIMEOUT_SEC + APIFY_POLL_BUFFER) // APIFY_POLL_INTERVAL
+    for i in range(max_polls):
+        time.sleep(APIFY_POLL_INTERVAL)
+        try:
+            sr = requests.get(
+                f"https://api.apify.com/v2/actor-runs/{run_id}",
+                params={"token": token},
+                timeout=15,
+            )
+            if sr.status_code != 200:
+                if log and i % 4 == 0:
+                    log(f"  poll http={sr.status_code}")
+                continue
+            data = (sr.json() or {}).get("data") or {}
+            status = data.get("status", "?")
+            if log and i % 6 == 0:
+                log(f"  durum: {status} ({(i + 1) * APIFY_POLL_INTERVAL}sn)")
+            if status == "SUCCEEDED":
+                return data.get("defaultDatasetId")
+            if status in ("FAILED", "ABORTED", "TIMED-OUT", "TIMING-OUT"):
+                if log:
+                    log(f"  çalışma sonlandı: {status}")
+                return None
+        except Exception as e:
+            if log:
+                log(f"  polling hatası: {e}")
+    if log:
+        log(f"  poll zaman aşımı ({APIFY_RUN_TIMEOUT_SEC + APIFY_POLL_BUFFER}sn)")
+    return None
+
+
+def _fetch_dataset(dataset_id: str, token: str, limit: int, log=None) -> list:
+    """Sadece `limit` item indir — geri kalan hiç network'e gelmez.
+    `clean=true` empty/hidden field'ları filtreler, JSON daha kompakt olur."""
+    try:
+        items_resp = requests.get(
+            f"https://api.apify.com/v2/datasets/{dataset_id}/items",
+            params={
+                "token": token,
+                "limit": limit,
+                "clean": "true",
+                "format": "json",
+            },
+            timeout=60,
+        )
+        if items_resp.status_code != 200:
+            if log:
+                log(f"  dataset fetch http={items_resp.status_code}")
+            return []
+        data = items_resp.json()
+        if not isinstance(data, list):
+            return []
+        if log:
+            log(f"  {len(data)} item indirildi (limit={limit})")
+        return data[:limit]   # belt and suspenders
+    except Exception as e:
+        if log:
+            log(f"  dataset fetch hatası: {e}")
+        return []
+
+
+# ── Public API ──────────────────────────────────────────────────────────────
+
+def scrape_google_maps(query: str, location: str = "",
+                       max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
+    """Google Maps tarama. Yoksa B2B Lead Finder'a düşer."""
+    token = _resolve_token()
     if not token:
         if log:
             log("APIFY_TOKEN ayarlı değil — Apify çağrılmadı.")
         return []
 
-    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
-    cached = _cache_lookup(query, location, max_results, log)
+    n = _clamp(max_results)
+    cached = _cache_lookup(query, location, n, log)
     if cached is not None:
         return cached
 
-    if log:
-        log(f"Google Maps Scraper'a soruyorum: '{query} {location}' (max {max_results})")
-    leads = _run_google_maps(query, location, max_results, token, log)
-
+    leads = _run_google_maps(query, location, n, token, log)
     if not leads:
         if log:
-            log("Google Maps sonuç vermedi, B2B Leads Finder deneniyor...")
-        leads = _run_leads_finder(query, location, max_results, token, log)
+            log("Google Maps boş — B2B Lead Finder deneniyor...")
+        leads = _run_leads_finder(query, location, n, token, log)
+    return leads[:n]
 
-    return leads[:HARD_CAP]
 
-
-def scrape_b2b_leads(query: str, location: str = "", max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
-    """B2B lead finder first, falls back to Google Maps. Hard cap 100, 30min cache."""
-    token = APIFY_TOKEN or os.getenv("APIFY_TOKEN", "")
+def scrape_b2b_leads(query: str, location: str = "",
+                     max_results: int = DEFAULT_MAX_LEADS, log=None) -> list:
+    """B2B Lead Finder önce, yoksa Google Maps'a düşer."""
+    token = _resolve_token()
     if not token:
         if log:
             log("APIFY_TOKEN ayarlı değil.")
         return []
 
-    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
-    cached = _cache_lookup(query, location, max_results, log)
+    n = _clamp(max_results)
+    cached = _cache_lookup(query, location, n, log)
     if cached is not None:
         return cached
 
-    if log:
-        log(f"B2B Leads Finder'a soruyorum: '{query} {location}' (max {max_results})")
-    leads = _run_leads_finder(query, location, max_results, token, log)
-
+    leads = _run_leads_finder(query, location, n, token, log)
     if not leads:
         if log:
-            log("B2B sonuç vermedi, Google Maps Scraper deneniyor...")
-        leads = _run_google_maps(query, location, max_results, token, log)
+            log("B2B boş — Google Maps deneniyor...")
+        leads = _run_google_maps(query, location, n, token, log)
+    return leads[:n]
 
-    return leads[:HARD_CAP]
 
+# ── Actor-specific runners ──────────────────────────────────────────────────
 
-def _run_google_maps(query, location, max_results, token, log):
-    """Google Maps scraper. Actor selected by SCRAPER_ACTOR env (compass|lukaskrivka)."""
-    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
-    search_term = f"{query} {location}".strip() if location else query
+def _run_google_maps(query, location, max_results, token, log) -> list:
+    """compass | lukaskrivka actor'unu çalıştırır.
+    Actor input'una `maxCrawledPlacesPerSearch` koyarız — bu actor mantığını
+    da durdurur, sadece run-level cap değil."""
+    n = _clamp(max_results)
     actor = _selected_actor()
+    search_term = f"{query} {location}".strip() if location else query
 
-    if actor == GMAPS_ACTORS["lukaskrivka"]:
-        payload = {
-            "searchStringsArray": [search_term],
-            "locationQuery": location or "",
-            "maxCrawledPlacesPerSearch": max_results,
-            "language": "tr",
-            "countryCode": "tr",
-            "skipClosedPlaces": True,
-        }
-    else:
-        payload = {
-            "searchStringsArray": [search_term],
-            "locationQuery": location or "",
-            "maxCrawledPlacesPerSearch": max_results,
-            "language": "tr",
-            "countryCode": "tr",
-            "skipClosedPlaces": True,
-            "scrapeContacts": True,
-        }
+    payload = {
+        "searchStringsArray": [search_term],
+        "locationQuery": location or "",
+        "maxCrawledPlacesPerSearch": n,
+        "language": "tr",
+        "countryCode": "tr",
+        "skipClosedPlaces": True,
+    }
+    if "lukaskrivka" not in actor:
+        # compass actor takes scrapeContacts; lukaskrivka does it natively
+        payload["scrapeContacts"] = True
 
-    try:
-        if log:
-            log(f"Actor: {actor}")
-        resp = requests.post(
-            f"https://api.apify.com/v2/acts/{actor}/runs?token={token}",
-            json=payload,
-            timeout=30,
-        )
-        run_data = resp.json().get("data", {})
-        run_id = run_data.get("id")
-
-        if not run_id:
-            if log:
-                log(f"Google Maps başlatılamadı: {resp.text[:200]}")
-            return []
-
-        if log:
-            log(f"Google Maps taraması başladı ({run_id})")
-
-        results = _poll_apify_run(run_id, token, log)
-        if not results:
-            return []
-
-        # Cost attribution against the active ticket
-        try:
-            from core.cost_tracker import record
-            kind = "apify.gmaps.lukaskrivka" if "lukaskrivka" in actor else "apify.gmaps.place"
-            record(kind, units=len(results), meta={"actor": actor, "query": search_term})
-        except Exception:
-            pass
-
-        leads = []
-        for item in results:
-            lead = {
-                "name": item.get("title", ""),
-                "address": item.get("address", ""),
-                "phone": item.get("phone", ""),
-                "website": item.get("website", ""),
-                "email": _extract_email(item),
-                "instagram": _first(item.get("instagrams")),
-                "facebook": _first(item.get("facebooks")),
-                "rating": item.get("totalScore", 0),
-                "review_count": item.get("reviewsCount", 0),
-                "category": item.get("categoryName", ""),
-                "google_maps_url": item.get("url", ""),
-                "location": item.get("city", location),
-                "source": "google_maps",
-                "raw": item,
-            }
-            leads.append(lead)
-
-        if log:
-            log(f"Google Maps: {len(leads)} sonuç bulundu")
-        return leads
-
-    except Exception as e:
-        if log:
-            log(f"Google Maps hatası: {e}")
+    items = _run_apify_actor(actor, payload, n, token, log)
+    if not items:
         return []
 
+    leads = []
+    for item in items:
+        leads.append({
+            "name": item.get("title", ""),
+            "address": item.get("address", ""),
+            "phone": item.get("phone", ""),
+            "website": item.get("website", ""),
+            "email": _extract_email(item),
+            "instagram": _first(item.get("instagrams")),
+            "facebook": _first(item.get("facebooks")),
+            "rating": item.get("totalScore", 0),
+            "review_count": item.get("reviewsCount", 0),
+            "category": item.get("categoryName", ""),
+            "google_maps_url": item.get("url", ""),
+            "location": item.get("city", location),
+            "source": "google_maps",
+            "raw": item,
+        })
+    if log:
+        log(f"Google Maps: {len(leads)} sonuç")
+    return leads[:n]
 
-def _run_leads_finder(query, location, max_results, token, log):
-    """B2B lead finder via code_crafter~leads-finder."""
-    max_results = min(max_results or DEFAULT_MAX_LEADS, HARD_CAP)
+
+def _run_leads_finder(query, location, max_results, token, log) -> list:
+    """code_crafter~leads-finder actor'u — B2B email/LinkedIn/job title.
+
+    Bu actor'un input schema'sı public değil; bu yüzden HEM `maxResults` HEM
+    `maxItems` HEM `limit` adlarını payload'a koyarız (actor hangisini tanırsa
+    onu uygular). Ayrıca run-level `maxItems` URL paramı koruma sağlar.
+    """
+    n = _clamp(max_results)
     search_query = f"{query} {location}".strip() if location else query
 
-    try:
-        resp = requests.post(
-            f"https://api.apify.com/v2/acts/code_crafter~leads-finder/runs?token={token}",
-            json={
-                "searchQuery": search_query,
-                "maxResults": max_results,
-            },
-            timeout=30,
-        )
-        run_data = resp.json().get("data", {})
-        run_id = run_data.get("id")
+    payload = {
+        "searchQuery": search_query,
+        # Çoklu isim — actor schema'sı belirsiz olduğu için hepsini geç
+        "maxResults": n,
+        "maxItems": n,
+        "limit": n,
+        "resultCount": n,
+    }
 
-        if not run_id:
-            if log:
-                log(f"B2B finder başlatılamadı: {resp.text[:200]}")
-            return []
-
-        if log:
-            log(f"B2B lead finder başladı ({run_id})")
-
-        results = _poll_apify_run(run_id, token, log)
-        if not results:
-            return []
-
-        try:
-            from core.cost_tracker import record
-            record("apify.run", units=max(1, len(results) // 10),
-                   meta={"actor": "code_crafter~leads-finder", "query": search_query})
-        except Exception:
-            pass
-
-        leads = []
-        for item in results:
-            name = item.get("company_name", "") or f"{item.get('first_name', '')} {item.get('last_name', '')}".strip()
-            if not name:
-                continue
-            lead = {
-                "name": name,
-                "address": "",
-                "phone": item.get("mobile_number", "") or "",
-                "website": item.get("company_website", "") or "",
-                "email": item.get("email", "") or item.get("personal_email", "") or "",
-                "rating": 0,
-                "review_count": 0,
-                "category": item.get("industry", ""),
-                "google_maps_url": "",
-                "location": location,
-                "source": "b2b_leads",
-                "contact_name": item.get("full_name", ""),
-                "job_title": item.get("job_title", ""),
-                "linkedin": item.get("linkedin", ""),
-                "company_size": item.get("company_size", 0),
-                "raw": item,
-            }
-            leads.append(lead)
-
-        if log:
-            log(f"B2B finder: {len(leads)} sonuç bulundu")
-        return leads
-
-    except Exception as e:
-        if log:
-            log(f"B2B finder hatası: {e}")
+    items = _run_apify_actor(LEADS_FINDER_ACTOR, payload, n, token, log)
+    if not items:
         return []
 
-
-def _poll_apify_run(run_id, token, log, max_polls=120, interval=5):
-    """Poll an Apify run until completion. 5s interval x 120 polls = 10min cap."""
-    for i in range(max_polls):
-        time.sleep(interval)
-        try:
-            sr = requests.get(
-                f"https://api.apify.com/v2/actor-runs/{run_id}?token={token}",
-                timeout=15,
-            )
-            status = sr.json().get("data", {}).get("status")
-
-            if log and i % 6 == 0:
-                log(f"  durum: {status} ({(i+1)*interval}sn)")
-
-            if status == "SUCCEEDED":
-                dataset_id = sr.json().get("data", {}).get("defaultDatasetId")
-                items_resp = requests.get(
-                    f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={token}",
-                    timeout=30,
-                )
-                return items_resp.json()
-
-            if status in ("FAILED", "ABORTED", "TIMED-OUT"):
-                if log:
-                    log(f"  çalışma başarısız: {status}")
-                return []
-        except Exception as e:
-            if log:
-                log(f"  polling hatası: {e}")
-
+    leads = []
+    for item in items[:n]:   # ekstra güvence
+        name = (item.get("company_name") or
+                f"{item.get('first_name', '')} {item.get('last_name', '')}".strip())
+        if not name:
+            continue
+        leads.append({
+            "name": name,
+            "address": "",
+            "phone": item.get("mobile_number", "") or "",
+            "website": item.get("company_website", "") or "",
+            "email": item.get("email") or item.get("personal_email") or "",
+            "rating": 0,
+            "review_count": 0,
+            "category": item.get("industry", ""),
+            "google_maps_url": "",
+            "location": location,
+            "source": "b2b_leads",
+            "contact_name": item.get("full_name", ""),
+            "job_title": item.get("job_title", ""),
+            "linkedin": item.get("linkedin", ""),
+            "company_size": item.get("company_size", 0),
+            "raw": item,
+        })
     if log:
-        log("  zaman aşımı (10dk)")
-    return []
+        log(f"B2B Lead Finder: {len(leads)} sonuç")
+    return leads[:n]
 
+
+# ── Field extractors ────────────────────────────────────────────────────────
 
 def _extract_email(item: dict) -> str:
     if item.get("email"):

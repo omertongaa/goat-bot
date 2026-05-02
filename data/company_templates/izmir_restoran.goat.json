@@ -1,0 +1,32 @@
+{
+  "id": "izmir_restoran",
+  "label": "İzmir Restoran B2B",
+  "description": "İzmir merkezli restoran/cafe SMB'lere yönelik dijital ajans şablonu",
+  "company": {
+    "name": "İzmir Restoran Ajansı",
+    "niche": "Restoran ve cafe dijital pazarlama",
+    "target_industries": ["restoran", "cafe", "kafe", "bistro"],
+    "target_cities": ["İzmir", "Karşıyaka", "Bornova", "Alsancak"],
+    "settings": {
+      "work_mode": "auto",
+      "scraper_actor": "lukaskrivka",
+      "email_finder_providers": ["apify_web", "leadmagic"],
+      "cost_alerts": {"daily_total": 5.0, "monthly_total": 50.0}
+    }
+  },
+  "starter_goals": [
+    {
+      "title": "İzmir merkez 100 restoran lead'i topla",
+      "description": "Alsancak + Karşıyaka + Bornova bölgelerinde Apify ile aramalar yap, qualified yap, top 30'u skoruna göre sırala"
+    },
+    {
+      "title": "İlk 10 restoran için Türkçe pitch deck hazırla",
+      "description": "Filter sonrası hot lead'lere PitchAgent ile özel teklif PDF + Instantly draft kampanya"
+    }
+  ],
+  "starter_budgets": {
+    "scout": 5.0,
+    "outreach": 10.0,
+    "pitch": 3.0
+  }
+}

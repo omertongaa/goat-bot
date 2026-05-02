@@ -1052,6 +1052,8 @@ aside.right {
       </div>
       <div class="spacer"></div>
       <div class="actions">
+        <button class="header-tool" onclick="openCostPanel()" title="Harcama paneli">💰 Maliyet</button>
+        <button class="header-tool" onclick="openTemplatesModal()" title="Şirket şablonları">📦 Şablonlar</button>
         <button class="header-tool" onclick="openCompanyModal()">＋ Yeni şirket</button>
       </div>
     </div>
@@ -1106,9 +1108,20 @@ aside.right {
   </div>
   <div class="ceo-input">
     <input id="ceoInput" type="text" placeholder="CEO'ya yaz..." onkeydown="if(event.key==='Enter')sendCEO()">
+    <button class="btn" id="voiceBtn" onclick="toggleVoice()" title="Sesle yaz" style="font-size:13px; padding: 9px 10px;">🎤</button>
     <button class="btn primary" onclick="sendCEO()" title="Sohbet et">→</button>
     <button class="btn" onclick="orchestrateCEO()" title="Görevi ajanlar arasında dağıt ve zincirleme yürüt" style="font-size:11px; padding: 9px 10px;">⚙ Görev</button>
   </div>
+</div>
+
+<!-- Cost mini panel (top-right popover) -->
+<div id="costPanel" style="display:none; position:fixed; top:60px; right:16px; width:340px; background:#0f0f12; border:1px solid #2a2a30; border-radius:10px; padding:14px; z-index:60; box-shadow:0 12px 40px rgba(0,0,0,.5); font-size:12px;">
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+    <strong style="font-size:13px;">💰 Harcama</strong>
+    <span class="spacer" style="flex:1;"></span>
+    <button class="btn" onclick="document.getElementById('costPanel').style.display='none'" style="padding:3px 7px; font-size:11px;">×</button>
+  </div>
+  <div id="costPanelBody" style="color:var(--text);">Yükleniyor…</div>
 </div>
 
 <script>
@@ -2131,6 +2144,118 @@ function prependActivity(entry) {
 }
 
 startActivityStream();
+
+// ─────────────── Cost panel ───────────────
+async function openCostPanel() {
+  const panel = document.getElementById('costPanel');
+  const body = document.getElementById('costPanelBody');
+  panel.style.display = 'block';
+  body.textContent = 'Yükleniyor…';
+  try {
+    const r = await fetch('/api/cost/summary?days=30');
+    const d = await r.json();
+    const kinds = Object.entries(d.by_kind || {}).slice(0, 8)
+      .map(([k, v]) => `<div style="display:flex; justify-content:space-between;"><span style="color:var(--dim);">${k}</span><span>$${v}</span></div>`).join('');
+    const agents = Object.entries(d.by_agent || {}).slice(0, 6)
+      .map(([k, v]) => `<div style="display:flex; justify-content:space-between;"><span style="color:var(--dim);">${k}</span><span>$${v}</span></div>`).join('');
+    const alerts = (d.alerts || []).map(a => `<div style="background:#3a1a14; border-left:3px solid var(--red); padding:6px 8px; margin:6px 0; border-radius:4px;">${a.msg}</div>`).join('');
+    body.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+        <div style="background:#16161a; padding:10px; border-radius:8px;"><div style="color:var(--dim); font-size:10px;">Bugün</div><div style="font-size:18px;">$${d.today_usd}</div></div>
+        <div style="background:#16161a; padding:10px; border-radius:8px;"><div style="color:var(--dim); font-size:10px;">Bu ay</div><div style="font-size:18px;">$${d.month_usd}</div></div>
+        <div style="background:#16161a; padding:10px; border-radius:8px;"><div style="color:var(--dim); font-size:10px;">30 gün</div><div style="font-size:18px;">$${d.total_usd}</div></div>
+      </div>
+      ${alerts}
+      <div style="margin-top:10px;"><strong>Servise göre</strong>${kinds || '<div style="color:var(--dim);">veri yok</div>'}</div>
+      <div style="margin-top:10px;"><strong>Agent'a göre</strong>${agents || '<div style="color:var(--dim);">veri yok</div>'}</div>
+      <div style="margin-top:12px; padding-top:10px; border-top:1px solid #2a2a30; color:var(--dim); font-size:11px;">
+        Limitler: günlük $${d.alert_thresholds.daily_total} · aylık $${d.alert_thresholds.monthly_total}
+      </div>
+    `;
+  } catch (e) {
+    body.textContent = 'Hata: ' + e.message;
+  }
+}
+
+// ─────────────── Templates modal ───────────────
+async function openTemplatesModal() {
+  let host = document.getElementById('modalHost');
+  host.innerHTML = '<div style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:50;" onclick="if(event.target===this)this.remove()"><div style="background:#0f0f12; border:1px solid #2a2a30; border-radius:12px; padding:20px; width:520px; max-height:80vh; overflow:auto;"><h3 style="margin-top:0;">📦 Şirket Şablonları</h3><div id="tmplList">Yükleniyor…</div></div></div>';
+  try {
+    const r = await fetch('/api/templates');
+    const items = await r.json();
+    const list = document.getElementById('tmplList');
+    if (!items.length) { list.textContent = 'Şablon bulunamadı.'; return; }
+    list.innerHTML = items.map(t => `
+      <div style="background:#16161a; padding:12px; border-radius:8px; margin-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <strong>${t.label}</strong>
+          <span style="color:var(--dim); font-size:11px;">${t.id}</span>
+          <span class="spacer" style="flex:1;"></span>
+          <button class="btn primary" onclick="importTemplate('${t.id}')">Yükle</button>
+        </div>
+        <div style="color:var(--dim); margin-top:6px; font-size:12px;">${t.description}</div>
+        <div style="color:var(--dim); margin-top:6px; font-size:11px;">${(t.industries || []).join(', ')} · ${(t.cities || []).join(', ')}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('tmplList').textContent = 'Hata: ' + e.message;
+  }
+}
+
+async function importTemplate(template_id) {
+  const r = await fetch('/api/templates/import', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ template_id }),
+  });
+  const data = await r.json();
+  if (data.error) { alert('Hata: ' + data.error); return; }
+  alert(`✓ ${data.company_name} oluşturuldu — ${(data.goals || []).length} hedef seedlendi.`);
+  document.getElementById('modalHost').innerHTML = '';
+  location.reload();
+}
+
+// ─────────────── Voice CEO input ───────────────
+let _voiceRec = null;
+let _voiceChunks = [];
+async function toggleVoice() {
+  const btn = document.getElementById('voiceBtn');
+  if (_voiceRec && _voiceRec.state === 'recording') {
+    _voiceRec.stop();
+    btn.textContent = '⏳';
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _voiceChunks = [];
+    _voiceRec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    _voiceRec.ondataavailable = e => { if (e.data && e.data.size) _voiceChunks.push(e.data); };
+    _voiceRec.onstop = async () => {
+      btn.textContent = '⏳';
+      const blob = new Blob(_voiceChunks, { type: 'audio/webm' });
+      stream.getTracks().forEach(t => t.stop());
+      try {
+        const r = await fetch('/api/ceo/voice', { method: 'POST', headers: {'Content-Type': 'audio/webm'}, body: blob });
+        const data = await r.json();
+        btn.textContent = '🎤';
+        if (data.text) {
+          document.getElementById('ceoInput').value = data.text;
+          if (data.text.length > 8) sendCEO();
+        } else {
+          alert('Ses tanınamadı: ' + (data.error || ''));
+        }
+      } catch (e) {
+        btn.textContent = '🎤';
+        alert('Hata: ' + e.message);
+      }
+    };
+    _voiceRec.start();
+    btn.textContent = '⏹';
+  } catch (e) {
+    alert('Mikrofon erişimi reddedildi: ' + e.message);
+  }
+}
 </script>
 </body>
 </html>

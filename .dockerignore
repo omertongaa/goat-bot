@@ -1,0 +1,26 @@
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+.vercel
+.env
+.venv
+node_modules
+Remotion-Gorsel-master
+Remotion-Video-main 2
+outputs/*
+data/companies/*
+data/leads/raw/*
+data/audits/*
+data/proposals/*
+data/presentations/*
+data/brandkit/*
+data/designs/*
+data/videos/*
+data/content/*
+data/ads/*
+data/social/*
+data/analytics/*
+*.log
+.DS_Store

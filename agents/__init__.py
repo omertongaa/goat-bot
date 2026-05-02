@@ -5,9 +5,10 @@ AGENTS = {
     "goat":     {"name": "goat",     "role": "Master orchestrator — runs the full pipeline",       "category": "master",      "icon": "🎯"},
 
     # === Acquisition ===
-    "scout":    {"name": "Scout",    "role": "Finds potential clients via Google Maps / Apify",     "category": "acquisition", "icon": "🔍"},
-    "filter":   {"name": "Filter",   "role": "Scores and qualifies leads for outreach",            "category": "acquisition", "icon": "⚡"},
-    "auditor":  {"name": "Auditor",  "role": "Analyzes lead websites — SEO, broken links, tech",   "category": "acquisition", "icon": "🔬"},
+    "scout":      {"name": "Scout",      "role": "Finds potential clients via Google Maps / Apify",     "category": "acquisition", "icon": "🔍"},
+    "filter":     {"name": "Filter",     "role": "Scores and qualifies leads for outreach",            "category": "acquisition", "icon": "⚡"},
+    "leadscorer": {"name": "LeadScorer", "role": "Claude Haiku ile lead'leri 0-100 puanla, hot/warm/cold sırala", "category": "acquisition", "icon": "🎯"},
+    "auditor":    {"name": "Auditor",    "role": "Analyzes lead websites — SEO, broken links, tech",   "category": "acquisition", "icon": "🔬"},
 
     # === Sales ===
     "outreach": {"name": "Outreach", "role": "Email warmup + cold campaigns via Instantly.ai",     "category": "sales",       "icon": "📧"},
@@ -40,6 +41,7 @@ AGENTS = {
 
     # === System ===
     "mcphub":      {"name": "MCP Hub",     "role": "MCP tools registry — browse, install, manage integrations", "category": "system",  "icon": "🔌"},
+    "browser":     {"name": "Browser",     "role": "Headless tarayıcı — sayfa scrape, screenshot, form doldur",  "category": "system",  "icon": "🌐"},
 }
 
 CATEGORIES = {

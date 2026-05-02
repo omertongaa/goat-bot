@@ -55,6 +55,8 @@ AGENT_MODULES = {
     "mcphub": "agents.mcphub.agent:MCPHubAgent",
     "videoproducer": "agents.videoproducer.agent:VideoProducerAgent",
     "youtube": "agents.youtube.agent:YouTubeAgent",
+    "leadscorer": "agents.leadscorer.agent:LeadScorerAgent",
+    "browser": "agents.browser.agent:BrowserAgent",
 }
 
 AGENT_RESULTS = {}
@@ -1891,6 +1893,178 @@ async def list_videos():
                 "created_at": data.get("created_at", ""),
             })
     return JSONResponse(result)
+
+
+# ═══════════════════════════════════════════
+# COST DASHBOARD
+# ═══════════════════════════════════════════
+
+@app.get("/api/cost/summary")
+async def cost_summary(days: int = 30):
+    from services import cost_dashboard
+    from core import store as _store
+    cid = _store.active_company_id()
+    return JSONResponse(cost_dashboard.summary(cid, days=days))
+
+
+@app.post("/api/cost/alerts")
+async def cost_set_alerts(req: Request):
+    from services import cost_dashboard
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    alerts = cost_dashboard.set_alerts(
+        cid,
+        daily=body.get("daily_total"),
+        monthly=body.get("monthly_total"),
+    )
+    return JSONResponse({"ok": True, "alerts": alerts})
+
+
+# ═══════════════════════════════════════════
+# TELEGRAM APPROVAL BOT
+# ═══════════════════════════════════════════
+
+@app.post("/api/telegram/setup")
+async def telegram_setup(req: Request):
+    from services import telegram_bot
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    base_url = body.get("base_url") or str(req.base_url).rstrip("/")
+    return JSONResponse(telegram_bot.setup_webhook(cid, base_url))
+
+
+@app.post("/api/telegram/test")
+async def telegram_test():
+    from services import telegram_bot
+    from core import store as _store
+    cid = _store.active_company_id()
+    return JSONResponse(telegram_bot.push_text(cid, "🤖 *goat-bot bağlı.* Onay mesajları buraya düşecek."))
+
+
+@app.post("/api/webhooks/telegram")
+async def telegram_webhook(req: Request):
+    from services import telegram_bot
+    from core import agent_runtime, store as _store
+    payload = await req.json()
+    decision = telegram_bot.handle_callback(payload)
+    if decision.get("action") in ("approve", "reject") and decision.get("ticket_id"):
+        cid = _store.active_company_id()
+        if decision["action"] == "approve":
+            agent_runtime.approve(cid, decision["ticket_id"], approver="telegram")
+        else:
+            agent_runtime.reject(cid, decision["ticket_id"], approver="telegram", reason="Telegram'dan reddedildi")
+    return JSONResponse({"ok": True, "decision": decision})
+
+
+# ═══════════════════════════════════════════
+# EMAIL STATS (Instantly warmup tracker)
+# ═══════════════════════════════════════════
+
+@app.get("/api/email/stats")
+async def email_stats():
+    from services import instantly_stats
+    return JSONResponse(instantly_stats.aggregate())
+
+
+@app.get("/api/email/stats/{campaign_id}")
+async def email_stats_one(campaign_id: str):
+    from services import instantly_stats
+    return JSONResponse(instantly_stats.fetch_campaign_stats(campaign_id))
+
+
+# ═══════════════════════════════════════════
+# WEBHOOKS (external integrations)
+# ═══════════════════════════════════════════
+
+@app.post("/api/webhooks/stripe")
+async def webhook_stripe(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    sig = req.headers.get("stripe-signature")
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.stripe_event(cid, body, signature=sig))
+
+
+@app.post("/api/webhooks/calendly")
+async def webhook_calendly(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.calendly_event(cid, body))
+
+
+@app.post("/api/webhooks/instantly")
+async def webhook_instantly(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.instantly_event(cid, body))
+
+
+# ═══════════════════════════════════════════
+# VOICE (CEO mic input)
+# ═══════════════════════════════════════════
+
+@app.post("/api/ceo/voice")
+async def ceo_voice(req: Request):
+    from services import voice
+    raw = await req.body()
+    mime = req.headers.get("content-type") or "audio/webm"
+    return JSONResponse(voice.transcribe(raw, mime=mime))
+
+
+# ═══════════════════════════════════════════
+# COMPANY TEMPLATES (.goat)
+# ═══════════════════════════════════════════
+
+@app.get("/api/templates")
+async def list_company_templates():
+    from core import templates as _tmpl
+    return JSONResponse(_tmpl.list_templates())
+
+
+@app.get("/api/templates/{template_id}")
+async def get_company_template(template_id: str):
+    from core import templates as _tmpl
+    data = _tmpl.load_template(template_id)
+    if not data:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(data)
+
+
+@app.post("/api/templates/import")
+async def import_company_template(req: Request):
+    from core import templates as _tmpl
+    body = await req.json()
+    template_id = body.get("template_id") or ""
+    return JSONResponse(_tmpl.import_template(template_id, company_id=body.get("company_id")))
+
+
+# ═══════════════════════════════════════════
+# FAL.AI DYNAMIC MODELS
+# ═══════════════════════════════════════════
+
+@app.get("/api/fal/models")
+async def fal_models(category: str = "", refresh: bool = False):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.list_models(category=category or None, force_refresh=refresh))
+
+
+@app.get("/api/fal/search")
+async def fal_search(q: str = ""):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.search(q))
+
+
+@app.get("/api/fal/recommend")
+async def fal_recommend(use_case: str = ""):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.recommend_for(use_case))
 
 
 if __name__ == "__main__":

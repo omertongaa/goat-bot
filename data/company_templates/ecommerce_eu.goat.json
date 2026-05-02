@@ -1,0 +1,33 @@
+{
+  "id": "ecommerce_eu",
+  "label": "E-commerce Avrupa",
+  "description": "Avrupa'ya satış yapan Shopify/WooCommerce mağazaları için video + ad otomasyonu",
+  "company": {
+    "name": "EU E-commerce Lab",
+    "niche": "E-commerce video reklam üretimi ve scaling",
+    "target_industries": ["shopify", "ecommerce", "dtc", "fashion", "beauty"],
+    "target_cities": ["Berlin", "Amsterdam", "Paris", "Madrid", "Milan"],
+    "settings": {
+      "work_mode": "auto",
+      "scraper_actor": "compass",
+      "email_finder_providers": ["leadmagic", "generect", "apify_web"],
+      "cost_alerts": {"daily_total": 15.0, "monthly_total": 200.0}
+    }
+  },
+  "starter_goals": [
+    {
+      "title": "EU Shopify mağazaları için 50 video reklam üret",
+      "description": "VideoProducer + StoryboardAgent ile 4 farklı niş için 5'er reklam, fal.ai + Kie.ai pipeline"
+    },
+    {
+      "title": "Meta + TikTok Ads kampanya planı",
+      "description": "AdManager ile 4 ülke için bütçe dağılımı ve ad copy varyantları"
+    }
+  ],
+  "starter_budgets": {
+    "scout": 15.0,
+    "videoproducer": 50.0,
+    "admanager": 30.0,
+    "outreach": 20.0
+  }
+}

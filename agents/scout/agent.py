@@ -9,7 +9,8 @@ from datetime import datetime
 from pathlib import Path
 
 from agents.base import BaseAgent, DATA_DIR
-from services.scraper import scrape_b2b_leads
+from services.scraper import scrape_b2b_leads, HARD_CAP
+from services.email_finder import enrich_leads
 
 
 class ScoutAgent(BaseAgent):
@@ -19,6 +20,8 @@ class ScoutAgent(BaseAgent):
     category = "acquisition"
 
     def run(self, query: str = "", location: str = "", limit: int = 50) -> dict:
+        # Enforce hard cap — Apify runs can be expensive; cap at 100 always.
+        limit = max(1, min(int(limit or 50), HARD_CAP))
         config = self.load_config()
 
         # Use provided params or fall back to user_profile config
@@ -52,13 +55,14 @@ class ScoutAgent(BaseAgent):
             cities = config.get("target_cities", [])
             location = cities[0] if cities else ""
 
-        self.log(f"Searching for '{query}' in '{location}' (limit: {limit})...")
+        self.log(f"Searching for '{query}' in '{location}' (limit: {limit}, max {HARD_CAP})...")
 
         import os
         used_fallback = False
         has_apify = bool(os.environ.get("APIFY_TOKEN", "").strip())
 
         if has_apify:
+            # Lead finder first (B2B contacts with email/LinkedIn), falls back to Google Maps
             leads = scrape_b2b_leads(
                 query=query,
                 location=location,
@@ -101,6 +105,17 @@ class ScoutAgent(BaseAgent):
                     ],
                 }
 
+        # Optional email enrichment via configured providers
+        if os.environ.get("EMAIL_FINDER_PROVIDERS", "").strip():
+            try:
+                before = sum(1 for l in leads if l.get("email"))
+                leads = enrich_leads(leads, log=self.log)
+                after = sum(1 for l in leads if l.get("email"))
+                if after > before:
+                    self.log(f"Email enrichment added {after - before} emails")
+            except Exception as e:
+                self.log(f"Email enrichment failed: {e}")
+
         # Save raw results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         slug = query.lower().replace(" ", "_")[:30]
@@ -120,7 +135,7 @@ class ScoutAgent(BaseAgent):
         with_email = sum(1 for l in leads if l.get("email"))
         with_website = sum(1 for l in leads if l.get("website"))
         with_phone = sum(1 for l in leads if l.get("phone"))
-        avg_rating = sum(l.get("rating", 0) for l in leads) / len(leads) if leads else 0
+        avg_rating = sum((l.get("rating") or 0) for l in leads) / len(leads) if leads else 0
 
         fallback_warning = ""
         if used_fallback:

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat · Apps</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f97316'/%3E%3Ctext x='50' y='72' font-family='Inter, sans-serif' font-size='62' font-weight='800' text-anchor='middle' fill='white'%3Eg%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090b; --surface: #0f0f12; --surface-2: #16161b; --surface-3: #1d1d24;
+  --surface-hi: #24242c; --border: #26262e; --border-soft: #1a1a20;
+  --text: #f5f5f7; --text-2: #c3c3cc; --dim: #7a7a85; --dim-2: #555560;
+  --accent: #f97316; --accent-soft: rgba(249,115,22,0.12);
+  --green: #22c55e; --green-soft: rgba(34,197,94,0.12);
+  --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
+  --radius: 10px; --radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg); color: var(--text); font-size: 13px;
+  -webkit-font-smoothing: antialiased; min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+
+header {
+  display: flex; align-items: center; padding: 0 24px; height: 56px;
+  background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent), #ea580c);
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 13px;
+}
+.bread { color: var(--dim); font-size: 12px; font-weight: 500; }
+.nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+.nav-tab { padding: 6px 12px; font-size: 12px; color: var(--dim); border-radius: var(--radius-sm); font-weight: 500; }
+.nav-tab:hover { color: var(--text-2); background: var(--surface-2); }
+.nav-tab.active { color: var(--text); background: var(--surface-2); }
+.spacer { flex: 1; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+.banner {
+  background: linear-gradient(135deg, var(--accent-soft), transparent);
+  border: 1px solid rgba(249,115,22,0.2);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.banner h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; }
+.banner p { font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+.banner .icon { font-size: 32px; }
+
+.banner.warning {
+  background: rgba(234,179,8,0.08);
+  border-color: rgba(234,179,8,0.3);
+}
+.banner.success {
+  background: rgba(34,197,94,0.08);
+  border-color: rgba(34,197,94,0.3);
+}
+
+.filter-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.chip-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.chip-btn:hover { border-color: var(--dim); color: var(--text); }
+.chip-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.app {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s;
+}
+.app:hover { border-color: var(--dim); transform: translateY(-2px); }
+.app .head { display: flex; align-items: center; gap: 10px; }
+.app .ico {
+  width: 36px; height: 36px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.app .name { font-size: 13.5px; font-weight: 600; }
+.app .cat {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--dim); font-weight: 600;
+}
+.app .desc { font-size: 11.5px; color: var(--dim); line-height: 1.5; flex: 1; }
+.app .footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+
+.btn {
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.btn:hover { background: var(--surface-3); border-color: var(--dim); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #ea580c; border-color: #ea580c; }
+.btn.danger { color: var(--red); border-color: var(--red); }
+.btn.danger:hover { background: rgba(239,68,68,0.1); }
+
+.status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.status-badge.connected { background: var(--green-soft); color: var(--green); }
+.status-badge.pending { background: rgba(234,179,8,0.12); color: var(--yellow); }
+
+.empty-cat { padding: 40px; text-align: center; color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo">
+    <div class="logo-mark">g</div>
+    <div>goat</div>
+  </a>
+  <div class="bread">· Apps</div>
+  <div class="nav-tabs">
+    <a class="nav-tab" href="/board">Board</a>
+    <a class="nav-tab" href="/files">Dosyalar</a>
+    <a class="nav-tab active" href="/apps">Apps</a>
+    <a class="nav-tab" href="/classic">Classic</a>
+  </div>
+  <div class="spacer"></div>
+</header>
+
+<div class="container">
+  <div class="banner" id="banner">
+    <div class="icon">🔌</div>
+    <div>
+      <h1>Apps & MCP entegrasyonları</h1>
+      <p id="bannerText">Composio.dev üzerinden 30+ uygulamaya OAuth ile bağlan. Bağlanan her app, agent'lar tarafından otomatik kullanılabilir.</p>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="filterBar"></div>
+
+  <div class="grid" id="appGrid"></div>
+</div>
+
+<script>
+const CATS = [
+  { id: 'all', label: 'Hepsi' },
+  { id: 'communication', label: 'İletişim' },
+  { id: 'productivity', label: 'Üretkenlik' },
+  { id: 'project', label: 'Proje' },
+  { id: 'sales', label: 'Satış / CRM' },
+  { id: 'social', label: 'Sosyal' },
+  { id: 'dev', label: 'Geliştirici' },
+  { id: 'files', label: 'Dosya' },
+  { id: 'analytics', label: 'Analytics' },
+];
+
+let STATE = { catalog: [], connections: {}, composioConfigured: false, filter: 'all' };
+
+async function load() {
+  const r = await fetch('/api/core/apps');
+  const d = await r.json();
+  STATE.catalog = d.catalog || [];
+  STATE.connections = d.connections || {};
+  STATE.composioConfigured = d.composio_configured;
+
+  // Banner
+  const bn = document.getElementById('banner');
+  const txt = document.getElementById('bannerText');
+  if (!STATE.composioConfigured) {
+    bn.className = 'banner warning';
+    txt.innerHTML = '<strong>COMPOSIO_API_KEY ayarlı değil.</strong> Bağlantıları aktif etmek için <a href="https://app.composio.dev/developers" target="_blank" style="color:var(--accent)">composio.dev</a>\'den ücretsiz API key al ve <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;">COMPOSIO_API_KEY=...</code> olarak .env\'e ekle.';
+  } else {
+    const connCount = Object.keys(STATE.connections).length;
+    bn.className = 'banner success';
+    txt.innerHTML = `Composio bağlı. <strong>${connCount} uygulama</strong> aktif. Yeni bağlantı için aşağıdan seç.`;
+  }
+
+  // Filter chips
+  const fb = document.getElementById('filterBar');
+  fb.innerHTML = CATS.map(c =>
+    `<button class="chip-btn ${STATE.filter === c.id ? 'active' : ''}" onclick="setFilter('${c.id}')">${c.label}</button>`
+  ).join('');
+
+  // Grid
+  const apps = STATE.filter === 'all'
+    ? STATE.catalog
+    : STATE.catalog.filter(a => a.category === STATE.filter);
+  const grid = document.getElementById('appGrid');
+  if (!apps.length) {
+    grid.innerHTML = '<div class="empty-cat">Bu kategoride app yok.</div>';
+    return;
+  }
+  grid.innerHTML = apps.map(a => {
+    const conn = STATE.connections[a.slug];
+    const status = conn ? conn.status : null;
+    return `
+      <div class="app">
+        <div class="head">
+          <div class="ico">${a.icon}</div>
+          <div style="flex:1;">
+            <div class="name">${a.name}</div>
+            <div class="cat">${a.category}</div>
+          </div>
+          ${status === 'connected' ? '<span class="status-badge connected">connected</span>' : ''}
+          ${status === 'pending' ? '<span class="status-badge pending">pending</span>' : ''}
+        </div>
+        <div class="desc">${a.desc}</div>
+        <div class="footer">
+          <span class="cat">via composio</span>
+          ${conn
+            ? `<button class="btn danger" onclick="disconnect('${a.slug}')">Kaldır</button>`
+            : `<button class="btn primary" onclick="connect('${a.slug}')">Bağlan</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setFilter(id) {
+  STATE.filter = id;
+  load();
+}
+
+async function connect(slug) {
+  const r = await fetch(`/api/core/apps/${slug}/connect`, { method: 'POST' });
+  const d = await r.json();
+  if (d.ok && d.redirect_url) {
+    window.open(d.redirect_url, '_blank');
+    load();
+  } else {
+    alert(d.error || 'Bağlantı başlatılamadı');
+  }
+}
+
+async function disconnect(slug) {
+  if (!confirm('Bağlantıyı kaldırmak istiyor musun?')) return;
+  await fetch(`/api/core/apps/${slug}/disconnect`, { method: 'POST' });
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

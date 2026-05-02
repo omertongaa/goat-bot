@@ -1,11 +1,26 @@
 .env
 __pycache__/
 *.pyc
+*.pyo
 data/leads/raw/*
 data/leads/qualified/*
 data/campaigns/*
 data/proposals/*
+data/audits/*
+data/companies/
+data/storyboards/*
+data/active_company.json
+outputs/reports/*
 outputs/
 data/config/user_profile.json
 !data/**/.gitkeep
 .DS_Store
+.vercel/
+.bmad/
+.claude/
+excalidraw.log
+node_modules/
+Remotion-Gorsel-master/
+Remotion-Video-main 2/
+Claude md (kling3.0 prompt)/
+.vercel

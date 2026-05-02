@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat · Board</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f97316'/%3E%3Ctext x='50' y='72' font-family='Inter, sans-serif' font-size='62' font-weight='800' text-anchor='middle' fill='white'%3Eg%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<style>
+:root {
+  --bg: #09090b;
+  --surface: #0f0f12;
+  --surface-2: #16161b;
+  --surface-3: #1d1d24;
+  --surface-hi: #24242c;
+  --border: #26262e;
+  --border-soft: #1a1a20;
+  --text: #f5f5f7;
+  --text-2: #c3c3cc;
+  --dim: #7a7a85;
+  --dim-2: #555560;
+  --accent: #f97316;
+  --accent-soft: rgba(249, 115, 22, 0.12);
+  --green: #22c55e;
+  --green-soft: rgba(34, 197, 94, 0.12);
+  --yellow: #eab308;
+  --yellow-soft: rgba(234, 179, 8, 0.12);
+  --blue: #3b82f6;
+  --blue-soft: rgba(59, 130, 246, 0.12);
+  --red: #ef4444;
+  --red-soft: rgba(239, 68, 68, 0.12);
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, 0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 24px 48px -12px rgba(0, 0, 0, 0.7);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+a { color: inherit; text-decoration: none; }
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+code, .mono { font-family: 'JetBrains Mono', SF Mono, Consolas, monospace; font-size: 11px; }
+
+/* ── Layout ── */
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr 340px;
+  grid-template-rows: 56px 1fr;
+  height: 100vh;
+}
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 14px;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+.logo-mark {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+}
+.bread { color: var(--dim); font-size: 12px; font-weight: 500; }
+.nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+.nav-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--dim);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.nav-tab:hover { color: var(--text-2); background: var(--surface-2); }
+.nav-tab.active { color: var(--text); background: var(--surface-2); }
+.spacer { flex: 1; }
+.header-tool {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  transition: border-color 0.15s;
+}
+.header-tool:hover { border-color: var(--dim); color: var(--text); }
+.header-tool.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.header-tool.primary:hover { background: #ea580c; border-color: #ea580c; }
+
+.mode-switch {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 1px;
+  margin-right: 4px;
+}
+.mode-switch button {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  border-radius: 4px;
+  transition: all 0.12s;
+}
+.mode-switch button:hover { color: var(--text); }
+.mode-switch button.active {
+  color: var(--text);
+  background: var(--surface-3);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.mode-switch button[data-mode="manual"].active { color: var(--blue); }
+.mode-switch button[data-mode="auto"].active { color: var(--accent); }
+.mode-switch button[data-mode="beast"].active { color: var(--red); }
+header select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+header select:hover { border-color: var(--dim); }
+
+/* ── Sidebar ── */
+aside.left {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  overflow-y: auto;
+}
+.nav-section { margin-bottom: 24px; }
+.nav-section h3 {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--dim-2);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+.nav-section h3 .chevron { float: right; opacity: 0.5; }
+.nav-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item.active { background: var(--surface-2); color: var(--text); }
+.nav-item .ico { width: 14px; height: 14px; margin-right: 9px; opacity: 0.7; }
+.nav-item .count {
+  font-size: 10px;
+  background: var(--surface-hi);
+  color: var(--dim);
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+.nav-item.active .count { color: var(--text-2); }
+.nav-label { display: flex; align-items: center; }
+
+.goal-item {
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.goal-item:hover { border-color: var(--border); background: var(--surface-3); }
+.goal-item .title { font-size: 12px; font-weight: 500; margin-bottom: 3px; line-height: 1.3; }
+.goal-item .metric { font-size: 10.5px; color: var(--dim); font-weight: 500; }
+.goal-item .prog-bar { height: 3px; background: var(--surface-3); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.goal-item .prog-bar .fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s; }
+.goal-item .prog-meta { font-size: 9.5px; color: var(--dim); margin-top: 4px; display: flex; justify-content: space-between; }
+.goal-item.active { box-shadow: 0 0 0 2px var(--accent); }
+.col .card.dim { opacity: 0.25; }
+
+.agent-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.agent-item:hover { background: var(--surface-2); }
+.agent-item .av {
+  width: 22px; height: 22px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.agent-item .info { flex: 1; min-width: 0; }
+.agent-item .nm { font-size: 12px; font-weight: 500; color: var(--text-2); }
+.agent-item .rl { font-size: 10px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-item .lock { font-size: 11px; color: var(--yellow); opacity: 0.7; }
+.agent-cat-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  color: var(--dim-2);
+  padding: 8px 8px 4px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.fact-item {
+  padding: 8px 10px; margin-bottom: 4px;
+  background: var(--surface-2); border-left: 2px solid var(--purple);
+  border-radius: var(--radius-sm); font-size: 11.5px;
+  color: var(--text-2); line-height: 1.4;
+}
+.fact-item .kind {
+  font-size: 9.5px; text-transform: uppercase; color: var(--purple);
+  letter-spacing: 0.06em; font-weight: 600; margin-bottom: 3px;
+}
+
+.new-button {
+  width: 100%;
+  padding: 7px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--dim);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: all 0.1s;
+  margin-top: 6px;
+}
+.new-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+.totals {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 8px;
+}
+.totals .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.totals .row:last-child { margin-bottom: 0; }
+.totals .label { font-size: 11px; color: var(--dim); font-weight: 500; }
+.totals .value { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.totals .value.small { font-size: 14px; }
+
+.budget-row {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 4px;
+  transition: background 0.1s;
+}
+.budget-row:hover { background: var(--surface-2); }
+.budget-row .top { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px; }
+.budget-row .name { font-weight: 500; color: var(--text-2); }
+.budget-row .amt { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--dim); }
+.budget-row .bar { height: 3px; background: var(--surface-hi); border-radius: 99px; overflow: hidden; }
+.budget-row .bar .fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.3s; }
+.budget-row .bar .fill.warn { background: var(--yellow); }
+.budget-row .bar .fill.over { background: var(--red); }
+
+/* ── Main ── */
+main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.main-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface);
+}
+.main-head .title-wrap { display: flex; flex-direction: column; gap: 2px; }
+.main-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.main-head .meta { font-size: 11.5px; color: var(--dim); }
+.main-head .actions { display: flex; gap: 6px; }
+
+.board {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--bg);
+  scroll-behavior: smooth;
+}
+.board::-webkit-scrollbar { height: 8px; background: var(--bg); }
+.board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.col {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  max-height: 100%;
+}
+.col-head {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+}
+.col-head .title {
+  font-weight: 600;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex; align-items: center; gap: 8px;
+}
+.col-head .dot {
+  width: 7px; height: 7px; border-radius: 99px;
+  background: var(--dim);
+}
+.col-head .count {
+  font-size: 11px;
+  color: var(--dim);
+  background: var(--surface-hi);
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+.col-body {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+.col-body::-webkit-scrollbar { width: 6px; }
+.col-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* Column dots per status */
+.col.col-pending       .dot { background: var(--dim); }
+.col.col-in_progress   .dot { background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: pulse 2s ease-in-out infinite; }
+.col.col-needs_review  .dot { background: var(--yellow); }
+.col.col-approved      .dot { background: var(--green); }
+.col.col-completed     .dot { background: var(--green); opacity: 0.6; }
+.col.col-failed        .dot { background: var(--red); }
+.col.col-paused_budget .dot { background: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Cards */
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.card:hover {
+  border-color: var(--border);
+  background: var(--surface-3);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+.card .title {
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  line-height: 1.35;
+  color: var(--text);
+}
+.card .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.card .agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text-2);
+  background: var(--surface-hi);
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 500;
+}
+.card .agent-avatar {
+  width: 14px; height: 14px;
+  border-radius: 99px;
+  background: var(--blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
+.card .cost {
+  font-size: 10.5px;
+  color: var(--yellow);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+.card .cost.zero { color: var(--dim-2); }
+.card.card-needs_review { border-left: 2px solid var(--yellow); }
+.card.card-failed { border-left: 2px solid var(--red); }
+.card.card-paused_budget { border-left: 2px solid var(--red); background: var(--red-soft); }
+.card.card-approved { border-left: 2px solid var(--green); }
+.card.card-in_progress { border-left: 2px solid var(--blue); }
+.card.card-completed { opacity: 0.75; }
+.card .err {
+  font-size: 10.5px;
+  color: var(--red);
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 4px;
+  border-left: 2px solid var(--red);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.setup-banner {
+  margin: 12px 20px 0;
+  padding: 12px 16px;
+  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.setup-banner .icon { font-size: 22px; flex-shrink: 0; }
+.setup-banner strong { color: var(--text); }
+.setup-banner code {
+  background: var(--surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+}
+.setup-banner.error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.system-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--dim);
+}
+.system-bar .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 99px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.system-bar .dot {
+  width: 6px; height: 6px; border-radius: 99px; background: var(--green);
+}
+.system-bar .dot.warn { background: var(--yellow); }
+.system-bar .dot.err { background: var(--red); }
+
+.empty {
+  padding: 40px 14px;
+  text-align: center;
+  color: var(--dim-2);
+  font-size: 11.5px;
+  font-style: italic;
+}
+
+/* ── Right panel — Activity ── */
+aside.right {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.activity-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.activity-head h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  font-weight: 600;
+}
+.activity-head .count { font-size: 11px; color: var(--dim); }
+.activity-list { padding: 6px 0; }
+.act {
+  padding: 10px 18px;
+  display: flex;
+  gap: 10px;
+  position: relative;
+  border-bottom: 1px solid var(--border-soft);
+}
+.act:hover { background: var(--surface-2); }
+.act .kind-dot {
+  width: 7px; height: 7px;
+  border-radius: 99px;
+  background: var(--dim);
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.act .content { flex: 1; min-width: 0; }
+.act .line-1 { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.act .kind {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 12px;
+}
+.act .time {
+  font-size: 10.5px;
+  color: var(--dim);
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+.act .subject {
+  font-size: 10.5px;
+  color: var(--dim);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act .actor {
+  font-size: 10px;
+  color: var(--purple);
+  margin-left: 6px;
+  font-weight: 500;
+}
+.act.kind-ticket_completed     .kind-dot { background: var(--green); }
+.act.kind-ticket_approved      .kind-dot { background: var(--green); }
+.act.kind-ticket_failed        .kind-dot { background: var(--red); }
+.act.kind-ticket_needs_review  .kind-dot { background: var(--yellow); }
+.act.kind-ticket_in_progress   .kind-dot { background: var(--blue); }
+.act.kind-ticket_paused_budget .kind-dot { background: var(--red); }
+.act.kind-budget_exceeded      .kind-dot { background: var(--red); }
+.act.kind-approval_granted     .kind-dot { background: var(--green); }
+.act.kind-plan_created         .kind-dot { background: var(--purple); }
+.act.kind-goal_created         .kind-dot { background: var(--accent); }
+.act.kind-heartbeat_tick       .kind-dot { background: var(--dim-2); opacity: 0.5; }
+
+/* ── Drawer ── */
+.drawer {
+  position: fixed;
+  top: 0; right: 0;
+  width: 560px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 10;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.drawer-head .dot { width: 8px; height: 8px; border-radius: 99px; background: var(--dim); }
+.drawer-head h3 { font-size: 14px; font-weight: 600; flex: 1; }
+.drawer-head .close {
+  color: var(--dim);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+.drawer-head .close:hover { color: var(--text); background: var(--surface-2); }
+
+.drawer-body { padding: 20px; flex: 1; }
+.drawer-body h4 {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin: 16px 0 8px;
+}
+.drawer-body h4:first-child { margin-top: 0; }
+.drawer-body .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.drawer-body .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+}
+.chip.status-completed    { color: var(--green); background: var(--green-soft); border-color: var(--green); }
+.chip.status-approved     { color: var(--green); background: var(--green-soft); border-color: var(--green); }
+.chip.status-failed       { color: var(--red); background: var(--red-soft); border-color: var(--red); }
+.chip.status-needs_review { color: var(--yellow); background: var(--yellow-soft); border-color: var(--yellow); }
+.chip.status-paused_budget{ color: var(--red); background: var(--red-soft); border-color: var(--red); }
+.chip.status-in_progress  { color: var(--blue); background: var(--blue-soft); border-color: var(--blue); }
+.chip.status-pending      { color: var(--dim); }
+
+.drawer-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11.5px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.5;
+}
+.drawer-body pre::-webkit-scrollbar { width: 6px; height: 6px; }
+.drawer-body pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+.drawer-body .actions-row {
+  margin-top: 18px;
+  display: flex;
+  gap: 8px;
+}
+.btn {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.btn:hover { background: var(--surface-3); border-color: var(--dim); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { background: #ea580c; border-color: #ea580c; }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: var(--red-soft); }
+.btn.small { padding: 5px 10px; font-size: 11px; }
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 14px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.kv dt { color: var(--dim); }
+.kv dd { color: var(--text-2); word-break: break-all; }
+
+/* ── Modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  width: 460px;
+  box-shadow: var(--shadow-lg);
+}
+.modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.modal .sub { font-size: 12px; color: var(--dim); margin-bottom: 20px; }
+.modal label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.modal input, .modal textarea, .modal select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  margin-bottom: 14px;
+  transition: border-color 0.12s;
+}
+.modal input:focus, .modal textarea:focus, .modal select:focus {
+  border-color: var(--accent);
+}
+.modal textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+
+/* ── CEO Chat (embedded right-side panel) ── */
+.ceo-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 460px;
+  max-height: 76vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  z-index: 12;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(calc(100% - 50px));
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ceo-panel.open { transform: translateY(0); }
+.ceo-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.ceo-avatar {
+  width: 30px; height: 30px; border-radius: 99px;
+  background: linear-gradient(135deg, var(--accent) 0%, #ea580c 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px;
+  color: #fff;
+}
+.ceo-head .info { flex: 1; }
+.ceo-head .title { font-weight: 600; font-size: 13px; }
+.ceo-head .sub { font-size: 11px; color: var(--dim); }
+.ceo-head .pulse {
+  width: 8px; height: 8px; border-radius: 99px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+.ceo-head .toggle { color: var(--dim); font-size: 14px; }
+.ceo-log { flex: 1; padding: 12px 16px; overflow-y: auto; min-height: 240px; max-height: 52vh; }
+.ceo-log::-webkit-scrollbar { width: 6px; }
+.ceo-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+.ceo-msg { margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
+.ceo-msg .who {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ceo-msg.user { text-align: right; }
+.ceo-msg.user .who { color: var(--blue); }
+.ceo-msg.ceo .who { color: var(--accent); }
+.ceo-msg .bubble {
+  display: inline-block;
+  padding: 9px 13px;
+  border-radius: 14px;
+  max-width: 88%;
+  text-align: left;
+}
+.ceo-msg.ceo .bubble {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-bottom-left-radius: 3px;
+}
+.ceo-msg.user .bubble {
+  background: var(--accent-soft);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: var(--text);
+  border-bottom-right-radius: 3px;
+}
+.ceo-msg .bubble.md { line-height: 1.55; }
+.ceo-msg .bubble.md h1,
+.ceo-msg .bubble.md h2,
+.ceo-msg .bubble.md h3 { font-size: 13px; font-weight: 700; margin: 8px 0 4px; color: var(--text); letter-spacing: -0.01em; }
+.ceo-msg .bubble.md h1:first-child,
+.ceo-msg .bubble.md h2:first-child,
+.ceo-msg .bubble.md h3:first-child { margin-top: 0; }
+.ceo-msg .bubble.md p { margin: 4px 0; }
+.ceo-msg .bubble.md ul,
+.ceo-msg .bubble.md ol { padding-left: 20px; margin: 4px 0; }
+.ceo-msg .bubble.md li { margin: 2px 0; }
+.ceo-msg .bubble.md strong { font-weight: 600; color: var(--text); }
+.ceo-msg .bubble.md em { color: var(--text-2); }
+.ceo-msg .bubble.md code {
+  background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent);
+}
+.ceo-msg .bubble.md pre {
+  background: rgba(0,0,0,0.4); padding: 8px 10px; border-radius: 5px;
+  overflow-x: auto; margin: 6px 0;
+}
+.ceo-msg .bubble.md pre code { background: none; color: var(--text-2); padding: 0; }
+.ceo-msg .bubble.md table {
+  width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px;
+}
+.ceo-msg .bubble.md th,
+.ceo-msg .bubble.md td {
+  border: 1px solid var(--border); padding: 4px 7px; text-align: left;
+}
+.ceo-msg .bubble.md th { background: rgba(0,0,0,0.25); font-weight: 600; }
+.ceo-msg .bubble.md hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.ceo-msg .bubble.md blockquote {
+  border-left: 2px solid var(--accent); padding-left: 8px;
+  color: var(--text-2); margin: 6px 0;
+}
+.ceo-msg .bubble.md a { color: var(--accent); text-decoration: underline; }
+.ceo-actions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 10.5px;
+}
+.ceo-actions .act-pill {
+  background: var(--green-soft);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+}
+.ceo-actions .act-pill-err {
+  background: var(--red-soft);
+  border-color: rgba(239,68,68,0.35);
+  color: var(--red);
+}
+.ceo-typing {
+  color: var(--dim);
+  font-style: italic;
+  font-size: 11.5px;
+  padding: 4px 0;
+}
+.ceo-typing .dots::after {
+  content: '...';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+@keyframes dots { 0% { content: '' } 25% { content: '.' } 50% { content: '..' } 75% { content: '...' } }
+
+.ceo-input {
+  display: flex;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+  background: var(--surface);
+}
+.ceo-input input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  transition: border-color 0.12s;
+}
+.ceo-input input:focus { border-color: var(--accent); }
+.ceo-input button { padding: 9px 14px; }
+
+/* Quick-suggestions below input when chat is empty */
+.ceo-suggestions {
+  padding: 0 16px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.ceo-sugg {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ceo-sugg:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+/* Spinner for refresh */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 1s linear infinite; display: inline-block; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 200px 1fr; }
+  aside.right { display: none; }
+  .ceo-panel { width: 100vw; right: 0; bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+}
+@media (max-width: 700px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: 56px auto 1fr; }
+  aside.left { max-height: 220px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">g</div>
+      <div>goat</div>
+    </div>
+    <div class="nav-tabs">
+      <a class="nav-tab active" href="/board">Board</a>
+      <a class="nav-tab" href="/files">Dosyalar</a>
+      <a class="nav-tab" href="/apps">Apps</a>
+      <a class="nav-tab" href="/classic">Classic</a>
+    </div>
+    <div class="spacer"></div>
+    <div class="mode-switch">
+      <button data-mode="manual" onclick="setWorkMode('manual')" title="Her ticket için onay iste">🛡 Manual</button>
+      <button data-mode="auto" onclick="setWorkMode('auto')" title="Sadece email/sosyal/video gibi mutation aksiyonları onay ister" class="active">⚡ Auto</button>
+      <button data-mode="beast" onclick="setWorkMode('beast')" title="Hiçbir onay sorma — sürekli çalış">🔥 Beast</button>
+    </div>
+    <select id="companySelect" onchange="switchCompany()"></select>
+    <button class="header-tool" onclick="runHeartbeat()" title="Heartbeat'i şimdi tetikle">⏱ Heartbeat</button>
+    <button class="header-tool primary" onclick="loadDashboard()" id="refreshBtn">↻ Yenile</button>
+  </header>
+
+  <aside class="left">
+    <div class="nav-section">
+      <h3>Şirket</h3>
+      <div class="totals">
+        <div class="row">
+          <span class="label">Toplam ticket</span>
+          <span class="value small" id="totalTickets">0</span>
+        </div>
+        <div class="row">
+          <span class="label">Harcanan</span>
+          <span class="value" id="totalCost">$0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <h3>Hedefler <span class="chevron">›</span></h3>
+      <div id="goalsList"></div>
+      <button class="new-button" onclick="openGoalModal()">＋ Yeni hedef</button>
+    </div>
+
+    <div class="nav-section">
+      <h3>Ajanlar <span class="chevron">›</span></h3>
+      <div id="agentsList"></div>
+    </div>
+
+    <div class="nav-section">
+      <h3>Bütçeler</h3>
+      <div id="budgetsList"></div>
+      <button class="new-button" onclick="openBudgetModal()">＋ Bütçe belirle</button>
+    </div>
+
+    <div class="nav-section">
+      <h3>🧠 Hafıza <span class="chevron">›</span></h3>
+      <div id="memoryList"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="main-head">
+      <div class="title-wrap">
+        <h2 id="companyName">—</h2>
+        <div class="meta" id="companyMeta">—</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="header-tool" onclick="openCompanyModal()">＋ Yeni şirket</button>
+      </div>
+    </div>
+    <div id="setupBanner" class="setup-banner" style="display:none;"></div>
+    <div id="systemBar" class="system-bar"></div>
+    <div class="board" id="board"></div>
+  </main>
+
+  <aside class="right">
+    <div class="activity-head">
+      <h3>Hareket</h3>
+      <span class="count" id="activityCount">—</span>
+    </div>
+    <div class="activity-list" id="activityList"></div>
+  </aside>
+</div>
+
+<!-- Ticket detail drawer -->
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="dot" id="drawerDot"></div>
+    <h3 id="drawerTitle">Ticket</h3>
+    <button class="close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<div id="modalHost"></div>
+
+<!-- CEO Chat -->
+<div class="ceo-panel" id="ceoPanel">
+  <div class="ceo-head" onclick="toggleCEO()">
+    <div class="ceo-avatar">C</div>
+    <div class="info">
+      <div class="title">CEO</div>
+      <div class="sub">Şirketini yöneten asistan</div>
+    </div>
+    <div class="pulse" title="Online"></div>
+    <div class="toggle" id="ceoToggleIcon">▲</div>
+  </div>
+  <div class="ceo-log" id="ceoLog">
+    <div class="ceo-msg ceo">
+      <div class="who">CEO</div>
+      <div class="bubble">Selam! 👋 Ben goat'ın CEO'su. Sana nasıl yardımcı olabilirim?</div>
+    </div>
+  </div>
+  <div class="ceo-suggestions" id="ceoSuggestions">
+    <button class="ceo-sugg" onclick="suggestCEO('Bu ay İstanbul\\'da 50 restoran lead\\'i bul')">Bu ay İstanbul'da 50 restoran lead'i bul</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Scout için 25$ bütçe ver')">Scout için 25$ bütçe ver</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Durum raporu')">Durum raporu</button>
+    <button class="ceo-sugg" onclick="suggestCEO('Onay bekleyen ticketlar?')">Onay bekleyen ticketlar?</button>
+  </div>
+  <div class="ceo-input">
+    <input id="ceoInput" type="text" placeholder="CEO'ya yaz..." onkeydown="if(event.key==='Enter')sendCEO()">
+    <button class="btn primary" onclick="sendCEO()" title="Sohbet et">→</button>
+    <button class="btn" onclick="orchestrateCEO()" title="Görevi ajanlar arasında dağıt ve zincirleme yürüt" style="font-size:11px; padding: 9px 10px;">⚙ Görev</button>
+  </div>
+</div>
+
+<script>
+const COLUMNS = [
+  { id: 'pending',       label: 'Sırada',       desc: 'Bekliyor' },
+  { id: 'in_progress',   label: 'Çalışıyor',    desc: 'Aktif' },
+  { id: 'needs_review',  label: 'Onay Bekler',  desc: 'Senin kararın' },
+  { id: 'approved',      label: 'Onaylı',       desc: 'Onaylandı' },
+  { id: 'completed',     label: 'Tamamlandı',   desc: 'Bitti' },
+  { id: 'failed',        label: 'Başarısız',    desc: 'Hata oldu' },
+  { id: 'paused_budget', label: 'Duruldu',      desc: 'Bütçe aşıldı' },
+];
+
+const AGENT_COLORS = {
+  ceo: '#f97316', scout: '#3b82f6', filter: '#a855f7', auditor: '#06b6d4',
+  pitch: '#22c55e', outreach: '#eab308', mentor: '#ec4899', sitebuilder: '#8b5cf6',
+  designer: '#f472b6', videomaker: '#ef4444', content: '#14b8a6', presenter: '#f59e0b',
+  brandkit: '#a855f7', admanager: '#f43f5e', social: '#0ea5e9', analytics: '#84cc16',
+  goat: '#f97316', videoproducer: '#ef4444', youtube: '#dc2626', storyboard: '#6366f1',
+  mcphub: '#64748b', taskplanner: '#0891b2',
+};
+
+let STATE = { dashboard: null, companies: [], agents: [], ceoOpen: false };
+
+async function loadDashboard() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.innerHTML = '<span class="spinning">↻</span> Yenile';
+  try {
+    const [dash, companies, agents, system, memory] = await Promise.all([
+      fetch('/api/core/dashboard').then(r => r.json()),
+      fetch('/api/core/companies').then(r => r.json()),
+      fetch('/api/core/agents').then(r => r.json()),
+      fetch('/api/core/system').then(r => r.json()),
+      fetch('/api/core/memory?limit=12').then(r => r.json()).catch(() => ({facts:[]})),
+    ]);
+    STATE.dashboard = dash;
+    STATE.companies = companies.companies || [];
+    STATE.agents = agents.agents || [];
+    STATE.system = system;
+    renderBanner(system);
+    renderCompanies(companies.active);
+    renderAgents(STATE.agents);
+    renderMemory(memory.facts || []);
+    renderMain(dash);
+  } catch (e) { console.error(e); }
+  finally { if (btn) btn.innerHTML = '↻ Yenile'; }
+}
+
+function renderMemory(facts) {
+  const el = document.getElementById('memoryList');
+  if (!el) return;
+  if (!facts.length) {
+    el.innerHTML = '<div class="empty" style="padding:8px;font-size:11px;">Henüz öğrenilen bir şey yok</div>';
+    return;
+  }
+  el.innerHTML = facts.map(f => `
+    <div class="fact-item">
+      <div class="kind">${escapeHtml(f.kind || 'insight')}</div>
+      <div>${escapeHtml(f.content || '')}</div>
+    </div>
+  `).join('');
+}
+
+function renderModeSwitch(mode) {
+  const buttons = document.querySelectorAll('.mode-switch button');
+  buttons.forEach(b => b.classList.toggle('active', b.dataset.mode === (mode || 'auto')));
+}
+
+function renderSystemBar(sys, dash) {
+  const el = document.getElementById('systemBar');
+  if (!el) return;
+  const counts = (dash && dash.counts) || {};
+  const inProgress = counts.in_progress || 0;
+  const needsReview = counts.needs_review || 0;
+  const totalCost = ((dash && dash.totals && dash.totals.cost_usd) || 0).toFixed(2);
+  const dotClass = sys.kv_enabled ? '' : sys.vercel ? 'warn' : '';
+  const statusText = sys.kv_enabled ? 'durable' : sys.vercel ? 'ephemeral' : 'local';
+  const modeIcon = sys.work_mode === 'beast' ? '🔥' : sys.work_mode === 'manual' ? '🛡' : '⚡';
+  el.innerHTML = `
+    <span class="pill"><span class="dot ${dotClass}"></span>${statusText}</span>
+    <span class="pill">${modeIcon} ${escapeHtml(sys.work_mode || 'auto')} mode</span>
+    ${inProgress ? `<span class="pill" style="color:var(--blue);">▶ ${inProgress} çalışıyor</span>` : ''}
+    ${needsReview ? `<span class="pill" style="color:var(--yellow);">⏸ ${needsReview} onay bekliyor</span>` : ''}
+    <span class="pill">💰 $${totalCost}</span>
+    <span style="margin-left:auto;font-size:10px;color:var(--dim-2);">${sys.anthropic_configured ? 'AI ✓' : 'AI ✕'} · ${sys.composio_configured ? 'Apps ✓' : 'Apps ✕'}</span>
+  `;
+}
+
+async function setWorkMode(mode) {
+  const r = await fetch('/api/core/work_mode', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode}),
+  });
+  if (r.ok) {
+    renderModeSwitch(mode);
+    // Auto-tick if switching to beast — picks up any pending review tickets
+    if (mode === 'beast') runHeartbeat();
+  }
+}
+
+function renderBanner(sys) {
+  if (sys.work_mode) renderModeSwitch(sys.work_mode);
+  renderSystemBar(sys, STATE.dashboard);
+  const el = document.getElementById('setupBanner');
+  if (!el) return;
+  // Show critical durable-state warning on Vercel without KV
+  if (sys.vercel && !sys.kv_enabled) {
+    el.className = 'setup-banner error';
+    el.innerHTML = `
+      <div class="icon">⚠️</div>
+      <div>
+        <strong>Durable state kapalı.</strong> Şu an Vercel ephemeral filesystem'de çalışıyorsun — cold start sonrası tüm ticket / goal / activity silinir.<br>
+        Çözüm: Local terminal'de bir kez <code>vercel integration add upstash/upstash-kv</code> çalıştır (≈30sn). Ardından <code>vercel deploy --prod</code>.
+      </div>
+    `;
+    el.style.display = '';
+  } else if (!sys.anthropic_configured) {
+    el.className = 'setup-banner';
+    el.innerHTML = `
+      <div class="icon">🤖</div>
+      <div><strong>CEO sınırlı modda.</strong> Anthropic API key ayarlı değil → CEO sadece keyword matcher kullanıyor. <code>ANTHROPIC_API_KEY</code> env'e ekle.</div>
+    `;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+const CATEGORY_LABELS = {
+  master: 'Yönetim', acquisition: 'Müşteri Bulma', sales: 'Satış',
+  creative: 'Yaratıcı', marketing: 'Pazarlama', intelligence: 'Analiz',
+  education: 'Eğitim', delivery: 'Teslim', production: 'Üretim',
+  system: 'Sistem', '': 'Diğer',
+};
+
+function renderAgents(agents) {
+  const el = document.getElementById('agentsList');
+  if (!el) return;
+  // Group by category
+  const groups = {};
+  for (const a of agents) {
+    if (a.id === 'ceo') continue;  // CEO is the chat itself
+    const cat = a.category || 'other';
+    (groups[cat] = groups[cat] || []).push(a);
+  }
+  const order = ['master','acquisition','sales','creative','marketing','intelligence','education','delivery','production','system','other'];
+  let html = '';
+  for (const cat of order) {
+    const list = groups[cat];
+    if (!list || !list.length) continue;
+    html += `<div class="agent-cat-head">${CATEGORY_LABELS[cat] || cat}</div>`;
+    for (const a of list) {
+      const color = AGENT_COLORS[a.id] || '#64748b';
+      html += `
+        <div class="agent-item" onclick="openAgentRun('${a.id}', ${JSON.stringify(a).replaceAll('"', '&quot;')})">
+          <div class="av" style="background:${color}">${(a.id || '?').charAt(0).toUpperCase()}</div>
+          <div class="info">
+            <div class="nm">${escapeHtml(a.name || a.id)}</div>
+            <div class="rl">${escapeHtml(a.role || '')}</div>
+          </div>
+          ${a.needs_approval ? '<span class="lock" title="Onay gerekir">🔒</span>' : ''}
+        </div>
+      `;
+    }
+  }
+  el.innerHTML = html || '<div class="empty" style="padding:14px 8px;">Agent yok</div>';
+}
+
+function openAgentRun(agentId, agentDetails) {
+  const a = typeof agentDetails === 'string' ? JSON.parse(agentDetails.replaceAll('&quot;', '"')) : agentDetails;
+  const fields = paramFieldsFor(agentId);
+  modal(`
+    <h3>${escapeHtml(a.name || agentId)}</h3>
+    <div class="sub">${escapeHtml(a.role || '')} · <span style="color:var(--accent)">${a.category || ''}</span></div>
+    <label>Title (opsiyonel)</label>
+    <input id="qrTitle" placeholder="${agentId} run">
+    ${fields}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="quickRunAgent('${agentId}')">▶ Çalıştır</button>
+      <button class="btn" onclick="askCEOAbout('${agentId}')">CEO'ya sor</button>
+    </div>
+  `);
+}
+
+function paramFieldsFor(agentId) {
+  const fields = {
+    scout: `
+      <label>Sorgu</label><input id="qrQuery" placeholder="restoran">
+      <label>Şehir</label><input id="qrLocation" placeholder="İstanbul">
+      <label>Limit (max 100)</label><input id="qrLimit" type="number" value="50" max="100">
+    `,
+    auditor: `
+      <label>URL (boş bırakılırsa hot leadler taranır)</label>
+      <input id="qrUrl" placeholder="https://example.com">
+      <label>Max lead</label><input id="qrMaxLeads" type="number" value="10">
+    `,
+    designer: `
+      <label>Tasarım türü</label>
+      <select id="qrDesignType">
+        <option value="logo">Logo</option><option value="social_post">Sosyal post</option>
+        <option value="banner">Banner</option><option value="ad">Reklam</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Tema</label><input id="qrTheme" placeholder="modern, minimalist">
+    `,
+    videomaker: `
+      <label>Video türü</label>
+      <select id="qrVideoType">
+        <option value="reels">Reels</option><option value="youtube_short">YouTube Short</option>
+        <option value="ad_video">Reklam</option><option value="explainer">Açıklayıcı</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Konu</label><input id="qrTopic" placeholder="otomasyon">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="qrMakeMp4" style="width:auto;margin:0">
+        <span>🎬 Gerçek MP4 üret (~$0.60, 3-5 dk)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="qrMakeStills" checked style="width:auto;margin:0">
+        <span>🖼 Sahne still görselleri (~$0.05, 30s)</span>
+      </label>
+    `,
+    content: `
+      <label>İçerik türü</label>
+      <select id="qrContentType">
+        <option value="blog">Blog</option><option value="social">Sosyal</option>
+        <option value="email">Email</option><option value="newsletter">Newsletter</option>
+      </select>
+      <label>Konu</label><input id="qrTopic" placeholder="restoran otomasyonu">
+    `,
+    brandkit: `
+      <label>İşletme adı</label><input id="qrBusiness" placeholder="goat">
+      <label>Sektör</label><input id="qrIndustry" placeholder="dijital ajans">
+      <label>Stil</label>
+      <select id="qrStyle">
+        <option value="modern">Modern</option><option value="minimal">Minimal</option>
+        <option value="bold">Bold</option><option value="warm">Sıcak</option>
+      </select>
+    `,
+    admanager: `
+      <label>Platform</label>
+      <select id="qrPlatform">
+        <option value="meta">Meta (FB/Instagram)</option><option value="google">Google</option>
+        <option value="tiktok">TikTok</option><option value="linkedin">LinkedIn</option>
+      </select>
+      <label>Kampanya türü</label>
+      <select id="qrCampaignType">
+        <option value="lead_gen">Lead generation</option><option value="awareness">Bilinirlik</option>
+        <option value="conversion">Dönüşüm</option>
+      </select>
+      <label>Bütçe ($)</label><input id="qrBudget" placeholder="1000">
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    social: `
+      <label>İşlem</label>
+      <select id="qrAction">
+        <option value="strategy">Strateji</option><option value="hashtags">Hashtag araştır</option>
+        <option value="bio">Bio yaz</option><option value="growth">Büyüme planı</option>
+      </select>
+      <label>Platform</label>
+      <select id="qrPlatform">
+        <option value="instagram">Instagram</option><option value="linkedin">LinkedIn</option>
+        <option value="twitter">Twitter</option><option value="youtube">YouTube</option>
+      </select>
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    presenter: `
+      <label>Şablon</label>
+      <select id="qrTemplate">
+        <option value="pitch_deck">Pitch deck</option><option value="proposal">Teklif sunumu</option>
+        <option value="report">Rapor</option><option value="training">Eğitim</option>
+      </select>
+      <label>Konu</label><input id="qrTopic">
+      <label>İşletme adı</label><input id="qrBusiness">
+    `,
+    youtube: `
+      <label>İşlem</label>
+      <select id="qrAction">
+        <option value="optimize">SEO optimize</option><option value="upload">Upload</option>
+        <option value="strategy">Strateji</option><option value="schedule">Takvim</option>
+      </select>
+      <label>Başlık</label><input id="qrTitle2">
+      <label>Konu</label><input id="qrTopic">
+    `,
+  };
+  return fields[agentId] || '<div style="color:var(--dim);font-size:11px;margin-bottom:14px;">Bu agent için ekstra parametre yok.</div>';
+}
+
+async function quickRunAgent(agentId) {
+  const params = {};
+  const get = id => (document.getElementById(id) || {}).value;
+  const num = id => { const v = get(id); return v ? parseInt(v, 10) : undefined; };
+  if (agentId === 'scout') Object.assign(params, { query: get('qrQuery'), location: get('qrLocation'), limit: num('qrLimit') || 50 });
+  if (agentId === 'auditor') Object.assign(params, { url: get('qrUrl'), max_leads: num('qrMaxLeads') || 10 });
+  if (agentId === 'designer') Object.assign(params, { design_type: get('qrDesignType'), business_name: get('qrBusiness'), theme: get('qrTheme') });
+  if (agentId === 'videomaker') Object.assign(params, {
+    video_type: get('qrVideoType'), business_name: get('qrBusiness'), topic: get('qrTopic'),
+    make_mp4: !!(document.getElementById('qrMakeMp4') && document.getElementById('qrMakeMp4').checked),
+    make_stills: !!(document.getElementById('qrMakeStills') && document.getElementById('qrMakeStills').checked)
+  });
+  if (agentId === 'content') Object.assign(params, { content_type: get('qrContentType'), topic: get('qrTopic') });
+  if (agentId === 'brandkit') Object.assign(params, { business_name: get('qrBusiness'), industry: get('qrIndustry'), style: get('qrStyle') });
+  if (agentId === 'admanager') Object.assign(params, { platform: get('qrPlatform'), campaign_type: get('qrCampaignType'), budget: get('qrBudget'), business_name: get('qrBusiness') });
+  if (agentId === 'social') Object.assign(params, { action: get('qrAction'), platform: get('qrPlatform'), business_name: get('qrBusiness') });
+  if (agentId === 'presenter') Object.assign(params, { template: get('qrTemplate'), topic: get('qrTopic'), business_name: get('qrBusiness') });
+  if (agentId === 'youtube') Object.assign(params, { action: get('qrAction'), title: get('qrTitle2'), topic: get('qrTopic') });
+
+  const title = get('qrTitle') || `${agentId} run`;
+  closeModal();
+
+  const r = await fetch(`/api/core/agents/${agentId}/quick-run`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, params }),
+  });
+  const d = await r.json();
+  if (d.ticket_id) {
+    setTimeout(() => loadDashboard(), 200);
+  }
+}
+
+function askCEOAbout(agentId) {
+  closeModal();
+  if (!STATE.ceoOpen) toggleCEO();
+  document.getElementById('ceoInput').value = `${agentId}'a iş ver:`;
+  document.getElementById('ceoInput').focus();
+}
+
+function renderCompanies(activeId) {
+  const sel = document.getElementById('companySelect');
+  sel.innerHTML = '';
+  for (const c of STATE.companies) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name || c.id;
+    if (c.id === activeId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  if (!STATE.companies.length) {
+    const opt = document.createElement('option'); opt.textContent = 'default'; opt.value = 'default';
+    sel.appendChild(opt);
+  }
+}
+
+async function switchCompany() {
+  const v = document.getElementById('companySelect').value;
+  await fetch('/api/core/companies/active', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: v }),
+  });
+  loadDashboard();
+}
+
+function renderMain(dash) {
+  const company = dash.company || {};
+  document.getElementById('companyName').textContent = company.name || company.id || 'goat';
+  const metaParts = [company.niche, (company.target_cities || []).join(', ')].filter(Boolean);
+  document.getElementById('companyMeta').textContent = metaParts.join(' · ') || 'Henüz yapılandırılmadı';
+
+  // Board
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (const col of COLUMNS) {
+    const tickets = dash.tickets_by_status[col.id] || [];
+    const el = document.createElement('div');
+    el.className = 'col col-' + col.id;
+    el.innerHTML = `
+      <div class="col-head">
+        <span class="title"><span class="dot"></span>${col.label}</span>
+        <span class="count">${tickets.length}</span>
+      </div>
+      <div class="col-body"></div>
+    `;
+    const body = el.querySelector('.col-body');
+    for (const t of tickets) {
+      const cost = t.cost_usd ? `$${Number(t.cost_usd).toFixed(3)}` : '';
+      const agentColor = AGENT_COLORS[t.agent_id] || '#64748b';
+      const card = document.createElement('div');
+      card.className = `card card-${col.id}`;
+      card.onclick = () => openTicket(t.id);
+      card.dataset.tid = t.id;
+      card.dataset.gid = t.goal_id || '';
+      const errBlock = t.error ? `<div class="err" title="${escapeHtml(t.error)}">⚠ ${escapeHtml(t.error)}</div>` : '';
+      card.innerHTML = `
+        <div class="title">${escapeHtml(t.title || t.id)}</div>
+        <div class="row">
+          <span class="agent-chip">
+            <span class="agent-avatar" style="background:${agentColor}">${(t.agent_id || '?').charAt(0)}</span>
+            ${escapeHtml(t.agent_id || 'unknown')}
+          </span>
+          <span class="cost ${cost ? '' : 'zero'}">${cost || '—'}</span>
+        </div>
+        ${errBlock}
+      `;
+      body.appendChild(card);
+    }
+    if (!tickets.length) {
+      const total = Object.values(dash.tickets_by_status || {}).reduce((s, x) => s + x.length, 0);
+      if (col.id === 'pending' && total === 0) {
+        body.innerHTML = `
+          <div class="empty" style="padding:20px 14px; text-align:center;">
+            <div style="font-size:24px; margin-bottom:8px;">💬</div>
+            <div style="color:var(--text-2); font-size:11.5px; margin-bottom:8px;">CEO'ya yaz, ajanlar otomatik bölünüp çalışsın.</div>
+            <button class="btn small" style="font-size:10.5px;" onclick="document.getElementById('ceoPanel').classList.add('open'); STATE.ceoOpen=true; document.getElementById('ceoInput').focus();">CEO'yu aç</button>
+          </div>`;
+      } else {
+        body.innerHTML = '<div class="empty">—</div>';
+      }
+    }
+    board.appendChild(el);
+  }
+
+  // Goals
+  const gl = document.getElementById('goalsList');
+  gl.innerHTML = '';
+  for (const g of (dash.goals || [])) {
+    const el = document.createElement('div');
+    el.className = 'goal-item' + (STATE.activeGoalId === g.id ? ' active' : '');
+    el.onclick = () => toggleGoalFocus(g.id);
+    el.ondblclick = () => planGoal(g.id);
+    const p = g.progress || {total: 0, completed: 0, percent: 0};
+    const meta = p.total
+      ? `<div class="prog-bar"><div class="fill" style="width:${p.percent}%"></div></div>
+         <div class="prog-meta"><span>${p.completed}/${p.total} ticket</span><span>%${p.percent}</span></div>`
+      : `<div class="prog-meta"><span style="color:var(--dim);">Henüz plan yok — çift tık ile planla</span></div>`;
+    el.innerHTML = `
+      <div class="title">${escapeHtml(g.title)}</div>
+      <div class="metric">${escapeHtml(g.target_metric || '—')}</div>
+      ${meta}
+    `;
+    gl.appendChild(el);
+  }
+  if (!(dash.goals || []).length) gl.innerHTML = '<div class="empty" style="padding:14px 8px;">Henüz hedef yok</div>';
+
+  // Apply goal focus dimming on board cards
+  if (STATE.activeGoalId) {
+    document.querySelectorAll('.col .card').forEach(c => {
+      const matches = c.dataset.gid === STATE.activeGoalId;
+      c.classList.toggle('dim', !matches);
+    });
+  }
+
+  // Budgets
+  const bl = document.getElementById('budgetsList');
+  bl.innerHTML = '';
+  const budgets = dash.budgets || {};
+  const keys = Object.keys(budgets);
+  if (!keys.length) {
+    bl.innerHTML = '<div class="empty" style="padding:10px 8px;">Bütçe ayarlanmamış</div>';
+  } else {
+    for (const k of keys) {
+      const b = budgets[k];
+      const pct = b.amount_usd ? Math.min(100, (b.spent_usd / b.amount_usd) * 100) : 0;
+      const cls = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '';
+      const el = document.createElement('div');
+      el.className = 'budget-row';
+      el.innerHTML = `
+        <div class="top">
+          <span class="name">${escapeHtml(k)}</span>
+          <span class="amt">$${b.spent_usd.toFixed(2)} / $${b.amount_usd.toFixed(2)}</span>
+        </div>
+        <div class="bar"><div class="fill ${cls}" style="width:${pct}%"></div></div>
+      `;
+      bl.appendChild(el);
+    }
+  }
+
+  // Totals
+  const totals = dash.totals || {};
+  document.getElementById('totalTickets').textContent = totals.tickets || 0;
+  document.getElementById('totalCost').textContent = '$' + (totals.cost_usd || 0).toFixed(2);
+
+  // Activity
+  const al = document.getElementById('activityList');
+  al.innerHTML = '';
+  const acts = dash.activity || [];
+  document.getElementById('activityCount').textContent = acts.length ? `${acts.length}` : '—';
+  for (const a of acts) {
+    const el = document.createElement('div');
+    el.className = 'act kind-' + a.kind;
+    el.innerHTML = `
+      <div class="kind-dot"></div>
+      <div class="content">
+        <div class="line-1">
+          <span><span class="kind">${escapeHtml(a.kind)}</span><span class="actor">${escapeHtml(a.actor || 'system')}</span></span>
+          <span class="time">${formatTime(a.timestamp)}</span>
+        </div>
+        <div class="subject">${escapeHtml(a.subject || '—')}</div>
+      </div>
+    `;
+    if (a.subject && a.subject.startsWith('t_')) {
+      el.style.cursor = 'pointer';
+      el.onclick = () => openTicket(a.subject);
+    }
+    al.appendChild(el);
+  }
+  if (!acts.length) al.innerHTML = '<div class="empty">Henüz hareket yok</div>';
+}
+
+async function openTicket(id) {
+  try {
+    const t = await fetch('/api/core/tickets/' + id).then(r => r.json());
+    if (t.error) return;
+    const drawer = document.getElementById('drawer');
+    const body = document.getElementById('drawerBody');
+    const statusClass = 'status-' + t.status;
+    document.getElementById('drawerDot').style.background = dotColor(t.status);
+    document.getElementById('drawerTitle').textContent = t.title || t.id;
+
+    const cost = t.cost_usd ? '$' + Number(t.cost_usd).toFixed(4) : '$0';
+    const breakdown = t.cost_breakdown && Object.keys(t.cost_breakdown).length
+      ? Object.entries(t.cost_breakdown).map(([k, v]) => `${k}: $${v}`).join('\n')
+      : '—';
+    const artifacts = (t.artifacts || []).map(a =>
+      `<div>· ${escapeHtml(a.kind || 'artifact')}: <code>${escapeHtml(a.path || a.name || '')}</code></div>`
+    ).join('') || '<em style="color:var(--dim-2);">Yok</em>';
+
+    let actions = '';
+    if (t.status === 'needs_review') {
+      // If the agent attached delivery channels (e.g. outreach with multiple
+      // send-via options), let the user pick which to use during approval.
+      const approvalAction = (t.result && t.result.approval_action) || {};
+      const channels = (approvalAction.preview && approvalAction.preview.channels) || [];
+      const hasChannels = Array.isArray(channels) && channels.length > 0;
+      const channelOptions = hasChannels ? `
+        <h4 style="margin-top:14px;">Hangi kanaldan göndereyim?</h4>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+          ${channels.map(c => `
+            <label style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface-2); border:1px solid var(--border-soft); border-radius:6px; cursor:${c.ready ? 'pointer' : 'not-allowed'}; opacity:${c.ready ? '1' : '0.5'};">
+              <input type="radio" name="dchan_${t.id}" value="${escapeHtml(c.kind)}" ${c.ready ? '' : 'disabled'} ${(c.ready && c.kind === 'instantly') ? 'checked' : ''}>
+              <span style="font-size:18px;">${c.icon || ''}</span>
+              <span style="flex:1;">${escapeHtml(c.label)}</span>
+              ${!c.ready ? '<span style="color:var(--yellow); font-size:10px;">⚠ kurulum gerek</span>' : ''}
+            </label>
+          `).join('')}
+        </div>
+      ` : '';
+      actions = `
+        ${channelOptions}
+        <div class="actions-row">
+          <button class="btn primary" onclick="approveTicket('${t.id}')">✓ Onayla</button>
+          <button class="btn danger" onclick="rejectTicket('${t.id}')">✕ Reddet</button>
+          ${hasChannels ? `
+            <button class="btn small" onclick="downloadCampaign('${t.id}', 'csv')">📥 CSV</button>
+            <button class="btn small" onclick="downloadCampaign('${t.id}', 'md')">📝 MD</button>
+          ` : ''}
+        </div>`;
+    }
+
+    const errorBlock = t.error ? `
+      <div style="margin-top:14px; padding:14px; border-radius:8px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3);">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--red); font-weight:700; margin-bottom:6px;">⚠ HATA</div>
+        <div style="font-size:12.5px; color:var(--text); line-height:1.5;">${escapeHtml(t.error)}</div>
+      </div>` : '';
+    body.innerHTML = `
+      <div class="chips">
+        <span class="chip"><span class="agent-avatar" style="background:${AGENT_COLORS[t.agent_id] || '#64748b'};width:12px;height:12px;font-size:7px;">${(t.agent_id || '?').charAt(0)}</span>${escapeHtml(t.agent_id || '')}</span>
+        <span class="chip ${statusClass}">${escapeHtml(t.status)}</span>
+        <span class="chip">${cost}</span>
+        ${t.needs_approval ? '<span class="chip status-needs_review">onay gerekir</span>' : ''}
+      </div>
+      ${errorBlock}
+      ${actions}
+      <h4>ID</h4>
+      <pre>${t.id}</pre>
+      <h4>Açıklama</h4>
+      <pre>${escapeHtml(t.description || '—')}</pre>
+      <h4>Params</h4>
+      <pre>${escapeHtml(JSON.stringify(t.params || {}, null, 2))}</pre>
+      <h4>Result</h4>
+      <pre>${escapeHtml(JSON.stringify(t.result || {}, null, 2))}</pre>
+      <h4>Agent Logs</h4>
+      ${(t.run_log && t.run_log.length) ? `
+        <div style="font-family:'JetBrains Mono', monospace; font-size:11px; line-height:1.6; max-height:280px; overflow-y:auto; background:var(--bg); border:1px solid var(--border-soft); border-radius:6px; padding:8px 10px;">
+          ${t.run_log.map(l => `<div><span style="color:var(--dim);">${formatTime(l.time)}</span> · <span style="color:var(--text-2);">${escapeHtml(l.message)}</span></div>`).join('')}
+        </div>` : '<em style="color:var(--dim-2); font-size:11px;">Henüz log yok</em>'}
+      <h4>Cost Breakdown</h4>
+      <pre>${escapeHtml(breakdown)}</pre>
+      <h4>Artifacts</h4>
+      <div style="font-size:11.5px; color:var(--text-2);">${artifacts}</div>
+      <h4>Timeline</h4>
+      <dl class="kv">
+        <dt>created</dt><dd>${t.created_at || '—'}</dd>
+        <dt>started</dt><dd>${t.started_at || '—'}</dd>
+        <dt>completed</dt><dd>${t.completed_at || '—'}</dd>
+        <dt>approved_by</dt><dd>${t.approved_by || '—'}</dd>
+      </dl>
+    `;
+    drawer.classList.add('open');
+  } catch (e) { console.error(e); }
+}
+
+function dotColor(status) {
+  return {
+    pending: 'var(--dim)', in_progress: 'var(--blue)',
+    needs_review: 'var(--yellow)', approved: 'var(--green)',
+    completed: 'var(--green)', failed: 'var(--red)',
+    paused_budget: 'var(--red)',
+  }[status] || 'var(--dim)';
+}
+
+function closeDrawer() { document.getElementById('drawer').classList.remove('open'); }
+
+async function approveTicket(id) {
+  // Pick the selected delivery channel (if any radios visible)
+  const radio = document.querySelector(`input[name="dchan_${id}"]:checked`);
+  const channel = radio ? radio.value : null;
+  await fetch(`/api/core/tickets/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(channel ? { channel } : {}),
+  });
+  closeDrawer(); loadDashboard();
+}
+
+function downloadCampaign(ticketId, fmt) {
+  window.open(`/api/core/tickets/${ticketId}/export?format=${fmt}`, '_blank');
+}
+async function rejectTicket(id) {
+  const reason = prompt('Red nedeni (opsiyonel):') || '';
+  await fetch(`/api/core/tickets/${id}/reject`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  closeDrawer(); loadDashboard();
+}
+
+async function planGoal(goalId) {
+  const r = await fetch(`/api/core/goals/${goalId}/plan`, { method: 'POST' });
+  const d = await r.json();
+  if ((d.tickets || []).length) {
+    STATE.activeGoalId = goalId;
+  }
+  loadDashboard();
+}
+
+function toggleGoalFocus(goalId) {
+  STATE.activeGoalId = STATE.activeGoalId === goalId ? null : goalId;
+  if (STATE.dashboard) renderMain(STATE.dashboard);
+}
+
+async function runHeartbeat() {
+  const r = await fetch('/api/core/heartbeat/tick', { method: 'POST' });
+  const d = await r.json();
+  console.log('heartbeat:', d);
+  loadDashboard();
+}
+
+function openGoalModal() {
+  modal(`
+    <h3>Yeni hedef</h3>
+    <div class="sub">Senin için otomatik plan ve ticket'lar üretilecek</div>
+    <label>Başlık</label>
+    <input id="gTitle" placeholder="Bu ay 50 hot lead">
+    <label>Hedef sektör / bölge (opsiyonel)</label>
+    <textarea id="gDesc" placeholder="İstanbul, Ankara — restoran + klinik"></textarea>
+    <label>Ölçülebilir metrik</label>
+    <input id="gMetric" placeholder="50 hot leads">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createGoal()">Oluştur & Planla</button>
+    </div>
+  `);
+}
+
+async function createGoal() {
+  const title = document.getElementById('gTitle').value.trim();
+  if (!title) return;
+  const desc = document.getElementById('gDesc').value;
+  const metric = document.getElementById('gMetric').value;
+  const r = await fetch('/api/core/goals', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description: desc, target_metric: metric }),
+  });
+  const goal = await r.json();
+  closeModal();
+  // Otomatik orchestrate — CEO planlasın ve ajanları çalıştırsın
+  // Build a richer message so orchestrator gets full context
+  const msg = [title, desc, metric ? ('Hedef ölçüsü: ' + metric) : ''].filter(Boolean).join('. ');
+  // Ensure CEO panel is open so user sees the live work
+  if (!STATE.ceoOpen) toggleCEO();
+  document.getElementById('ceoInput').value = msg;
+  await orchestrateCEO();
+  loadDashboard();
+}
+
+function openCompanyModal() {
+  modal(`
+    <h3>Yeni şirket</h3>
+    <div class="sub">goat içinde ayrı bir data silo oluştur</div>
+    <label>ID (slug)</label>
+    <input id="cId" placeholder="goat-ugc">
+    <label>Görünen ad</label>
+    <input id="cName" placeholder="GOAT UGC">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createCompany()">Oluştur</button>
+    </div>
+  `);
+}
+async function createCompany() {
+  const id = document.getElementById('cId').value.trim();
+  const name = document.getElementById('cName').value.trim() || id;
+  if (!id) return;
+  await fetch('/api/core/companies/active', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, name }),
+  });
+  closeModal(); loadDashboard();
+}
+
+function openBudgetModal() {
+  const agents = ['scout', 'filter', 'auditor', 'pitch', 'outreach', 'designer',
+                  'videomaker', 'videoproducer', 'content', 'social', 'admanager', 'youtube', 'analytics'];
+  modal(`
+    <h3>Bütçe belirle</h3>
+    <div class="sub">Aylık USD limit — aşılırsa agent otomatik durur</div>
+    <label>Agent</label>
+    <select id="bAgent">
+      ${agents.map(a => `<option value="${a}">${a}</option>`).join('')}
+    </select>
+    <label>Aylık limit (USD)</label>
+    <input id="bAmount" type="number" step="0.01" placeholder="20">
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">İptal</button>
+      <button class="btn primary" onclick="createBudget()">Kaydet</button>
+    </div>
+  `);
+}
+async function createBudget() {
+  const agent_id = document.getElementById('bAgent').value;
+  const amount_usd = parseFloat(document.getElementById('bAmount').value);
+  if (!agent_id || !amount_usd || amount_usd <= 0) return;
+  await fetch('/api/core/budgets', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ agent_id, amount_usd }),
+  });
+  closeModal(); loadDashboard();
+}
+
+function modal(html) {
+  document.getElementById('modalHost').innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this)closeModal()">
+      <div class="modal">${html}</div>
+    </div>`;
+}
+function closeModal() { document.getElementById('modalHost').innerHTML = ''; }
+
+// ── CEO Chat ──
+function toggleCEO() {
+  STATE.ceoOpen = !STATE.ceoOpen;
+  const panel = document.getElementById('ceoPanel');
+  panel.classList.toggle('open', STATE.ceoOpen);
+  document.getElementById('ceoToggleIcon').textContent = STATE.ceoOpen ? '▼' : '▲';
+}
+
+function suggestCEO(text) {
+  document.getElementById('ceoInput').value = text.replaceAll('\\\'', "'");
+  sendCEO();
+}
+
+async function orchestrateCEO() {
+  if (!STATE.ceoOpen) toggleCEO();
+  const input = document.getElementById('ceoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const log = document.getElementById('ceoLog');
+  const suggestions = document.getElementById('ceoSuggestions');
+  if (suggestions) suggestions.style.display = 'none';
+
+  const userEl = document.createElement('div');
+  userEl.className = 'ceo-msg user';
+  userEl.innerHTML = `<div class="who">sen → görev</div><div class="bubble">${escapeHtml(msg)}</div>`;
+  log.appendChild(userEl);
+
+  const ceoEl = document.createElement('div');
+  ceoEl.className = 'ceo-msg ceo';
+  ceoEl.innerHTML = `<div class="who">CEO orkestrasyon</div><div class="bubble md"></div><div class="ceo-actions"></div>`;
+  log.appendChild(ceoEl);
+  const bubble = ceoEl.querySelector('.bubble');
+  const pillsBox = ceoEl.querySelector('.ceo-actions');
+  let acc = '';
+
+  try {
+    const r = await fetch('/api/core/ceo/orchestrate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg}),
+    });
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const parts = buf.split('\n\n');
+      buf = parts.pop() || '';
+      for (const part of parts) {
+        const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+        if (!dataLine) continue;
+        let evt; try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; }
+        if (evt.kind === 'text_delta') {
+          acc += evt.text || '';
+          bubble.innerHTML = (typeof marked !== 'undefined')
+            ? marked.parse(acc, {breaks:true, gfm:true})
+            : escapeHtml(acc);
+          log.scrollTop = log.scrollHeight;
+        } else if (evt.kind === 'plan') {
+          const plan = (evt.steps || []).map(s => s.agent).join(' → ');
+          const pill = document.createElement('span');
+          pill.className = 'act-pill';
+          pill.style.background = 'rgba(168,85,247,0.15)';
+          pill.style.color = 'var(--purple)';
+          pill.style.borderColor = 'rgba(168,85,247,0.35)';
+          pill.textContent = `📋 ${plan}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'step_start') {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill tool-pending';
+          pill.dataset.step = evt.step;
+          pill.dataset.agent = evt.agent;
+          pill.innerHTML = `<span class="spinning" style="display:inline-block;">⚙</span> ${evt.agent}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'step_done') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].find(x => x.dataset.step == evt.step);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.style.background = 'var(--green-soft)';
+            p.style.color = 'var(--green)';
+            p.style.borderColor = 'rgba(34,197,94,0.35)';
+            p.innerHTML = `✓ ${evt.agent}`;
+            p.title = evt.summary || '';
+            if (evt.ticket_id) { p.style.cursor = 'pointer'; p.onclick = () => openTicket(evt.ticket_id); }
+          }
+        } else if (evt.kind === 'step_error') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].find(x => x.dataset.step == evt.step);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.classList.add('act-pill-err');
+            p.innerHTML = `✕ ${evt.agent}`;
+            p.title = evt.error || '';
+          }
+        } else if (evt.kind === 'done') {
+          setTimeout(loadDashboard, 500);
+        }
+      }
+    }
+  } catch (e) {
+    bubble.innerHTML += '<br><span style="color:var(--red);">⚠ Bağlantı hatası</span>';
+  }
+}
+
+async function sendCEO() {
+  if (!STATE.ceoOpen) toggleCEO();
+  const input = document.getElementById('ceoInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  const log = document.getElementById('ceoLog');
+  const suggestions = document.getElementById('ceoSuggestions');
+  if (suggestions) suggestions.style.display = 'none';
+
+  const userEl = document.createElement('div');
+  userEl.className = 'ceo-msg user';
+  userEl.innerHTML = `<div class="who">sen</div><div class="bubble">${escapeHtml(msg)}</div>`;
+  log.appendChild(userEl);
+  log.scrollTop = log.scrollHeight;
+
+  // Streaming bubble
+  const ceoEl = document.createElement('div');
+  ceoEl.className = 'ceo-msg ceo';
+  ceoEl.innerHTML = `<div class="who">CEO</div><div class="bubble md"><em style="opacity:0.5;">düşünüyor…</em></div><div class="ceo-actions"></div>`;
+  log.appendChild(ceoEl);
+  const bubble = ceoEl.querySelector('.bubble');
+  const pillsBox = ceoEl.querySelector('.ceo-actions');
+  let accumulated = '';
+
+  try {
+    const r = await fetch('/api/core/ceo/chat/stream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    if (!r.ok || !r.body) throw new Error('stream not ok');
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+        if (!dataLine) continue;
+        const j = dataLine.slice(6).trim();
+        if (!j) continue;
+        let evt; try { evt = JSON.parse(j); } catch { continue; }
+        if (evt.kind === 'text_delta') {
+          accumulated += evt.text || '';
+          // Hide the structured action block that comes after <<<ACTIONS>>>
+          const visible = accumulated.split('<<<ACTIONS>>>')[0].trimEnd();
+          bubble.innerHTML = (typeof marked !== 'undefined')
+            ? marked.parse(visible, { breaks: true, gfm: true })
+            : escapeHtml(visible);
+          log.scrollTop = log.scrollHeight;
+        } else if (evt.kind === 'tool_start') {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill tool-pending';
+          pill.dataset.tool = evt.name;
+          pill.innerHTML = `<span class="spinning" style="display:inline-block;">⚡</span> ${escapeHtml(evt.name)}`;
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'tool_end') {
+          const p = [...pillsBox.querySelectorAll('.tool-pending')].reverse().find(x => x.dataset.tool === evt.name);
+          if (p) {
+            p.classList.remove('tool-pending');
+            p.classList.toggle('act-pill-err', !evt.ok);
+            p.innerHTML = `${evt.ok ? '✓' : '✕'} ${escapeHtml(evt.name)}`;
+          }
+        } else if (evt.kind === 'action' && evt.ok) {
+          const pill = document.createElement('span');
+          pill.className = 'act-pill';
+          pill.textContent = `${evt.kind || 'action'} ${(evt.id || '').slice(0, 10)}`.trim();
+          pillsBox.appendChild(pill);
+        } else if (evt.kind === 'done') {
+          setTimeout(loadDashboard, 400);
+        } else if (evt.kind === 'error') {
+          accumulated += '\n\n⚠ ' + (evt.message || 'hata');
+        }
+      }
+    }
+    if (!accumulated) bubble.innerHTML = '<em style="color:var(--dim);">(boş cevap)</em>';
+    return;
+  } catch (e) {
+    // Fallback: legacy non-stream
+    const r = await fetch('/api/core/ceo/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await r.json();
+    const md = (typeof marked !== 'undefined' && data.response)
+      ? marked.parse(data.response, { breaks: true, gfm: true })
+      : escapeHtml(data.response || '');
+    bubble.innerHTML = md;
+    const acts = (data.executed || []).filter(e => e.ok).map(e =>
+      `<span class="act-pill">${escapeHtml(e.kind)}${e.id ? ' ' + e.id.slice(0, 10) : ''}</span>`
+    ).join('');
+    const tools = (data.tool_calls || []).map(tc => {
+      const cls = tc.ok ? 'act-pill' : 'act-pill act-pill-err';
+      const icon = tc.ok ? '⚡' : '✕';
+      return `<span class="${cls}" title="${escapeHtml(JSON.stringify(tc.input || {}))}">${icon} ${escapeHtml(tc.name)}</span>`;
+    }).join('');
+    pillsBox.innerHTML = tools + acts;
+    log.scrollTop = log.scrollHeight;
+    loadDashboard();
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'şimdi';
+  if (mins < 60) return mins + ' dk';
+  if (mins < 1440) return Math.floor(mins / 60) + ' sa';
+  return Math.floor(mins / 1440) + ' gün';
+}
+
+loadDashboard();
+setInterval(loadDashboard, 10000);
+
+// SSE activity stream — pushes events as they arrive
+let activityStream = null;
+function startActivityStream() {
+  if (activityStream) activityStream.close();
+  activityStream = new EventSource('/api/core/activity/stream');
+  activityStream.onmessage = (ev) => {
+    try {
+      const entry = JSON.parse(ev.data);
+      prependActivity(entry);
+    } catch (e) {}
+  };
+  activityStream.onerror = () => {
+    // EventSource auto-reconnects on close
+  };
+}
+
+function prependActivity(entry) {
+  const list = document.getElementById('activityList');
+  if (!list) return;
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+  const el = document.createElement('div');
+  el.className = 'act kind-' + (entry.kind || '');
+  el.style.animation = 'fadeIn 0.4s ease-out';
+  el.innerHTML = `
+    <div class="kind-dot"></div>
+    <div class="content">
+      <div class="line-1">
+        <span><span class="kind">${escapeHtml(entry.kind)}</span><span class="actor">${escapeHtml(entry.actor || 'system')}</span></span>
+        <span class="time">şimdi</span>
+      </div>
+      <div class="subject">${escapeHtml(entry.subject || '—')}</div>
+    </div>
+  `;
+  if (entry.subject && entry.subject.startsWith('t_')) {
+    el.style.cursor = 'pointer';
+    el.onclick = () => openTicket(entry.subject);
+  }
+  list.insertBefore(el, list.firstChild);
+  // Cap at 50 visible entries
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+}
+
+startActivityStream();
+</script>
+</body>
+</html>

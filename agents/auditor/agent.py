@@ -59,11 +59,18 @@ class AuditorAgent(BaseAgent):
         """Audit websites from qualified leads."""
         leads = self._load_leads_with_websites()
         if not leads:
+            self.log("Website'li lead yok — Scout otomatik tetikleniyor")
+            raw = self.ensure_leads(min_count=10)
+            # Convert raw → audit-friendly shape
+            leads = [{"lead": l} for l in raw if l.get("website")]
+            if leads:
+                self.log(f"Auto-fetch'ten {len(leads)} website'li lead bulundu")
+        if not leads:
             return {
                 "status": "error",
-                "summary": "Website'li lead yok. Önce Scout ve Filter çalıştır.",
+                "summary": "Website'li lead bulunamadı. APIFY_TOKEN ya da niş ayarlarını kontrol et.",
                 "metrics": {},
-                "recommendations": ["Scout → Filter pipeline'ını çalıştır"],
+                "recommendations": ["APIFY_TOKEN'ı .env'e ekle", "Şirket nişini ayarla"],
             }
 
         leads_to_audit = leads[:max_leads]

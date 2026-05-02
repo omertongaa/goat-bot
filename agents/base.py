@@ -7,8 +7,10 @@ from datetime import datetime
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-DATA_DIR = BASE_DIR / "data"
-OUTPUT_DIR = BASE_DIR / "outputs"
+# On Vercel/serverless the package directory is read-only. GOAT_DATA_DIR
+# (set in api/index.py to /tmp/goat-data on Vercel) overrides the default.
+DATA_DIR = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
+OUTPUT_DIR = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
 
 
 class BaseAgent:
@@ -49,24 +51,173 @@ class BaseAgent:
             json.dump(data, f, indent=2, ensure_ascii=False, default=str)
 
     def load_config(self) -> dict:
-        """Load the user's agency profile."""
+        """Load the user's agency profile.
+
+        Order of resolution:
+            1. Active company profile (data/companies/{id}/profile.json)
+               — flattened so legacy keys like agency_name still work
+            2. Legacy data/config/user_profile.json
+        Both are merged with company taking precedence.
+        """
+        # Legacy file
+        legacy = {}
         config_path = DATA_DIR / "config" / "user_profile.json"
         if config_path.exists():
-            with open(config_path) as f:
-                return json.load(f)
-        return {}
+            try:
+                with open(config_path) as f:
+                    legacy = json.load(f) or {}
+            except Exception:
+                legacy = {}
+        # Company schema → flatten to legacy-shaped dict
+        try:
+            from core import store as _store
+            cid = _store.active_company_id()
+            company = _store.load_company(cid) or {}
+            flat = {
+                "id": cid,
+                "agency_name": company.get("name") or legacy.get("agency_name", ""),
+                "name": company.get("name") or legacy.get("name", ""),
+                "owner_name": company.get("owner_name") or legacy.get("owner_name", ""),
+                "niche": company.get("niche") or legacy.get("niche", ""),
+                "target_cities": company.get("target_cities") or legacy.get("target_cities", []),
+                "target_industries": company.get("target_industries") or legacy.get("target_industries", []),
+            }
+            # Mix in api_keys at flat top-level (legacy callers expect that)
+            for k, v in (company.get("api_keys") or {}).items():
+                flat.setdefault(k, v)
+            for k, v in (company.get("settings") or {}).items():
+                flat.setdefault(k, v)
+            # Final merge: legacy fills any gaps
+            merged = {**legacy, **{k: v for k, v in flat.items() if v}}
+            return merged
+        except Exception:
+            return legacy
+
+    def ensure_leads(self, min_count: int = 5, with_email: bool = False) -> list:
+        """Lead havuzu boşsa otomatik Scout çalıştır + email enrichment.
+
+        Pitch, Filter, Outreach gibi downstream agent'lar bunu çağırır:
+            leads = self.ensure_leads(min_count=10)
+        Hiç fail etmez — Scout başarısız olsa bile boş list döner."""
+        # 1. Mevcut qualified leads'a bak
+        try:
+            qual = sorted((DATA_DIR / "leads" / "qualified").glob("*.json"),
+                          reverse=True)
+            if qual:
+                with open(qual[0]) as f:
+                    data = json.load(f)
+                leads = data.get("leads", [])
+                if with_email:
+                    leads = [l for l in leads if l.get("lead", {}).get("email")
+                             or l.get("email")]
+                if len(leads) >= min_count:
+                    return leads
+        except Exception:
+            pass
+
+        # 2. Raw leads — varsa filter'a girmeden de döndürebiliriz
+        try:
+            raw = sorted((DATA_DIR / "leads" / "raw").glob("*.json"), reverse=True)
+            if raw:
+                with open(raw[0]) as f:
+                    data = json.load(f)
+                cached = data.get("leads", [])
+                if cached and len(cached) >= min_count:
+                    if with_email:
+                        cached = [l for l in cached if l.get("email")]
+                        if not cached:
+                            return []
+                    self.log(f"Cache'ten {len(cached)} lead kullanıyorum")
+                    return cached
+        except Exception:
+            pass
+
+        # 3. Boş — otomatik Scout tetikle
+        if not os.environ.get("APIFY_TOKEN", "").strip():
+            self.log("APIFY_TOKEN yok — auto-fetch atlandı")
+            return []
+
+        cfg = self.load_config()
+        niche = cfg.get("niche") or (cfg.get("target_industries") or ["restoran"])[0]
+        city = (cfg.get("target_cities") or [""])[0]
+
+        # Auto-fetch limit — kullanıcı uyarısı: "max 100 lead her aramada".
+        # Min_count 50'yi geçerse 50'de kalsın, hard cap 100 zaten scraper'da.
+        fetch_n = min(max(min_count, 20), 50)
+        self.log(f"Hot lead yok, Scout otomatik çalıştırıyor: {niche} / {city} (max {fetch_n})")
+        try:
+            from services.scraper import scrape_b2b_leads
+            new_leads = scrape_b2b_leads(query=niche, location=city,
+                                         max_results=fetch_n, log=self.log)
+            if not new_leads:
+                self.log("Scout sonuç dönmedi")
+                return []
+
+            # Email enrichment for downstream
+            if with_email:
+                without_email = [l for l in new_leads if not l.get("email")]
+                if without_email and os.environ.get("EMAIL_FINDER_PROVIDERS", "").strip():
+                    try:
+                        from services.email_finder import enrich_leads
+                        enrich_leads(without_email, log=self.log)
+                    except Exception:
+                        pass
+
+            # Persist as raw so other agents can use it too
+            try:
+                from datetime import datetime as _dt
+                slug = niche.lower().replace(" ", "_")[:30]
+                fname = f"leads/raw/auto_{_dt.now().strftime('%Y%m%d_%H%M%S')}_{slug}.json"
+                self.save_data(fname, {
+                    "query": niche, "location": city,
+                    "scraped_at": _dt.now().isoformat(),
+                    "auto_fetched_by": self.agent_id,
+                    "count": len(new_leads), "leads": new_leads,
+                })
+            except Exception:
+                pass
+
+            self.log(f"Scout {len(new_leads)} lead getirdi")
+            if with_email:
+                new_leads = [l for l in new_leads if l.get("email")]
+            return new_leads
+        except Exception as e:
+            self.log(f"Auto-fetch hatası: {e}")
+            return []
 
     def call_claude(self, prompt: str, timeout: int = 120):
-        """Call Claude CLI if available. Returns response text or None."""
+        """Call Claude CLI if available. Returns response text or None.
+
+        Error responses (credit exhausted, rate limited, auth failed) → None,
+        so callers fall back to template content rather than treating the
+        error message as the agent's output.
+        """
         try:
             result = subprocess.run(
                 ["claude", "-p", prompt, "--output-format", "text"],
                 capture_output=True, text=True, timeout=timeout,
                 cwd=str(BASE_DIR),
             )
-            if result.stdout and result.stdout.strip():
-                return result.stdout.strip()
-            return None
+            text = (result.stdout or "").strip()
+            if not text:
+                return None
+            # Detect error-shaped responses — these come back through stdout
+            # as plain text from Claude CLI on credit/auth issues
+            lowered = text.lower()
+            error_signals = (
+                "credit balance is too low",
+                "credit_balance_too_low",
+                "your credit balance",
+                "rate limit",
+                "rate_limit_error",
+                "authentication_error",
+                "invalid api key",
+                "anthropic api error",
+            )
+            if any(sig in lowered for sig in error_signals) and len(text) < 600:
+                self.log(f"Claude CLI hata sinyali döndü, fallback'a düşülüyor: {text[:120]}")
+                return None
+            return text
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None
 

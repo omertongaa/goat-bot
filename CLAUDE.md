@@ -23,15 +23,38 @@ python app.py
 
 | Key | Env Var | Purpose | Source |
 |-----|---------|---------|--------|
-| Apify | `APIFY_TOKEN` | Google Maps lead scraping | console.apify.com |
+| Apify | `APIFY_TOKEN` | Google Maps lead scraping + apify_web email finder | console.apify.com |
 | fal.ai | `FAL_KEY` | Image generation (proposals, ads) | fal.ai |
 | Instantly.ai | `INSTANTLY_API_KEY` | Email campaigns (optional) | app.instantly.ai |
+
+### Scout Configuration (optional)
+
+| Env Var | Values | Effect |
+|---------|--------|--------|
+| `SCRAPER_ACTOR` | `compass` (default), `lukaskrivka` | Google Maps actor. `lukaskrivka` = $2.10/1000 place with richer email/phone/social (memory-recommended for Turkish SMB) |
+| `EMAIL_FINDER_PROVIDERS` | comma-separated list | Waterfall enrichment for leads missing email. Scout tries each in order, stops at first hit |
+
+### Email Finder Providers (optional, opt-in)
+
+The system is multi-provider by design — user picks whichever has API keys set and orders them by preference via `EMAIL_FINDER_PROVIDERS`.
+
+| Provider | Env Var(s) | Cost | Auth | Needs |
+|----------|-----------|------|------|-------|
+| `emailapi` | `EMAILAPI_KEY`, `EMAILAPI_DOMAIN` | ~$19-40/1000 | Bearer token | first+last name + domain |
+| `leadmagic` | `LEADMAGIC_API_KEY` | ~$7/1000 (100 free trial credits) | `X-API-Key` | name+domain OR company |
+| `generect` | `GENERECT_API_KEY` | ~$30-50/1000 | `Authorization: Token` | first+last name + domain |
+| `apify_web` | `APIFY_TOKEN` | ~$2/1000 (website scrape) | query param | domain only (best for Turkish SMB) |
+
+Example — try LeadMagic first, fall back to apify_web website scraping:
+```
+EMAIL_FINDER_PROVIDERS=leadmagic,apify_web
+```
 
 Keys are stored in `.env` AND/OR `data/config/user_profile.json` (set via dashboard onboarding).
 
 ## Agent System
 
-6 agents, each in `agents/{name}/agent.py`:
+17 agents, each in `agents/{name}/agent.py`:
 
 ### Pipeline Flow
 ```
@@ -89,6 +112,82 @@ Scout → Filter → Pitch / Outreach
 - Uses Claude CLI or returns static content
 - All content in Turkish
 
+### Creative Agents
+
+**7. Designer** — `agents/designer/agent.py`
+- Creates visual content: social posts, banners, ads, logos, infographics, carousels
+- Platform-specific sizing (Instagram, Facebook, TikTok, LinkedIn, YouTube)
+- Generates design brief + fal.ai image
+- Batch mode: create for multiple platforms at once
+- Input: design_type, business_name, platform, theme, text
+- Output: `data/designs/{timestamp}_{type}.json`
+
+**8. VideoMaker** — `agents/videomaker/agent.py`
+- Video scripts, storyboards, and content plans
+- Formats: reels, youtube_short, youtube, tiktok, ad_video, testimonial, explainer
+- Generates scripts + storyboard + thumbnail
+- Input: video_type, business_name, topic, target_audience, count
+- Output: `data/videos/{timestamp}_{type}.json`
+
+**9. Content** — `agents/content/agent.py`
+- Blog posts, social media copy, email marketing, newsletters, case studies
+- Content calendar generation (30-day plans)
+- Social media batch creation
+- SEO-optimized content
+- Input: content_type, topic, tone, language, platform, count
+- Output: `data/content/{timestamp}_{type}.json` + `outputs/content/{slug}.md`
+
+**10. Presenter** — `agents/presenter/agent.py`
+- Professional HTML presentations with keyboard navigation
+- Templates: pitch_deck, proposal, report, training, company, case_study
+- Generates slide content + interactive HTML
+- Input: template, topic, business_name, audience
+- Output: `data/presentations/{timestamp}_{template}.json` + `outputs/presentations/{slug}.html`
+
+**11. BrandKit** — `agents/brandkit/agent.py`
+- Complete brand identity: colors, fonts, tone of voice, guidelines
+- Style presets: modern, minimal, bold, corporate, warm, tech
+- Generates HTML brand board
+- Logo concept via fal.ai
+- Input: business_name, industry, style, values
+- Output: `data/brandkit/{timestamp}_brand.json` + `outputs/brandkit/{timestamp}_brand_board.html`
+
+### Marketing Agents
+
+**12. AdManager** — `agents/admanager/agent.py`
+- Ad campaign planning for Google, Meta, TikTok, LinkedIn
+- Generates campaign strategy + ad copies (5 variants)
+- Budget allocation and KPI targets
+- Input: platform, campaign_type, budget, business_name, target_audience
+- Output: `data/ads/{timestamp}_{platform}_{type}.json`
+
+**13. Social** — `agents/social/agent.py`
+- Social media strategy, hashtag research, bio generation, profile audit
+- Platform-specific guidance: Instagram, TikTok, LinkedIn, Twitter, Facebook, YouTube
+- 90-day growth plans
+- Input: action (strategy/hashtags/bio/audit/growth), platform, business_name
+- Output: `data/social/{timestamp}_{platform}_{action}.json`
+
+### Intelligence Agent
+
+**14. Analytics** — `agents/analytics/agent.py`
+- Business analytics: competitor, market, SWOT, pricing, trend analysis
+- Internal performance reporting from pipeline data
+- Conversion funnel calculation
+- Input: analysis_type, target, industry, location
+- Output: `data/analytics/{timestamp}_{type}.json`
+
+### System Agent
+
+**15. MCP Hub** — `agents/mcphub/agent.py`
+- MCP (Model Context Protocol) tools registry
+- Browse 20+ MCP servers by category
+- Install, search, and get config snippets
+- Niche-based recommendations
+- Actions: list, info, install, installed, search, recommend
+- Output: `data/mcp/installed.json`
+- Documentation: `docs/MCP.md`
+
 ## API Routes
 
 | Endpoint | Method | Purpose |
@@ -111,6 +210,22 @@ Scout → Filter → Pitch / Outreach
 | `/api/schedules` | GET/POST | List or create scheduled agent runs |
 | `/api/schedules/{id}` | DELETE | Remove a scheduled run |
 | `/api/schedules/logs` | GET | View recent scheduled run logs |
+| `/api/presentations` | GET | List generated presentations |
+| `/presentation/{filename}` | GET | Preview presentation HTML |
+| `/api/brandkit` | GET | Get latest brand kit |
+| `/brandkit/{filename}` | GET | Preview brand board HTML |
+| `/api/mcp/tools` | GET | List MCP tools (optional: ?category=) |
+| `/api/mcp/tools/{id}` | GET | Get MCP tool details + config |
+| `/api/mcp/install` | POST | Save MCP tool config |
+| `/api/mcp/installed` | GET | List installed MCP tools |
+| `/api/mcp/config` | GET | Generate full MCP config file |
+| `/api/mcp/search` | POST | Search MCP tools by keyword |
+| `/api/analytics/dashboard` | GET | Full analytics dashboard data |
+| `/api/analytics/funnel` | GET | Conversion funnel data |
+| `/api/analytics/summary` | GET | Weekly performance summary |
+| `/api/content` | GET | List generated content files |
+| `/api/designs` | GET | List generated design briefs |
+| `/api/videos` | GET | List generated video projects |
 
 ## Services
 
@@ -155,11 +270,65 @@ Scout → Filter → Pitch / Outreach
 - Logs all runs to `data/logs/scheduled_runs.json`
 - Uses APScheduler (pure Python)
 
-**7. Google Search** (`services/google_search.py`)
+**7. Video** (`services/video.py`)
+- `get_format_spec(platform_format)` → video specs (width, height, fps, ratio)
+- `get_script_template(template_name)` → script structure (hook_story_cta, listicle, etc.)
+- `generate_shot_list(scenes)` → detailed shot list
+- `save_video_project(project_data)` → save to disk
+- Formats: instagram_reel, tiktok, youtube, youtube_short, ad_video, etc.
+- **No API keys needed**
+
+**8. Analytics Engine** (`services/analytics_engine.py`)
+- `gather_pipeline_metrics()` → aggregate all internal metrics
+- `calculate_conversion_funnel()` → lead → qualified → hot → deal → won
+- `generate_weekly_summary()` → performance summary with highlights
+- **No API keys needed** — reads from internal data files
+
+**9. Presentation** (`services/presentation.py`)
+- `generate_presentation_html(title, slides, theme)` → interactive HTML presentation
+- `list_presentations()` → list all generated presentations
+- Themes: dark, light, corporate, creative, minimal
+- Keyboard navigation (arrow keys + fullscreen)
+- **No API keys needed**
+
+**10. Social Media** (`services/social_media.py`)
+- `get_posting_schedule(platform)` → optimal posting times (Turkey TZ)
+- `get_content_mix()` → recommended content ratio (education/engagement/proof/entertainment/promo)
+- `generate_hashtag_sets(niche, platform)` → categorized hashtags
+- `save_content_calendar(data)` → save calendar to disk
+- **No API keys needed**
+
+**11. Brand** (`services/brand.py`)
+- `get_palette_for_industry(industry)` → industry-specific color palette
+- `get_font_pairing(style)` → Google Fonts recommendations
+- `generate_css_variables(colors, fonts)` → CSS custom properties
+- `save_brand_kit(data)` → save brand kit to disk
+- 11 industry palettes, 7 font pairings
+- **No API keys needed**
+
+**12. MCP Registry** (`services/mcp_registry.py`)
+- `list_tools(category)` → browse MCP server catalog (20+ servers)
+- `get_tool_config(tool_id)` → config snippet for claude_desktop_config.json
+- `generate_full_config(tool_ids)` → multi-tool config
+- `search_tools(query)` → keyword search across tools
+- `save_installed_tools(tool_ids)` → persist installed tools
+- Categories: core, search, web, data, dev, comm, productivity, ai, ecommerce, crm
+- Documentation: `docs/MCP.md`
+- **No API keys needed**
+
+**13. Google Search** (`services/google_search.py`)
 - `search_and_enrich(query, location, num_results)` → leads from Google
 - Extracts: name, website, email, phone, description from result pages
 - **No API keys needed** — free alternative to Apify
 - Auto-used as Scout fallback when APIFY_TOKEN is not set
+
+**8. Email Finder** (`services/email_finder.py`)
+- `enrich_leads(leads, providers=None, log=None)` → leads with email filled
+- Multi-provider waterfall: `emailapi`, `leadmagic`, `generect`, `apify_web`
+- Automatic run after Scout scrape if `EMAIL_FINDER_PROVIDERS` set
+- Skips providers that need person name for leads without `contact_name`
+- `apify_web` uses `vdrmota~contact-info-scraper` to extract emails from
+  business websites (ideal for Turkish SMB with no LinkedIn presence)
 
 ## Data Structure
 
@@ -172,12 +341,36 @@ data/
 ├── proposals/                  # Generated pitch documents
 ├── audits/                     # Website audit reports
 ├── logs/scheduled_runs.json    # Scheduled run history
+├── designs/                    # Design briefs (Designer agent)
+├── videos/                     # Video projects (VideoMaker agent)
+├── content/                    # Written content (Content agent)
+├── presentations/              # Presentation data (Presenter agent)
+├── brandkit/                   # Brand identity kits (BrandKit agent)
+├── ads/                        # Ad campaigns (AdManager agent)
+├── social/                     # Social media plans (Social agent)
+├── analytics/                  # Analysis reports (Analytics agent)
+├── mcp/installed.json          # Installed MCP tools (MCP Hub)
+├── pipeline/                   # CRM pipeline data
+│   ├── stages.json
+│   ├── notes.json
+│   ├── reminders.json
+│   └── deals.json
 └── classroom/                  # Educational markdown content
     ├── getting_started.md
     ├── pricing_guide.md
     ├── client_acquisition.md
     ├── tools_guide.md
     └── service_catalog.md
+
+outputs/
+├── reports/                    # Agent execution reports (JSON)
+├── creatives/                  # Generated images (fal.ai)
+├── proposals/                  # PDF versions of proposals
+├── sites/                      # Generated landing pages (HTML)
+├── presentations/              # Generated presentations (HTML)
+├── brandkit/                   # Brand board HTML files
+├── content/                    # Generated blog/article markdown
+└── logs/                       # Scheduled run execution logs
 ```
 
 ## Dashboard Onboarding Flow

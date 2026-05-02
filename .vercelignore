@@ -1,0 +1,23 @@
+.bmad/
+.claude/
+node_modules/
+Remotion-Gorsel-master/
+Remotion-Video-main 2/
+Claude md (kling3.0 prompt)/
+outputs/
+data/leads/
+data/campaigns/
+data/proposals/
+data/audits/
+data/storyboards/
+data/companies/
+data/config/user_profile.json
+data/active_company.json
+bmad-output/
+excalidraw.log
+*.mp4
+*.mov
+*.zip
+__pycache__/
+*.pyc
+.git/

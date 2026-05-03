@@ -1,0 +1,108 @@
+{
+  "defaults": {
+    "handle": "@marka_handle",
+    "theme": "terminal-dark"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "category": "Üretkenlik",
+      "eyebrow": "3 Adımda",
+      "title": "Sabah Rutini\nHer Şeyi Değiştirir",
+      "subtitle": "Günün ilk 30 dakikasını tasarla, geri kalanı gelsin.",
+      "decoration": {"shapes": ["dot-grid-corner"]}
+    },
+    {
+      "type": "inner_text",
+      "label": "Sorun",
+      "heading": "Neden sabah\nkaybediyoruz?",
+      "body": "Çoğu insan güne <strong>tepkiyle</strong> başlar.\n\nTelefon bildirimleri, e-posta, haberler — hepsi başkasının ajandası.",
+      "terminal": {
+        "title": "sabah-analiz",
+        "lines": [
+          {"type": "prompt", "text": "$ günlük-enerji --kontrol"},
+          {"type": "error",  "text": "⚠ bildirim yükü: 47 mesaj"},
+          {"type": "output", "text": "odak puanı: 12/100"}
+        ]
+      }
+    },
+    {
+      "type": "inner_list",
+      "label": "Sistem",
+      "heading": "3 Adım\nSabah Protokolü",
+      "items": [
+        {"title": "Telefonsuz 30 dk", "body": " — Alarm çaldıktan sonra ekrana dokunma."},
+        {"title": "Tek öncelik yaz", "body": " — Bugün bir şey başarsam bu ne olur?"},
+        {"title": "Küçük başla", "body": " — 5 dakikalık görevle ivme kazan."}
+      ],
+      "terminal": {
+        "title": "protokol.sh",
+        "lines": [
+          {"type": "success", "text": "✓ telefon kapalı"},
+          {"type": "success", "text": "✓ öncelik belirlendi"},
+          {"type": "prompt",  "text": "$ başlıyorum"}
+        ]
+      }
+    },
+    {
+      "type": "inner_comparison",
+      "label": "Karşılaştırma",
+      "heading": "Rutin Var mı\nYok mu?",
+      "left": {
+        "title": "Rutinsiz",
+        "items": ["Güne tepkiyle başla", "Enerjin dağılır", "Akşam yorgun, sıfır ilerleme"]
+      },
+      "right": {
+        "title": "Rutinle",
+        "items": ["Güne niyetle başla", "Odak korunur", "Akşam tatmin, net ilerleme"]
+      }
+    },
+    {
+      "type": "inner_stats",
+      "label": "Kanıt",
+      "heading": "Rakamlar\nNe Diyor?",
+      "stats": [
+        {"number": "2×", "label": "Daha fazla odak süresi"},
+        {"number": "%34", "label": "Stres azalması"},
+        {"number": "21 gün", "label": "Alışkanlık oluşumu"}
+      ],
+      "body": "Araştırmalar sabah rutininin günlük karar kalitesini doğrudan artırdığını gösteriyor.",
+      "terminal": {
+        "title": "sonuc.log",
+        "lines": [
+          {"type": "success", "text": "✓ 21 gün tamamlandı"},
+          {"type": "output",  "text": "verimlilik: +2x"}
+        ]
+      }
+    },
+    {
+      "type": "inner_quote",
+      "label": "İlham",
+      "heading": "Kazananların\nSırrı",
+      "quote": "Günü ilk saatte kazan, gerisini topla.",
+      "attr": "— Üretkenlik araştırmacıları",
+      "body": "Sabah rutini bir lüks değil, performansın temelidir."
+    },
+    {
+      "type": "inner_text",
+      "label": "Uygulama",
+      "heading": "Yarın\nNasıl Başla?",
+      "body": "Bu akşam telefonu başka odaya bırak.\n\nSabah ilk 5 dakikada <strong>bir cümle yaz</strong>: bugün ne başaracaksın?\n\nSadece bu. Geri kalanı gelir.",
+      "terminal": {
+        "title": "baslangic.sh",
+        "lines": [
+          {"type": "cmd",     "text": "telefon → başka oda"},
+          {"type": "cmd",     "text": "not defteri → masa üstü"},
+          {"type": "success", "text": "✓ hazır"}
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "heading": "Sabah Rutini\nŞablonu İster misin?",
+      "body": "Aşağıya RUTIN yaz, ücretsiz PDF'i direkt göndereyim.",
+      "button_text": "\"RUTİN\" Yaz",
+      "decoration": {"shapes": ["circle-glow"]}
+    }
+  ]
+}

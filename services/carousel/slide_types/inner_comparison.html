@@ -1,0 +1,23 @@
+<div class="slide slide-inner" id="slide-{{slide_num}}">
+  {{decoration_html}}
+  <div class="brand-zone"></div>
+  <div class="progress-bar"><div class="fill" style="width:{{progress}}%"></div></div>
+  <span class="slide-number">{{slide_num}} / {{slide_total}}</span>
+
+  <span class="slide-label">{{label}}</span>
+  <h2 class="slide-heading">{{heading}}</h2>
+  <div class="divider-short"></div>
+
+  <div class="comparison-grid">
+    <div class="comp-col comp-col-left">
+      <div class="comp-col-header">{{left_title}}</div>
+      <ul class="comp-items">{{left_items}}</ul>
+    </div>
+    <div class="comp-col-divider"></div>
+    <div class="comp-col comp-col-right">
+      <div class="comp-col-header">{{right_title}}</div>
+      <ul class="comp-items">{{right_items}}</ul>
+    </div>
+  </div>
+  {{terminal_block}}
+</div>

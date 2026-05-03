@@ -30,6 +30,10 @@ DATA_BASE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
 OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+# Serve carousel PNG outputs so the board can preview them
+_carousel_out = OUTPUTS_BASE / "carousel"
+_carousel_out.mkdir(parents=True, exist_ok=True)
+app.mount("/static/carousel", StaticFiles(directory=str(_carousel_out)), name="carousel_static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 AGENT_MODULES = {
@@ -57,6 +61,8 @@ AGENT_MODULES = {
     "youtube": "agents.youtube.agent:YouTubeAgent",
     "leadscorer": "agents.leadscorer.agent:LeadScorerAgent",
     "browser": "agents.browser.agent:BrowserAgent",
+    "carousel": "agents.carousel.agent:CarouselAgent",
+    "improver": "agents.improver.agent:ImproverAgent",
 }
 
 AGENT_RESULTS = {}
@@ -2065,6 +2071,78 @@ async def fal_search(q: str = ""):
 async def fal_recommend(use_case: str = ""):
     from services import fal_mcp
     return JSONResponse(fal_mcp.recommend_for(use_case))
+
+
+# ═══════════════════════════════════════════
+# LLM ROUTER + OLLAMA
+# ═══════════════════════════════════════════
+
+@app.get("/api/llm/providers")
+async def llm_providers():
+    from services import llm
+    return JSONResponse(llm.available_providers())
+
+
+@app.post("/api/llm/complete")
+async def llm_complete(req: Request):
+    from services import llm
+    body = await req.json()
+    return JSONResponse(llm.complete(
+        messages=body.get("messages") or [],
+        task=body.get("task", "default"),
+        system=body.get("system", ""),
+        max_tokens=int(body.get("max_tokens") or 1500),
+        force_provider=body.get("provider"),
+    ))
+
+
+@app.get("/api/ollama/status")
+async def ollama_status():
+    from services import ollama
+    return JSONResponse(ollama.status())
+
+
+@app.get("/api/ollama/models")
+async def ollama_models():
+    from services import ollama
+    return JSONResponse(ollama.list_models())
+
+
+@app.post("/api/ollama/pull")
+async def ollama_pull(req: Request):
+    from services import ollama
+    body = await req.json()
+    return JSONResponse(ollama.pull(body.get("model", "llama3.1:8b")))
+
+
+# ═══════════════════════════════════════════
+# SELF-IMPROVEMENT
+# ═══════════════════════════════════════════
+
+@app.get("/api/improver/records")
+async def improver_records():
+    from core import improver
+    return JSONResponse(improver.all_records())
+
+
+@app.get("/api/improver/{agent_id}")
+async def improver_record(agent_id: str):
+    from core import improver
+    rec = improver.latest_record(agent_id)
+    if not rec:
+        return JSONResponse({"error": "no record yet"}, status_code=404)
+    return JSONResponse(rec)
+
+
+@app.post("/api/improver/run")
+async def improver_run(req: Request):
+    from core import improver, store
+    body = await req.json() if req.headers.get("content-type", "").startswith("application/json") else {}
+    company_id = body.get("company_id") or store.active_company_id()
+    agent_id = body.get("agent_id")
+    if agent_id:
+        return JSONResponse(improver.improve_agent(company_id, agent_id))
+    return JSONResponse(improver.improve_all(company_id))
 
 
 if __name__ == "__main__":

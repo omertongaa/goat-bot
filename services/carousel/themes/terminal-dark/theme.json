@@ -1,0 +1,18 @@
+{
+  "name": "terminal-dark",
+  "mood_tags": ["dev", "terminal", "dark", "focused", "technical", "hacker", "code"],
+  "palette": {
+    "bg_primary": "#0D1117",
+    "bg_secondary": "#161B22",
+    "accent": "#F97316",
+    "text_primary": "#E6EDF3",
+    "text_muted": "#7D8590"
+  },
+  "fonts": {
+    "heading": "Oswald",
+    "body": "Inter",
+    "mono": "JetBrains Mono"
+  },
+  "best_for": ["claude code", "dev tools", "coding tutorial", "terminal", "ai tools", "developer workflow"],
+  "avoid_for": ["lifestyle", "motivation", "soft content", "quote carousels"]
+}

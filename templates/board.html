@@ -1063,11 +1063,16 @@ aside.right {
   </main>
 
   <aside class="right">
-    <div class="activity-head">
-      <h3>Hareket</h3>
+    <div class="activity-head" style="display:flex; gap:8px; align-items:center;">
+      <h3 style="margin:0;">Hareket</h3>
       <span class="count" id="activityCount">—</span>
+      <span class="spacer" style="flex:1;"></span>
+      <button class="header-tool" onclick="toggleRightTab('activity')" id="tabActivity" style="padding:4px 8px; font-size:11px;">📋</button>
+      <button class="header-tool" onclick="toggleRightTab('improvements')" id="tabImprov" style="padding:4px 8px; font-size:11px;">🧠</button>
+      <button class="header-tool" onclick="openSettingsDrawer()" title="Ayarlar" style="padding:4px 8px; font-size:11px;">⚙</button>
     </div>
     <div class="activity-list" id="activityList"></div>
+    <div class="activity-list" id="improvementsList" style="display:none;"></div>
   </aside>
 </div>
 
@@ -1122,6 +1127,16 @@ aside.right {
     <button class="btn" onclick="document.getElementById('costPanel').style.display='none'" style="padding:3px 7px; font-size:11px;">×</button>
   </div>
   <div id="costPanelBody" style="color:var(--text);">Yükleniyor…</div>
+</div>
+
+<!-- Settings drawer (Ollama, Telegram, Cost alerts in one) -->
+<div id="settingsDrawer" style="display:none; position:fixed; top:0; right:0; bottom:0; width:420px; background:#0a0a0c; border-left:1px solid #2a2a30; z-index:70; box-shadow:-12px 0 40px rgba(0,0,0,.6); overflow-y:auto;">
+  <div style="padding:18px 20px; border-bottom:1px solid #2a2a30; display:flex; align-items:center; gap:8px;">
+    <strong style="font-size:14px;">⚙ Ayarlar</strong>
+    <span class="spacer" style="flex:1;"></span>
+    <button class="btn" onclick="closeSettingsDrawer()">×</button>
+  </div>
+  <div style="padding:18px 20px;" id="settingsBody">Yükleniyor…</div>
 </div>
 
 <script>
@@ -1505,6 +1520,10 @@ function renderMain(dash) {
       card.dataset.tid = t.id;
       card.dataset.gid = t.goal_id || '';
       const errBlock = t.error ? `<div class="err" title="${escapeHtml(t.error)}">⚠ ${escapeHtml(t.error)}</div>` : '';
+      const preview = (t.result || {}).preview;
+      const previewBlock = (Array.isArray(preview) && preview.length)
+        ? `<div style="display:flex; gap:4px; margin-top:6px; overflow-x:auto;">${preview.slice(0,3).map(p => `<div style="width:42px; height:52px; background:#000 url('${p}') center/cover; border-radius:4px; flex-shrink:0; border:1px solid var(--border);"></div>`).join('')}</div>`
+        : '';
       card.innerHTML = `
         <div class="title">${escapeHtml(t.title || t.id)}</div>
         <div class="row">
@@ -1514,6 +1533,7 @@ function renderMain(dash) {
           </span>
           <span class="cost ${cost ? '' : 'zero'}">${cost || '—'}</span>
         </div>
+        ${previewBlock}
         ${errBlock}
       `;
       body.appendChild(card);
@@ -2255,6 +2275,138 @@ async function toggleVoice() {
   } catch (e) {
     alert('Mikrofon erişimi reddedildi: ' + e.message);
   }
+}
+
+// ─────────────── Right panel tabs ───────────────
+function toggleRightTab(tab) {
+  const act = document.getElementById('activityList');
+  const imp = document.getElementById('improvementsList');
+  const ta = document.getElementById('tabActivity');
+  const ti = document.getElementById('tabImprov');
+  if (tab === 'improvements') {
+    act.style.display = 'none'; imp.style.display = 'block';
+    ta.style.opacity = 0.5; ti.style.opacity = 1;
+    loadImprovements();
+  } else {
+    act.style.display = 'block'; imp.style.display = 'none';
+    ta.style.opacity = 1; ti.style.opacity = 0.5;
+  }
+}
+
+async function loadImprovements() {
+  const el = document.getElementById('improvementsList');
+  el.innerHTML = '<div style="padding:14px; color:var(--dim);">Yükleniyor…</div>';
+  try {
+    const r = await fetch('/api/improver/records');
+    const records = await r.json();
+    if (!records.length) {
+      el.innerHTML = '<div style="padding:14px; color:var(--dim); font-size:12px;">Henüz iyileştirme önerisi yok. Improver agent\'ını çalıştır.</div>';
+      return;
+    }
+    el.innerHTML = records.map(r => {
+      const imp = (r.improvements || []).slice(0, 2).map(i => `<li style="margin:4px 0;">${(i.change||'').slice(0,80)}</li>`).join('');
+      const stats = r.stats || {};
+      return `
+        <div style="padding:10px 14px; border-bottom:1px solid var(--border-soft); font-size:12px;">
+          <div style="display:flex; gap:6px; align-items:center;">
+            <strong>${r.agent_id}</strong>
+            <span style="color:var(--dim); font-size:10px;">${stats.success_rate ?? '—'}% başarı · ${stats.runs ?? 0} koşu</span>
+          </div>
+          <div style="color:var(--dim); margin-top:4px;">${(r.summary || '').slice(0, 140)}</div>
+          <ul style="margin:6px 0 0 14px; padding:0; color:var(--text-2); font-size:11px;">${imp}</ul>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div style="padding:14px; color:var(--red);">Hata: ' + e.message + '</div>';
+  }
+}
+
+// ─────────────── Settings drawer ───────────────
+async function openSettingsDrawer() {
+  document.getElementById('settingsDrawer').style.display = 'block';
+  const body = document.getElementById('settingsBody');
+  body.textContent = 'Yükleniyor…';
+  try {
+    const [llmRes, ollamaRes, costRes] = await Promise.all([
+      fetch('/api/llm/providers').then(r => r.json()),
+      fetch('/api/ollama/status').then(r => r.json()),
+      fetch('/api/cost/summary').then(r => r.json()),
+    ]);
+    const ollamaModels = (ollamaRes.installed || []).map(m => `<li style="margin:3px 0;"><code>${m.name}</code> <span style="color:var(--dim);">${m.params || ''} · ${m.size_gb}GB</span></li>`).join('') || '<li style="color:var(--dim);">Hiç model yok — <code>ollama pull llama3.1:8b</code></li>';
+    const providerBadges = Object.entries(llmRes).map(([k, v]) => `<span class="pill" style="background:${v ? 'var(--green-soft)' : 'var(--red-soft)'}; color:${v ? 'var(--green)' : 'var(--red)'}; padding:2px 8px; border-radius:99px; font-size:10px;">${k} ${v ? '✓' : '×'}</span>`).join(' ');
+    body.innerHTML = `
+      <section style="margin-bottom:24px;">
+        <h3 style="font-size:13px; margin-bottom:10px;">🧠 LLM Sağlayıcılar</h3>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">${providerBadges}</div>
+        <div style="color:var(--dim); font-size:11px;">Otomatik waterfall: cheap görevlerde Anthropic Haiku → Ollama → Claude CLI.</div>
+      </section>
+      <section style="margin-bottom:24px;">
+        <h3 style="font-size:13px; margin-bottom:10px;">🦙 Ollama</h3>
+        <div style="font-size:11px; color:${ollamaRes.available ? 'var(--green)' : 'var(--red)'}; margin-bottom:6px;">${ollamaRes.available ? 'Çalışıyor' : 'Erişilemiyor'} · <code>${ollamaRes.host}</code></div>
+        <ul style="margin:0 0 8px 14px; padding:0; font-size:11px;">${ollamaModels}</ul>
+        <input type="text" id="ollamaPullInput" placeholder="model adı (örn. qwen2.5:7b)" style="width:65%; padding:6px 8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; color:var(--text);">
+        <button class="btn primary" onclick="pullOllama()" style="padding:6px 10px;">İndir</button>
+      </section>
+      <section style="margin-bottom:24px;">
+        <h3 style="font-size:13px; margin-bottom:10px;">📱 Telegram Onay</h3>
+        <div style="color:var(--dim); font-size:11px; margin-bottom:8px;">Onay bekleyen ticket'lar telefonuna düşsün.</div>
+        <button class="btn" onclick="setupTelegram()">Webhook kur</button>
+        <button class="btn" onclick="testTelegram()">Test mesaj</button>
+      </section>
+      <section style="margin-bottom:24px;">
+        <h3 style="font-size:13px; margin-bottom:10px;">💰 Maliyet Limiti</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <label style="font-size:11px; color:var(--dim);">Günlük ($)<input type="number" id="dailyAlert" value="${costRes.alert_thresholds?.daily_total ?? 5}" style="width:100%; padding:6px 8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; color:var(--text);"></label>
+          <label style="font-size:11px; color:var(--dim);">Aylık ($)<input type="number" id="monthlyAlert" value="${costRes.alert_thresholds?.monthly_total ?? 75}" style="width:100%; padding:6px 8px; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; color:var(--text);"></label>
+        </div>
+        <button class="btn primary" onclick="saveAlerts()" style="margin-top:8px;">Kaydet</button>
+      </section>
+      <section>
+        <h3 style="font-size:13px; margin-bottom:10px;">🧪 Self-Improve</h3>
+        <button class="btn" onclick="runImprover()">Tüm agent'ları analiz et</button>
+      </section>
+    `;
+  } catch (e) {
+    body.innerHTML = 'Hata: ' + e.message;
+  }
+}
+
+function closeSettingsDrawer() {
+  document.getElementById('settingsDrawer').style.display = 'none';
+}
+
+async function pullOllama() {
+  const name = document.getElementById('ollamaPullInput').value.trim();
+  if (!name) return;
+  alert('İndirme başladı. Tamamlanması birkaç dakika sürebilir, sonra Ayarlar\'ı yenile.');
+  await fetch('/api/ollama/pull', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ model: name }) });
+}
+
+async function setupTelegram() {
+  const r = await fetch('/api/telegram/setup', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+  const data = await r.json();
+  alert(JSON.stringify(data));
+}
+
+async function testTelegram() {
+  const r = await fetch('/api/telegram/test', { method: 'POST' });
+  const data = await r.json();
+  alert(data.ok ? '✓ Mesaj gönderildi' : 'Hata: ' + JSON.stringify(data));
+}
+
+async function saveAlerts() {
+  const daily = parseFloat(document.getElementById('dailyAlert').value);
+  const monthly = parseFloat(document.getElementById('monthlyAlert').value);
+  await fetch('/api/cost/alerts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ daily_total: daily, monthly_total: monthly }) });
+  alert('Limitler kaydedildi.');
+}
+
+async function runImprover() {
+  const r = await fetch('/api/core/agents/improver/quick-run', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+  const data = await r.json();
+  alert('Improver çalıştı: ' + (data.summary || 'tamam'));
+  loadImprovements();
 }
 </script>
 </body>

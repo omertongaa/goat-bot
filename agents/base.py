@@ -28,6 +28,15 @@ class BaseAgent:
         entry = {"time": datetime.now().isoformat(), "message": message}
         self.run_log.append(entry)
 
+    def improvement_hint(self) -> str:
+        """Latest self-improvement prompt hint for this agent.
+        Empty string when there is no recorded suggestion yet."""
+        try:
+            from core import improver
+            return improver.latest_hint(self.agent_id)
+        except Exception:
+            return ""
+
     def load_data(self, path: str):
         full_path = DATA_DIR / path
         if full_path.exists():

@@ -1,0 +1,18 @@
+{
+  "name": "editorial-cream",
+  "mood_tags": ["editorial", "warm", "tech", "readable", "bold", "educational", "guide"],
+  "palette": {
+    "bg_primary": "#F5F0E8",
+    "bg_secondary": "#EDE8DF",
+    "accent": "#C44B1B",
+    "text_primary": "#1A1A1A",
+    "text_muted": "#5C5550"
+  },
+  "fonts": {
+    "heading": "Oswald",
+    "body": "Inter",
+    "mono": "JetBrains Mono"
+  },
+  "best_for": ["ai education", "how-to guide", "tutorial", "tips", "beginner friendly"],
+  "avoid_for": ["dark hacker aesthetic", "pure code", "terminal output"]
+}

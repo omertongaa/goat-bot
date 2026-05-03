@@ -1,0 +1,106 @@
+{
+  "defaults": {
+    "theme": "terminal-dark"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "category": "Claude Code",
+      "eyebrow": "5 CLI Aracı",
+      "title": "Çoğu kullanıcı\nhiç <em>kurmaz.</em>",
+      "subtitle": "Bunları PATH'e ekle, Claude Code 10x daha güçlü çalışır.\nÇoğu insan kurmadan gemi yapar.",
+      "terminal": {
+        "title": "hangi araçlar kurulu?",
+        "lines": [
+          {"type": "prompt", "text": "$ which gh ripgrep fzf jq tmux"},
+          {"type": "success", "text": "gh: /usr/local/bin/gh"},
+          {"type": "error",   "text": "ripgrep: not found"},
+          {"type": "error",   "text": "fzf:     not found"},
+          {"type": "error",   "text": "jq:      not found"},
+          {"type": "error",   "text": "tmux:    not found"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Araç 01",
+      "heading": "GH CLI\n<em>Chat'ten PR aç.</em>",
+      "body": "<strong>\"Bunu PR olarak gönder\"</strong> de, Claude gh pr create çalıştırır — başlık ve body ile. Browser tab yok, copy-paste yok.\n\n<strong>10 GitHub tabını kapatır.</strong> CI durumu, yorumlar, merge, squash — hepsi terminalde.\n\n<strong>Claude Code gh'ı otomatik kullanır.</strong> Bir kez kur, \"bunu düzelt ve PR aç\" direkt çalışır.",
+      "terminal": {
+        "title": "gh pr create",
+        "lines": [
+          {"type": "prompt",  "text": "$ gh pr create"},
+          {"type": "output",  "text": "Title: Fix auth timeout"},
+          {"type": "output",  "text": "Body:  Resolves #42"},
+          {"type": "success", "text": "PR opened ✓  github.com/repo/pull/87"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Araç 02",
+      "heading": "RIPGREP\n<em>100x daha hızlı.</em>",
+      "body": "<strong>Claude Code arka planda rg kullanır</strong> — ama ancak yüklüyse. Yoksa yavaş grep'e düşer, node_modules'u baştan tarar.\n\n<strong>500k dosyayı saniyenin altında tarar.</strong> Claude'un Grep aracı neredeyse anında olur.\n\n<strong>.gitignore'u otomatik sayar.</strong> Build klasörleri ve binary'ler Claude'un context'ine girmez.",
+      "terminal": {
+        "title": "rg vs grep",
+        "lines": [
+          {"type": "prompt",  "text": "$ rg \"useAuth\" --type ts"},
+          {"type": "success", "text": "4 eşleşme · 0.08s"},
+          {"type": "error",   "text": "$ grep -r \"useAuth\" ."},
+          {"type": "warning", "text": "... hâlâ çalışıyor ..."}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Araç 03",
+      "heading": "FZF\n<em>Her şeyi fuzzy ara.</em>",
+      "body": "<strong>Terminalde her şeyi fuzzy search'le.</strong> Dosyalar, branch'ler, komut geçmişi. Birkaç harf yaz, fzf bulur.\n\n<strong>Ctrl+R süper güce döner.</strong> Tüm shell geçmişin canlı filtreli arama motoruna dönüşür.\n\n<strong>Herhangi bir listeye pipe'la.</strong> git, kubectl, docker ile birleştir. Claude script'leri 10x ergonomik olur.",
+      "terminal": {
+        "title": "fzf — branch seç",
+        "lines": [
+          {"type": "prompt",  "text": "$ git checkout $(git branch | fzf)"},
+          {"type": "output",  "text": "> feat/auth"},
+          {"type": "output",  "text": "  fix/login-bug"},
+          {"type": "success", "text": "Switched to feat/auth ✓"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Araç 04",
+      "heading": "JQ\n<em>JSON anında.</em>",
+      "body": "<strong>Claude curl çıktısını jq'ya pipe'lar.</strong> 10.000 satırlık API yanıtından tek field çeker — context'e almadan. Token tasarrufu.\n\n<strong>JSON'ı temiz tabloya döndürür.</strong> Filtrele, sırala, grupla. Her seferinde tam istediğin şekil.\n\n<strong>API'ye dokunan her şey için kritik.</strong> jq olmadan Claude yapısal veriye kördür.",
+      "terminal": {
+        "title": "jq — api yanıtı",
+        "lines": [
+          {"type": "prompt",  "text": "$ curl api/users | jq '.[] | .email'"},
+          {"type": "output",  "text": "\"ali@sirket.ai\""},
+          {"type": "output",  "text": "\"ayse@sirket.ai\""},
+          {"type": "success", "text": "4 email · 0.02s"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Araç 05",
+      "heading": "TMUX\n<em>5 Claude aynı anda.</em>",
+      "body": "<strong>Paralel Claude Code session'ları çalıştır.</strong> Frontend'de bir, backend'de bir, testlerde bir — tek ekranda.\n\n<strong>İstediğin zaman bağlan/ayır.</strong> Laptopu kapat, başka makineden SSH'la, Claude kaldığı yerden devam eder.\n\n<strong>Crash işi öldürmez.</strong> tmux her şeyi arka planda tutar. Uzun Claude görevleri terminal crash'ini atlatır.",
+      "terminal": {
+        "title": "tmux session'ları",
+        "lines": [
+          {"type": "output",  "text": "[0] claude: frontend  — Dashboard inşa ediliyor..."},
+          {"type": "output",  "text": "[1] claude: backend   — Auth middleware düzeltiliyor..."},
+          {"type": "output",  "text": "[2] claude: tests     — vitest 42/50"},
+          {"type": "success", "text": "3 session · hepsi canlı ✓"}
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "heading": "5 aracın\n<em>kurulum scripti</em> elimde.",
+      "body": "Yoruma \"STACK\" yaz, direkt gönderiyorum.\nClaude Code'u otomatik kullanan config da içinde.",
+      "button_text": "\"STACK\" Yaz"
+    }
+  ]
+}

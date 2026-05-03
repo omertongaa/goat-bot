@@ -1,0 +1,130 @@
+{
+  "defaults": {
+    "theme": "terminal-dark"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "category": "Claude Code",
+      "eyebrow": "5 Slash Komut",
+      "title": "Çoğu kişi\nhiç <em>kullanmaz.</em>",
+      "subtitle": "Claude Code'u varsayılan ayarlarla kullanıyorsun. 5 komut var, bunlar işini katlıyor.",
+      "terminal": {
+        "title": "komutlar nerede?",
+        "lines": [
+          {"type": "prompt",  "text": "$ claude --version  →  1.x.x (kurulu)"},
+          {"type": "error",   "text": "/init               →  hiç kullanılmadı"},
+          {"type": "error",   "text": "#                   →  hiç kullanılmadı"},
+          {"type": "error",   "text": "/plan               →  hiç kullanılmadı"},
+          {"type": "error",   "text": "/review             →  hiç kullanılmadı"},
+          {"type": "error",   "text": "/compact            →  hiç kullanılmadı"}
+        ]
+      }
+    },
+    {
+      "type": "inner_comparison",
+      "label": "// Fark",
+      "heading": "Komutsuz\n<em>vs Komutla.</em>",
+      "left": {
+        "title": "Varsayılan",
+        "items": [
+          "Her sohbet sıfırdan başlar",
+          "Claude projeyi her seferinde sorar",
+          "Yanlış anlama koda döndükten sonra fark edilir",
+          "Context dolunca session ölür"
+        ]
+      },
+      "right": {
+        "title": "5 Komutla",
+        "items": [
+          "/init ile Claude projeyi baştan bilir",
+          "# ile kurallar kalıcı hale gelir",
+          "/plan ile önce harita, sonra kod",
+          "/compact ile context kurtarılır"
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Komut 01",
+      "heading": "/init\n<em>Projeyi tanıt.</em>",
+      "body": "<strong>/init</strong> çalıştırınca Claude projeyi baştan sona tarar — dosya yapısı, teknoloji stack, kod kuralları.\n\n<strong>CLAUDE.md oluşturur.</strong> Bu dosya her sohbetin başında otomatik yüklenir. Artık \"bu proje ne yapıyor\" sorusu yok.\n\n<strong>Bir kez kur, sonsuza dek çalışır.</strong> Projeye yeni girdiğinde Claude zaten biliyor.",
+      "terminal": {
+        "title": "/init",
+        "lines": [
+          {"type": "prompt",  "text": "$ /init"},
+          {"type": "output",  "text": "→ Proje taranıyor..."},
+          {"type": "success", "text": "→ CLAUDE.md oluşturuldu ✓"},
+          {"type": "success", "text": "→ Claude artık projeyi biliyor"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Komut 02",
+      "heading": "#\n<em>Kural kalıcı olur.</em>",
+      "body": "<strong># Always use TypeScript.</strong> Bitti. Claude bu kuralı CLAUDE.md'ye yazar, bir daha sormaz.\n\n<strong>3 saniyede öğretir, sonsuza kadar hatırlar.</strong> Her sohbette tekrar etmek zorunda değilsin.\n\n<strong>Kişisel kural kitabın büyür.</strong> Ne kadar çok # kullanırsan Claude o kadar sana özgü çalışır.",
+      "terminal": {
+        "title": "# komutu",
+        "lines": [
+          {"type": "prompt",  "text": "$ # Commit mesajları Türkçe olsun"},
+          {"type": "success", "text": "→ CLAUDE.md güncellendi ✓"},
+          {"type": "prompt",  "text": "$ # Test yaz, sonra kod"},
+          {"type": "success", "text": "→ CLAUDE.md güncellendi ✓"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Komut 03",
+      "heading": "/plan\n<em>Önce harita.</em>",
+      "body": "<strong>/plan</strong> açınca Claude tek satır kod yazmadan önce tüm adımları, dosyaları, kararları listeler.\n\n<strong>Yanlış anlamayı erken yakalar.</strong> 10 dakika yanlış yönde gitmeden önce planı onaylayabilirsin.\n\n<strong>Plan spec'e dönüşür.</strong> \"Evet\" dersen Claude plan doğrultusunda yürür, sapma olmaz.",
+      "terminal": {
+        "title": "/plan",
+        "lines": [
+          {"type": "prompt",  "text": "$ /plan \"Auth sistemini ekle\""},
+          {"type": "output",  "text": "→ 1. middleware.ts oluştur"},
+          {"type": "output",  "text": "→ 2. /api/auth endpoint'i"},
+          {"type": "output",  "text": "→ 3. session token"},
+          {"type": "warning", "text": "Onaylıyor musun? (y/n)"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Komut 04",
+      "heading": "/review\n<em>Ücretsiz review.</em>",
+      "body": "<strong>/review</strong> yazdığın kodu tüm katmanlarıyla inceler — logic, güvenlik, edge case, performans.\n\n<strong>Commit'ten önce çalıştır.</strong> Üretime gitmeden önce sorunları yüzüne söyler.\n\n<strong>Kör noktalarını görür.</strong> Testlerin geçse de /review race condition'ı, açık key'i, kötü pattern'i bulur.",
+      "terminal": {
+        "title": "/review",
+        "lines": [
+          {"type": "prompt",   "text": "$ /review auth/middleware.ts"},
+          {"type": "warning",  "text": "→ [WARN] Token expiry check eksik"},
+          {"type": "warning",  "text": "→ [INFO] Rate limiting yok"},
+          {"type": "success",  "text": "→ [OK]   Yapı temiz ✓"}
+        ]
+      }
+    },
+    {
+      "type": "inner_text",
+      "label": "// Komut 05",
+      "heading": "/compact\n<em>Context kurtarır.</em>",
+      "body": "<strong>Uzun session'larda Claude yavaşlar.</strong> Context window dolunca başa ne konuştuğunu unutmaya başlar.\n\n<strong>/compact</strong> tüm konuşmayı özetler, niyeti kaybetmez. Aynı session'da devam edebilirsin.\n\n<strong>Yeniden başlatmak zorunda değilsin.</strong> Projeyi tekrar açıklamak yok. /compact yaz, devam et.",
+      "terminal": {
+        "title": "/compact",
+        "lines": [
+          {"type": "prompt",  "text": "$ /compact"},
+          {"type": "output",  "text": "→ Session özetleniyor..."},
+          {"type": "output",  "text": "→ 47 mesaj → 1 özet"},
+          {"type": "success", "text": "→ Devam edebilirsin ✓"}
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "heading": "5 komutun\n<em>hızlı referansı</em> elimde.",
+      "body": "Yoruma \"KOMUT\" yaz, direkt gönderiyorum.\nKopyala-yapıştır örnekleri de içinde.",
+      "button_text": "\"KOMUT\" Yaz"
+    }
+  ]
+}

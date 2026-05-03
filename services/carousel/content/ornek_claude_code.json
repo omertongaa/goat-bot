@@ -1,0 +1,78 @@
+{
+  "defaults": {
+    "theme": "terminal-dark"
+  },
+  "slides": [
+    {
+      "type": "cover",
+      "category": "AI Araçları",
+      "eyebrow": "2026 Rehberi",
+      "title": "Claude Code\nbilmediğin\n5 özelliği",
+      "subtitle": "Çoğu AI kullanıcısı bunların sadece %1'ini kullanıyor."
+    },
+    {
+      "type": "inner_text",
+      "label": "Neden önemli",
+      "heading": "Kod yazmak\nartık yeterli değil",
+      "body": "Claude Code sadece kod yazan bir araç değil. <strong>Tam bir geliştirme ajansı.</strong> Dosyaları okur, terminali çalıştırır, git'e commit atar — tek başına.\n\nÇoğu insan bunu hâlâ bilmiyor."
+    },
+    {
+      "type": "inner_comparison",
+      "label": "Karşılaştırma",
+      "heading": "Eski yol vs\nyeni yol",
+      "left": {
+        "title": "Eskiden",
+        "items": [
+          "Her komut için ayrı araç aç",
+          "Dosyaları manuel kopyala-yapıştır",
+          "Hata çıkınca Google'a koş",
+          "Birden fazla sekme, karışık bağlam"
+        ]
+      },
+      "right": {
+        "title": "Claude Code ile",
+        "items": [
+          "Tek terminal, tüm araçlar bağlı",
+          "Dosyaları otomatik okur ve düzenler",
+          "Hatayı analiz edip kendisi çözer",
+          "Tüm proje bağlamı hafızasında"
+        ]
+      }
+    },
+    {
+      "type": "inner_list",
+      "label": "Özellikler",
+      "heading": "Bilmediğin\n3 gizli güç",
+      "items": [
+        {"title": "Hooks sistemi", "body": "Her araç çağrısından önce/sonra otomatik komutlar çalıştır."},
+        {"title": "MCP entegrasyonu", "body": "Notion, GitHub, Figma — hepsini Claude'a bağla."},
+        {"title": "Subagent'lar", "body": "Paralel görevler için birden fazla ajan aynı anda çalışır."}
+      ]
+    },
+    {
+      "type": "inner_stats",
+      "label": "Rakamlarla",
+      "heading": "Ne kadar\ntasarruf eder?",
+      "stats": [
+        {"number": "10×", "label": "Daha hızlı kod"},
+        {"number": "%80", "label": "Daha az hata"},
+        {"number": "1", "label": "Kişilik ekip"}
+      ],
+      "body": "Solo bir kurucu için rakamlar bu. Ajans kiralama maliyeti sıfır, teslimat hızı maksimum."
+    },
+    {
+      "type": "inner_quote",
+      "label": "Perspektif",
+      "heading": "Tek kişilik\nbir şirket kurmak",
+      "quote": "Yapay zeka araçlarını iyi kullanan bir kişi, 10 kişilik bir ekibin işini yapar.",
+      "attr": "Dan Koe",
+      "body": "Claude Code bu vizyonun en somut uygulaması. Bir solo kurucu için tam bir teknik ekip."
+    },
+    {
+      "type": "cta",
+      "heading": "Daha fazlasını\ngörmek ister misin?",
+      "body": "Her hafta AI araçları, içerik sistemleri ve solo girişimcilik üzerine içerik paylaşıyorum.",
+      "button_text": "Takip et"
+    }
+  ]
+}

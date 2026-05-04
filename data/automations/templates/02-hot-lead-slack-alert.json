@@ -1,0 +1,104 @@
+{
+  "name": "02 — Hot Lead Slack/Telegram Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hot-lead",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "b1111111-1111-1111-1111-111111111111",
+      "name": "Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "hot-lead-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lead score: basit kural tabanlı — özelleştir\nconst body = $input.first().json.body;\nlet score = 0;\n\nif (body.budget && Number(body.budget) > 5000) score += 40;\nif (body.timeline && /(hemen|acil|bu hafta)/i.test(body.timeline)) score += 30;\nif (body.phone) score += 10;\nif (body.companySize && Number(body.companySize) > 20) score += 20;\n\nreturn [{ json: { ...body, score, hot: score >= 50 } }];"
+      },
+      "id": "b2222222-2222-2222-2222-222222222222",
+      "name": "Score Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.hot }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3333333-3333-3333-3333-333333333333",
+      "name": "If Hot",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "channel": "#hot-leads",
+        "text": "=:fire: *HOT LEAD* ({{ $json.score }} puan)\n\n*{{ $json.fullName || $json.name }}*\nEmail: {{ $json.email }}\nTelefon: {{ $json.phone }}\nBütçe: {{ $json.budget }}\nZaman: {{ $json.timeline }}\n\n_24 saatte geri dön._",
+        "otherOptions": {}
+      },
+      "id": "b4444444-4444-4444-4444-444444444444",
+      "name": "Slack - Hot Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [900, 240],
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_WITH_SLACK_CRED_ID",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_TELEGRAM_CHAT_ID",
+        "text": "=🔥 HOT LEAD ({{ $json.score }} puan)\n\n{{ $json.fullName }}\n📧 {{ $json.email }}\n📱 {{ $json.phone }}\n💰 {{ $json.budget }}\n⏱ {{ $json.timeline }}",
+        "additionalFields": {}
+      },
+      "id": "b5555555-5555-5555-5555-555555555555",
+      "name": "Telegram - Hot Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 360],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CRED_ID",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Lead Webhook": { "main": [[{ "node": "Score Lead", "type": "main", "index": 0 }]] },
+    "Score Lead": { "main": [[{ "node": "If Hot", "type": "main", "index": 0 }]] },
+    "If Hot": {
+      "main": [
+        [
+          { "node": "Slack - Hot Alert", "type": "main", "index": 0 },
+          { "node": "Telegram - Hot Alert", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "note": "Slack VE Telegram'a aynı anda gider — birini silebilirsin" },
+  "tags": [{ "name": "doa-kit" }]
+}

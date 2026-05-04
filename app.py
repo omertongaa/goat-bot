@@ -63,6 +63,7 @@ AGENT_MODULES = {
     "browser": "agents.browser.agent:BrowserAgent",
     "carousel": "agents.carousel.agent:CarouselAgent",
     "improver": "agents.improver.agent:ImproverAgent",
+    "automator": "agents.automator.agent:AutomatorAgent",
 }
 
 AGENT_RESULTS = {}
@@ -2143,6 +2144,112 @@ async def improver_run(req: Request):
     if agent_id:
         return JSONResponse(improver.improve_agent(company_id, agent_id))
     return JSONResponse(improver.improve_all(company_id))
+
+
+# ═══════════════════════════════════════════
+# APIFY CATALOG
+# ═══════════════════════════════════════════
+
+@app.get("/api/apify/actors")
+async def apify_actors(category: str = "", refresh: bool = False):
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.list_actors(category=category, refresh=refresh))
+
+
+@app.get("/api/apify/health")
+async def apify_health():
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.actor_health())
+
+
+@app.get("/api/apify/runs")
+async def apify_runs():
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.actor_runs_summary())
+
+
+@app.get("/api/apify/recommend")
+async def apify_recommend(niche: str = ""):
+    from services import apify_catalog
+    return JSONResponse({"niche": niche, "recommended": apify_catalog.recommend_for_niche(niche)})
+
+
+# ═══════════════════════════════════════════
+# AUTOMATIONS (n8n-flavored)
+# ═══════════════════════════════════════════
+
+@app.get("/api/automations/templates")
+async def automations_list_templates():
+    from core import automations
+    return JSONResponse({"templates": automations.list_templates()})
+
+
+@app.get("/api/automations/templates/{template_id}")
+async def automations_template_detail(template_id: str):
+    from core import automations
+    data = automations.load_template(template_id)
+    if not data:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    nodes = data.get("nodes", [])
+    types = sorted({n.get("type", "").replace("n8n-nodes-base.", "") for n in nodes})
+    return JSONResponse({
+        "id": template_id,
+        "name": data.get("name", template_id),
+        "trigger": automations._detect_trigger(nodes),
+        "node_count": len(nodes),
+        "node_types": types,
+        "workflow": data,
+    })
+
+
+@app.get("/api/automations/installed")
+async def automations_installed(req: Request):
+    from core import automations, store
+    cid = store.active_company_id()
+    return JSONResponse({"installed": automations.list_installed(cid)})
+
+
+@app.post("/api/automations/install")
+async def automations_install(req: Request):
+    from core import automations, store
+    body = await req.json()
+    cid = store.active_company_id()
+    res = automations.install_template(cid, body.get("template_id", ""))
+    return JSONResponse(res)
+
+
+@app.post("/api/automations/{automation_id}/trigger")
+async def automations_trigger(automation_id: str, req: Request):
+    from core import automations, store
+    cid = store.active_company_id()
+    payload = {}
+    try:
+        if req.headers.get("content-type", "").startswith("application/json"):
+            payload = await req.json()
+    except Exception:
+        payload = {}
+    return JSONResponse(automations.trigger(cid, automation_id, payload=payload))
+
+
+@app.delete("/api/automations/{automation_id}")
+async def automations_delete(automation_id: str):
+    from core import automations, store
+    cid = store.active_company_id()
+    return JSONResponse({"deleted": automations.delete_installed(cid, automation_id)})
+
+
+# ═══════════════════════════════════════════
+# UI PAGES (workflows + apify)
+# ═══════════════════════════════════════════
+
+@app.get("/workflows", response_class=HTMLResponse)
+async def workflows_page(request: Request):
+    return templates.TemplateResponse("workflows.html", {"request": request})
+
+
+@app.get("/apify", response_class=HTMLResponse)
+async def apify_page(request: Request):
+    return templates.TemplateResponse("apify.html", {"request": request})
 
 
 if __name__ == "__main__":

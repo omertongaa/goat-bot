@@ -1,0 +1,90 @@
+{
+  "name": "08 — Stripe Ödeme → Notion CRM",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stripe-webhook",
+        "responseMode": "onReceived",
+        "options": { "rawBody": true }
+      },
+      "id": "h1111111-1111-1111-1111-111111111111",
+      "name": "Stripe Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "stripe-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Signature doğrulaması — prod için şart\nconst crypto = require('crypto');\nconst raw = $input.first().binary?.data ? Buffer.from($input.first().binary.data.data, 'base64').toString() : JSON.stringify($input.first().json.body);\nconst sig = $input.first().json.headers['stripe-signature'];\nconst secret = $env.STRIPE_WEBHOOK_SECRET || 'REPLACE_WITH_STRIPE_WEBHOOK_SECRET';\n\n// Basit handling — n8n'de HMAC doğrulamak için `crypto` kullan\n// Production'da n8n Stripe node (v1.5+) sig doğruluyor; bu code örnek\n\nconst event = $input.first().json.body;\n\nif (event.type !== 'checkout.session.completed' && event.type !== 'customer.subscription.created') {\n  return [];\n}\n\nconst obj = event.data?.object || {};\nreturn [{\n  json: {\n    type: event.type,\n    customerId: obj.customer,\n    customerEmail: obj.customer_email || obj.customer_details?.email || '',\n    amount: (obj.amount_total || obj.amount || 0) / 100,\n    currency: obj.currency,\n    subscriptionId: obj.subscription || obj.id,\n    eventId: event.id,\n    createdAt: new Date(event.created * 1000).toISOString()\n  }\n}];"
+      },
+      "id": "h2222222-2222-2222-2222-222222222222",
+      "name": "Parse Stripe Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "create",
+        "databaseId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_NOTION_DATABASE_ID",
+          "mode": "id"
+        },
+        "title": "={{ $json.customerEmail }}",
+        "propertiesUi": {
+          "propertyValues": [
+            { "key": "Email|email", "emailValue": "={{ $json.customerEmail }}" },
+            { "key": "Amount|number", "numberValue": "={{ $json.amount }}" },
+            { "key": "Currency|rich_text", "textContent": "={{ $json.currency }}" },
+            { "key": "Status|select", "selectValue": "Paid" },
+            { "key": "Stripe Customer|rich_text", "textContent": "={{ $json.customerId }}" }
+          ]
+        }
+      },
+      "id": "h3333333-3333-3333-3333-333333333333",
+      "name": "Notion Kayıt",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [680, 220],
+      "credentials": {
+        "notionApi": { "id": "REPLACE_WITH_NOTION_CRED_ID", "name": "Notion" }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "Hoş geldin — bir sonraki adım",
+        "emailType": "html",
+        "message": "=<p>Merhaba,</p>\n<p>Ödemen alındı — {{ $json.amount }} {{ $json.currency | upper }}. Teşekkürler.</p>\n<p>İlk giriş için: <a href=\"REPLACE_WITH_LOGIN_URL\">buradan başla</a></p>\n<p>Herhangi bir sorun olursa bu maile yanıtla — 24 saatte dönüyorum.</p>",
+        "options": {}
+      },
+      "id": "h4444444-4444-4444-4444-444444444444",
+      "name": "Teşekkür Maili",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [680, 380],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_WITH_GMAIL_CRED_ID", "name": "Gmail OAuth2" }
+      }
+    }
+  ],
+  "connections": {
+    "Stripe Webhook": { "main": [[{ "node": "Parse Stripe Event", "type": "main", "index": 0 }]] },
+    "Parse Stripe Event": {
+      "main": [
+        [
+          { "node": "Notion Kayıt", "type": "main", "index": 0 },
+          { "node": "Teşekkür Maili", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "note": "Webhook: {n8n_host}/webhook/stripe-webhook. Stripe dashboard → Developers → Webhooks → add endpoint." },
+  "tags": [{ "name": "doa-kit" }]
+}

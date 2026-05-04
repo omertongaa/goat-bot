@@ -1,0 +1,94 @@
+{
+  "name": "03 — Fatura Vade Hatırlatma",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 9 * * *" }
+          ]
+        }
+      },
+      "id": "c1111111-1111-1111-1111-111111111111",
+      "name": "Her Gün 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT i.id, i.invoice_number, i.amount, i.due_date, c.name AS customer_name, c.email AS customer_email\nFROM invoices i\nJOIN customers c ON c.id = i.customer_id\nWHERE i.status = 'unpaid'\n  AND i.due_date::date <= CURRENT_DATE + INTERVAL '3 days'\n  AND i.due_date::date >= CURRENT_DATE - INTERVAL '30 days'\n  AND (i.last_reminder_at IS NULL OR i.last_reminder_at::date < CURRENT_DATE);",
+        "options": {}
+      },
+      "id": "c2222222-2222-2222-2222-222222222222",
+      "name": "Vadesi Yaklaşan Faturalar",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Postgres (Neon)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customer_email }}",
+        "subject": "=Fatura {{ $json.invoice_number }} — Vade hatırlatması",
+        "emailType": "html",
+        "message": "=<p>Merhaba {{ $json.customer_name }},</p>\n<p>{{ $json.invoice_number }} numaralı <strong>{{ $json.amount }} TL</strong> tutarındaki faturanızın vadesi <strong>{{ $json.due_date }}</strong>. Ödemeyi zamanında yaparsanız süreç hızlı ilerler.</p>\n<p>Herhangi bir sorunuz olursa yanıtlayabilirsiniz.</p>\n<p>İyi günler.</p>",
+        "options": {}
+      },
+      "id": "c3333333-3333-3333-3333-333333333333",
+      "name": "Müşteriye Hatırlatma Maili",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [680, 220],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CRED_ID",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE invoices SET last_reminder_at = NOW() WHERE id = '{{ $json.id }}';",
+        "options": {}
+      },
+      "id": "c4444444-4444-4444-4444-444444444444",
+      "name": "Mark Reminder Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [680, 380],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Postgres (Neon)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Her Gün 09:00": {
+      "main": [[{ "node": "Vadesi Yaklaşan Faturalar", "type": "main", "index": 0 }]]
+    },
+    "Vadesi Yaklaşan Faturalar": {
+      "main": [
+        [
+          { "node": "Müşteriye Hatırlatma Maili", "type": "main", "index": 0 },
+          { "node": "Mark Reminder Sent", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "note": "invoices tablosunda: id, invoice_number, amount, due_date, status, customer_id, last_reminder_at. customers tablosunda: id, name, email."
+  },
+  "tags": [{ "name": "doa-kit" }]
+}

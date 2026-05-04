@@ -1,0 +1,104 @@
+{
+  "name": "10 — Haftalık Özet Rapor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1" }]
+        }
+      },
+      "id": "j1111111-1111-1111-1111-111111111111",
+      "name": "Her Pazartesi 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH week AS (SELECT NOW() - INTERVAL '7 days' AS start)\nSELECT\n  (SELECT COUNT(*) FROM leads WHERE created_at >= (SELECT start FROM week)) AS new_leads,\n  (SELECT COUNT(*) FROM leads WHERE status = 'converted' AND converted_at >= (SELECT start FROM week)) AS conversions,\n  (SELECT COALESCE(SUM(amount), 0) FROM sales WHERE sold_at >= (SELECT start FROM week)) AS revenue,\n  (SELECT COUNT(*) FROM appointments WHERE appointment_at >= (SELECT start FROM week) AND appointment_at < NOW()) AS appointments_done,\n  (SELECT COUNT(*) FROM appointments WHERE appointment_at >= NOW() AND appointment_at <= NOW() + INTERVAL '7 days') AS appointments_upcoming;",
+        "options": {}
+      },
+      "id": "j2222222-2222-2222-2222-222222222222",
+      "name": "Hafta Metrikleri",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 300],
+      "credentials": {
+        "postgres": { "id": "REPLACE_WITH_POSTGRES_CRED_ID", "name": "Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT full_name, email, source, created_at\nFROM leads\nWHERE created_at >= NOW() - INTERVAL '7 days'\nORDER BY created_at DESC\nLIMIT 10;",
+        "options": {}
+      },
+      "id": "j3333333-3333-3333-3333-333333333333",
+      "name": "Son 10 Lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [460, 480],
+      "credentials": {
+        "postgres": { "id": "REPLACE_WITH_POSTGRES_CRED_ID", "name": "Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "j4444444-4444-4444-4444-444444444444",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [680, 390]
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $input.first().json;\nconst leads = $input.last().json;\nconst leadsList = Array.isArray(leads) ? leads : [leads];\n\nconst leadRows = leadsList\n  .filter(l => l.full_name)\n  .map(l => `<tr><td>${l.full_name}</td><td>${l.email || '-'}</td><td>${l.source || '-'}</td></tr>`)\n  .join('');\n\nconst html = `\n<h2>Haftalık Rapor — ${new Date().toLocaleDateString('tr-TR')}</h2>\n<table style=\"width:100%;border-collapse:collapse\">\n  <tr><td><strong>Yeni lead</strong></td><td>${metrics.new_leads}</td></tr>\n  <tr><td><strong>Dönüşüm</strong></td><td>${metrics.conversions}</td></tr>\n  <tr><td><strong>Hafta geliri</strong></td><td>${metrics.revenue} TL</td></tr>\n  <tr><td><strong>Tamamlanan randevu</strong></td><td>${metrics.appointments_done}</td></tr>\n  <tr><td><strong>Yaklaşan randevu (7 gün)</strong></td><td>${metrics.appointments_upcoming}</td></tr>\n</table>\n<h3>Son 10 Lead</h3>\n<table border=\"1\" cellpadding=\"6\" style=\"border-collapse:collapse;margin-top:10px\">\n  <thead><tr><th>İsim</th><th>Email</th><th>Kaynak</th></tr></thead>\n  <tbody>${leadRows}</tbody>\n</table>\n`;\n\nreturn [{ json: { subject: `Haftalık Rapor — ${metrics.new_leads} lead, ${metrics.revenue} TL`, html } }];"
+      },
+      "id": "j5555555-5555-5555-5555-555555555555",
+      "name": "Render Rapor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 390]
+    },
+    {
+      "parameters": {
+        "sendTo": "REPLACE_WITH_OWNER_EMAIL",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "j6666666-6666-6666-6666-666666666666",
+      "name": "Gönder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1120, 390],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_WITH_GMAIL_CRED_ID", "name": "Gmail OAuth2" }
+      }
+    }
+  ],
+  "connections": {
+    "Her Pazartesi 08:00": {
+      "main": [
+        [
+          { "node": "Hafta Metrikleri", "type": "main", "index": 0 },
+          { "node": "Son 10 Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Hafta Metrikleri": { "main": [[{ "node": "Merge Data", "type": "main", "index": 0 }]] },
+    "Son 10 Lead": { "main": [[{ "node": "Merge Data", "type": "main", "index": 1 }]] },
+    "Merge Data": { "main": [[{ "node": "Render Rapor", "type": "main", "index": 0 }]] },
+    "Render Rapor": { "main": [[{ "node": "Gönder", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "note": "leads, sales, appointments tablolarını bekliyor. Query'leri kendi schema'na göre değiştir." },
+  "tags": [{ "name": "doa-kit" }]
+}

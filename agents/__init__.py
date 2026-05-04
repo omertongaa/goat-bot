@@ -44,6 +44,7 @@ AGENTS = {
     "mcphub":      {"name": "MCP Hub",     "role": "MCP tools registry — browse, install, manage integrations", "category": "system",  "icon": "🔌"},
     "browser":     {"name": "Browser",     "role": "Headless tarayıcı — sayfa scrape, screenshot, form doldur",  "category": "system",  "icon": "🌐"},
     "improver":    {"name": "Improver",    "role": "Tüm agent geçmişlerini analiz eder, iyileştirme önerir",     "category": "system",  "icon": "🧠"},
+    "automator":   {"name": "Automator",   "role": "n8n workflow JSON'larını native koşturur",                    "category": "system",  "icon": "⚡"},
 }
 
 CATEGORIES = {

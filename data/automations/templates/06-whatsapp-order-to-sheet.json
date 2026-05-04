@@ -1,0 +1,125 @@
+{
+  "name": "06 — WhatsApp Sipariş → Sheet + Kurye",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "f1111111-1111-1111-1111-111111111111",
+      "name": "WhatsApp Meta Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta WhatsApp Cloud API webhook yapısı\nconst body = $input.first().json.body;\nconst entry = body?.entry?.[0];\nconst change = entry?.changes?.[0];\nconst messages = change?.value?.messages || [];\n\nif (messages.length === 0) return [];\n\nconst contacts = change?.value?.contacts || [];\nconst items = messages.map((m, i) => ({\n  json: {\n    from: m.from,\n    name: contacts[i]?.profile?.name || '',\n    text: m.text?.body || '',\n    timestamp: new Date(parseInt(m.timestamp) * 1000).toISOString(),\n    messageId: m.id\n  }\n}));\nreturn items;"
+      },
+      "id": "f2222222-2222-2222-2222-222222222222",
+      "name": "Parse WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Sen bir restoran sipariş asistanısın. Müşteri mesajından siparişi çıkar. Çıktı JSON: { items: [{name, qty, note}], address, note, estimatedTotal }. Bilgi eksikse soru olarak 'ask' key'i ekle. Sadece JSON dön."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.text }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "id": "f3333333-3333-3333-3333-333333333333",
+      "name": "OpenAI Parse Order",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_WITH_OPENAI_CRED_ID", "name": "OpenAI" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Orders", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{ $('Parse WhatsApp').item.json.from }}",
+            "name": "={{ $('Parse WhatsApp').item.json.name }}",
+            "rawMessage": "={{ $('Parse WhatsApp').item.json.text }}",
+            "items": "={{ JSON.stringify($json.message?.content?.items || []) }}",
+            "address": "={{ $json.message?.content?.address || '' }}",
+            "total": "={{ $json.message?.content?.estimatedTotal || '' }}",
+            "timestamp": "={{ $('Parse WhatsApp').item.json.timestamp }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "f4444444-4444-4444-4444-444444444444",
+      "name": "Save to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 220],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_WITH_SHEETS_CRED_ID", "name": "Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_KITCHEN_TELEGRAM_CHAT",
+        "text": "=🍽 Yeni sipariş\n\nMüşteri: {{ $('Parse WhatsApp').item.json.name }}\nTelefon: {{ $('Parse WhatsApp').item.json.from }}\n\nSipariş:\n{{ JSON.stringify($json.message?.content?.items, null, 2) }}\n\nAdres: {{ $json.message?.content?.address }}\nTahmini tutar: {{ $json.message?.content?.estimatedTotal }} TL",
+        "additionalFields": {}
+      },
+      "id": "f5555555-5555-5555-5555-555555555555",
+      "name": "Telegram Mutfak",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 380],
+      "credentials": {
+        "telegramApi": { "id": "REPLACE_WITH_TELEGRAM_CRED_ID", "name": "Telegram" }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Meta Webhook": {
+      "main": [[{ "node": "Parse WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Parse WhatsApp": {
+      "main": [[{ "node": "OpenAI Parse Order", "type": "main", "index": 0 }]]
+    },
+    "OpenAI Parse Order": {
+      "main": [
+        [
+          { "node": "Save to Sheet", "type": "main", "index": 0 },
+          { "node": "Telegram Mutfak", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "note": "Meta webhook'u /webhook/whatsapp-webhook URL'ine yönlendir. Verification token önce Meta UI'dan set et." },
+  "tags": [{ "name": "doa-kit" }]
+}

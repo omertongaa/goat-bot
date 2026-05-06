@@ -1021,9 +1021,9 @@ async def files_page(request: Request):
 
 
 @app.get("/api/core/files")
-async def core_list_files(limit: int = 200):
+async def core_list_files(limit: int = 200, include_raw: bool = False):
     from core import files as _files
-    return JSONResponse({"files": _files.list_files(limit=limit)})
+    return JSONResponse({"files": _files.list_files(limit=limit, include_raw=include_raw)})
 
 
 @app.get("/api/core/files/raw")

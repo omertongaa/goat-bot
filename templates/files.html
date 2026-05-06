@@ -158,6 +158,12 @@ header {
   <div class="heading">
     <h1>📁 Üretilen Dosyalar</h1>
     <span class="count" id="totalCount">— dosya</span>
+    <div style="flex:1"></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;">
+      <input type="checkbox" id="rawToggle" onchange="toggleRaw(this.checked)"
+             style="accent-color:var(--accent);">
+      <span>Ham veriyi göster (JSON / log)</span>
+    </label>
   </div>
 
   <input class="search-box" id="searchBox" placeholder="🔍 Dosya, ajan veya tip ara…" oninput="render()">
@@ -180,7 +186,7 @@ header {
 </div>
 
 <script>
-let STATE = { files: [], filter: 'all' };
+let STATE = { files: [], filter: 'all', includeRaw: false };
 
 const KIND_ICON = {
   'PDF': '📄', 'Markdown': '📝', 'Web sayfası': '🌐',
@@ -192,15 +198,16 @@ const FILTERS = [
   { id: 'all', label: 'Hepsi' },
   { id: 'Görsel', label: '🖼️ Görseller' },
   { id: 'PDF', label: '📄 PDF' },
+  { id: 'Web sayfası', label: '🌐 Sunum & Sayfalar' },
   { id: 'Markdown', label: '📝 Yazılar' },
-  { id: 'Web sayfası', label: '🌐 Sayfalar' },
   { id: 'Video', label: '🎬 Video' },
-  { id: 'JSON', label: '🧾 Veri' },
-  { id: 'CSV', label: '📊 CSV' },
+  { id: 'Ses', label: '🎵 Ses' },
 ];
 
 async function load() {
-  const r = await fetch('/api/core/files?limit=500');
+  const params = new URLSearchParams({ limit: '500' });
+  if (STATE.includeRaw) params.set('include_raw', 'true');
+  const r = await fetch('/api/core/files?' + params.toString());
   const d = await r.json();
   STATE.files = d.files || [];
   render();
@@ -253,6 +260,7 @@ function render() {
 }
 
 function setFilter(id) { STATE.filter = id; render(); }
+function toggleRaw(v) { STATE.includeRaw = !!v; load(); }
 
 function openFile(f) {
   const drawer = document.getElementById('drawer');

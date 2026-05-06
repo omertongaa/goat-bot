@@ -20,13 +20,14 @@ class SiteBuilderAgent(BaseAgent):
     role = "Generates professional landing pages for your agency and clients"
     category = "delivery"
 
-    def run(self, site_type="agency", lead_index=0):
-        # type: (str, int) -> dict
+    def run(self, site_type="agency", lead_index=0, manual_data=None, **kwargs):
+        # type: (str, int, object) -> dict
         """Generate a landing page.
 
         Args:
             site_type: 'agency' or 'client'
             lead_index: which hot lead to use (for client sites)
+            manual_data: optional data override (ignored, for forward-compat)
         """
         config = self.load_config()
 

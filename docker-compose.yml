@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  goat-bot:
+    build: .
+    container_name: goat-bot
+    ports:
+      - "${GOAT_PORT:-7778}:7778"
+    env_file:
+      - .env
+    environment:
+      GOAT_DATA_DIR: /app/data
+      GOAT_OUTPUTS_DIR: /app/outputs
+      GOAT_DISABLE_SCHEDULER: "0"
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    restart: unless-stopped

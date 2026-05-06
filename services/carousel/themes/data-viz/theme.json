@@ -1,0 +1,20 @@
+{
+  "name": "data-viz",
+  "mood_tags": ["data", "stats", "authoritative", "research", "numbers", "graph", "analytical"],
+  "palette": {
+    "bg_primary": "#0A0E1A",
+    "bg_secondary": "#111827",
+    "accent_cyan": "#06B6D4",
+    "accent_magenta": "#D946EF",
+    "accent_lime": "#84CC16",
+    "text_primary": "#F9FAFB",
+    "text_muted": "#9CA3AF"
+  },
+  "fonts": {
+    "heading": "Inter Tight",
+    "body": "Inter",
+    "mono": "IBM Plex Mono"
+  },
+  "best_for": ["stats carousel", "research findings", "X rakam Y gercek", "data story", "benchmark"],
+  "avoid_for": ["soft content", "quote", "personal story"]
+}

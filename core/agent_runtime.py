@@ -117,6 +117,14 @@ def _transition(ticket: dict, status: str, actor: str = "system", **extra) -> di
         ticket["company_id"], f"ticket_{status}", actor=actor, subject=ticket["id"],
         details={"from": from_status, "agent_id": ticket.get("agent_id")},
     )
+    # Push to Telegram when a ticket lands in needs_review (mobile approval)
+    if status == "needs_review":
+        try:
+            from services import telegram_bot as _tg
+            if _tg.is_configured(ticket["company_id"]):
+                _tg.push_ticket_for_approval(ticket["company_id"], ticket)
+        except Exception:
+            pass
     return ticket
 
 

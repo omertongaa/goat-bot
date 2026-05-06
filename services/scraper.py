@@ -23,13 +23,18 @@ from typing import Optional
 
 APIFY_TOKEN = os.getenv("APIFY_TOKEN", "")
 
-# Tüm cap'lerin merkezi — kullanıcı param yoksa default 25, hard cap 100.
-DEFAULT_MAX_LEADS = 25
-HARD_CAP = 100
+# Tüm cap'lerin merkezi — kullanıcı param yoksa default 50, hard cap 50.
+# Sebep: actor input cap'leri her zaman tutmuyor (özellikle leads-finder gibi
+# schema'sı belirsiz actor'larda). Bu yüzden 50'ye ulaşınca run'ı erken abort
+# ediyoruz (_poll_apify_run + _abort_apify_run).
+DEFAULT_MAX_LEADS = 50
+HARD_CAP = 50
 APIFY_MEMORY_MB = 1024              # actor memory cap
 APIFY_RUN_TIMEOUT_SEC = 300         # 5dk hard cap (Apify runtime kesi)
-APIFY_POLL_INTERVAL = 5
+APIFY_POLL_INTERVAL = 1             # saniyede bir kontrol — Apify durmaz, biz durdururuz
 APIFY_POLL_BUFFER = 60              # poll'u Apify timeout'undan biraz uzun tut
+APIFY_FIRST_PROBE_DELAY = 0.5       # ilk count probe — actor warmup için kısa bekle
+APIFY_DEFAULT_MAX_CHARGE_USD = 0.30 # 50 lead × ~$0.006 = $0.30 üst sınır
 CACHE_TTL_SECONDS = 1800            # 30dk
 
 GMAPS_ACTORS = {
@@ -116,8 +121,9 @@ def _run_apify_actor(actor_id: str, payload: dict, max_items: int, token: str,
         "timeout": APIFY_RUN_TIMEOUT_SEC,
         "memory": APIFY_MEMORY_MB,
     }
-    if max_charge_usd is not None and max_charge_usd > 0:
-        params["maxTotalChargeUsd"] = max_charge_usd
+    # Default charge cap if caller didn't specify — protects against runaway billing
+    charge_cap = max_charge_usd if (max_charge_usd is not None and max_charge_usd > 0) else APIFY_DEFAULT_MAX_CHARGE_USD
+    params["maxTotalChargeUsd"] = charge_cap
 
     if log:
         log(f"Apify '{actor_id}' başlıyor (maxItems={max_items}, timeout={APIFY_RUN_TIMEOUT_SEC}s, memory={APIFY_MEMORY_MB}MB)")
@@ -149,8 +155,8 @@ def _run_apify_actor(actor_id: str, payload: dict, max_items: int, token: str,
     if log:
         log(f"  run id: {run_id} — pollluyorum...")
 
-    # Poll for status
-    dataset_id = _poll_apify_run(run_id, token, log)
+    # Poll for status — abort early if dataset hits max_items
+    dataset_id = _poll_apify_run(run_id, token, log, max_items=max_items)
     if not dataset_id:
         return []
 
@@ -178,38 +184,111 @@ def _run_apify_actor(actor_id: str, payload: dict, max_items: int, token: str,
     return items
 
 
-def _poll_apify_run(run_id: str, token: str, log=None) -> Optional[str]:
-    """Poll until SUCCEEDED → return defaultDatasetId. Apify side timeout
-    olduğunda kendisi 408 döner; yine de poll buffer ile yarış."""
-    max_polls = (APIFY_RUN_TIMEOUT_SEC + APIFY_POLL_BUFFER) // APIFY_POLL_INTERVAL
+def _poll_apify_run(run_id: str, token: str, log=None,
+                    max_items: Optional[int] = None) -> Optional[str]:
+    """Poll the run AND its dataset every second. Apify itself does NOT stop
+    when input cap is reached on some actors — we are the brake.
+
+    EARLY-ABORT: her tick'te datasetin item count'unu kontrol et. Hedefe
+    ulaşıldığında run'ı abort et ve dataset_id'yi dön. RUNNING / READY /
+    SUCCEEDED — fark etmez, count >= max_items olduğu an dur.
+
+    İlk tick: çok kısa bir warmup (APIFY_FIRST_PROBE_DELAY) sonra probe et.
+    Sonraki tick'ler: APIFY_POLL_INTERVAL aralıklı.
+    """
+    max_polls = int((APIFY_RUN_TIMEOUT_SEC + APIFY_POLL_BUFFER) / APIFY_POLL_INTERVAL)
+    last_dataset_id = None
+    elapsed = 0.0
+    last_log_at = -1.0
+
+    # Warmup — actor henüz dataset_id atamamış olabilir
+    time.sleep(APIFY_FIRST_PROBE_DELAY)
+    elapsed += APIFY_FIRST_PROBE_DELAY
+
     for i in range(max_polls):
-        time.sleep(APIFY_POLL_INTERVAL)
         try:
             sr = requests.get(
                 f"https://api.apify.com/v2/actor-runs/{run_id}",
                 params={"token": token},
-                timeout=15,
+                timeout=10,
             )
-            if sr.status_code != 200:
-                if log and i % 4 == 0:
+            if sr.status_code == 200:
+                data = (sr.json() or {}).get("data") or {}
+                status = data.get("status", "?")
+                ds_id = data.get("defaultDatasetId")
+                if ds_id:
+                    last_dataset_id = ds_id
+
+                # Periodic status log (every ~5sn)
+                if log and (elapsed - last_log_at) >= 5:
+                    log(f"  durum: {status} ({elapsed:.0f}sn)")
+                    last_log_at = elapsed
+
+                # ── EARLY-ABORT: count check on every single tick ──
+                if max_items and last_dataset_id:
+                    count = _dataset_item_count(last_dataset_id, token)
+                    if count >= max_items:
+                        if log:
+                            log(f"  ✓ {count}/{max_items} hedef ulaşıldı ({elapsed:.1f}sn) — run abort")
+                        _abort_apify_run(run_id, token, log)
+                        return last_dataset_id
+
+                # Terminal states
+                if status == "SUCCEEDED":
+                    return last_dataset_id
+                if status in ("FAILED", "ABORTED", "TIMED-OUT", "TIMING-OUT"):
+                    if log:
+                        log(f"  çalışma sonlandı: {status}")
+                    return last_dataset_id if (max_items and last_dataset_id) else None
+            else:
+                if log and (elapsed - last_log_at) >= 5:
                     log(f"  poll http={sr.status_code}")
-                continue
-            data = (sr.json() or {}).get("data") or {}
-            status = data.get("status", "?")
-            if log and i % 6 == 0:
-                log(f"  durum: {status} ({(i + 1) * APIFY_POLL_INTERVAL}sn)")
-            if status == "SUCCEEDED":
-                return data.get("defaultDatasetId")
-            if status in ("FAILED", "ABORTED", "TIMED-OUT", "TIMING-OUT"):
-                if log:
-                    log(f"  çalışma sonlandı: {status}")
-                return None
+                    last_log_at = elapsed
         except Exception as e:
-            if log:
+            if log and (elapsed - last_log_at) >= 5:
                 log(f"  polling hatası: {e}")
+                last_log_at = elapsed
+
+        time.sleep(APIFY_POLL_INTERVAL)
+        elapsed += APIFY_POLL_INTERVAL
+
     if log:
-        log(f"  poll zaman aşımı ({APIFY_RUN_TIMEOUT_SEC + APIFY_POLL_BUFFER}sn)")
+        log(f"  poll zaman aşımı ({elapsed:.0f}sn) — abort + partial fetch")
+    if last_dataset_id:
+        _abort_apify_run(run_id, token, log)
+        return last_dataset_id
     return None
+
+
+def _dataset_item_count(dataset_id: str, token: str) -> int:
+    """Lightweight HEAD-style probe for current item count in a dataset."""
+    try:
+        r = requests.get(
+            f"https://api.apify.com/v2/datasets/{dataset_id}",
+            params={"token": token},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            return 0
+        return ((r.json() or {}).get("data") or {}).get("itemCount", 0) or 0
+    except Exception:
+        return 0
+
+
+def _abort_apify_run(run_id: str, token: str, log=None) -> None:
+    """Politely stop a running actor (POST /actor-runs/{id}/abort).
+    Best-effort — failures are logged but not raised."""
+    try:
+        r = requests.post(
+            f"https://api.apify.com/v2/actor-runs/{run_id}/abort",
+            params={"token": token, "gracefully": "1"},
+            timeout=15,
+        )
+        if log:
+            log(f"  abort http={r.status_code}")
+    except Exception as e:
+        if log:
+            log(f"  abort hatası: {e}")
 
 
 def _fetch_dataset(dataset_id: str, token: str, limit: int, log=None) -> list:

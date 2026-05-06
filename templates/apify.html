@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goat · Apify</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23f97316'/%3E%3Ctext x='50' y='72' font-family='Inter, sans-serif' font-size='62' font-weight='800' text-anchor='middle' fill='white'%3Eg%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #09090b; --surface: #0f0f12; --surface-2: #16161b; --surface-3: #1d1d24;
+  --border: #26262e; --text: #f5f5f7; --text-2: #c3c3cc; --dim: #7a7a85;
+  --accent: #f97316; --green: #22c55e; --yellow: #eab308; --blue: #3b82f6; --red: #ef4444;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; background: none; border: none; color: inherit; }
+code { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+
+header { display: flex; align-items: center; padding: 0 24px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 16px; }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; }
+.logo-mark { width: 26px; height: 26px; background: linear-gradient(135deg, var(--accent), #ea580c); border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; }
+.bread { color: var(--dim); font-size: 12px; }
+.nav-tabs { display: flex; gap: 2px; margin-left: 12px; }
+.nav-tab { padding: 6px 12px; font-size: 12px; color: var(--dim); border-radius: 6px; }
+.nav-tab:hover { color: var(--text-2); background: var(--surface-2); }
+.nav-tab.active { color: var(--text); background: var(--surface-2); }
+.spacer { flex: 1; }
+
+.container { max-width: 1240px; margin: 0 auto; padding: 28px 24px 80px; }
+.heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
+.heading h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.subtitle { color: var(--dim); font-size: 12.5px; max-width: 720px; margin-bottom: 24px; line-height: 1.55; }
+
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.stat { background: var(--surface); border: 1px solid var(--border); padding: 14px 16px; border-radius: var(--radius); }
+.stat .lbl { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.stat .val { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.stat .sub { color: var(--dim); font-size: 11px; margin-top: 2px; }
+
+.cat-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.cat-pill { padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 99px; font-size: 12px; color: var(--text-2); }
+.cat-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+.actor {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.15s;
+}
+.actor:hover { border-color: var(--accent); }
+.actor .slug { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; word-break: break-all; }
+.actor .best { color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.actor .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.actor .pill { padding: 2px 8px; background: var(--surface-2); border-radius: 99px; font-size: 10.5px; color: var(--text-2); border: 1px solid var(--border); }
+.actor .pill.cat { color: var(--blue); border-color: rgba(59,130,246,.25); background: rgba(59,130,246,.08); }
+.actor .pill.price { color: var(--yellow); border-color: rgba(234,179,8,.25); background: rgba(234,179,8,.08); font-family: 'JetBrains Mono', monospace; }
+.actor .pill.live { color: var(--green); border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.08); }
+.actor .fields { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.actor .field-chip { font-size: 10px; padding: 2px 6px; background: var(--surface-2); border-radius: 3px; color: var(--dim); font-family: 'JetBrains Mono', monospace; }
+.btn { padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 11.5px; font-weight: 500; }
+.btn:hover { background: var(--surface-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.recommend-box { background: linear-gradient(135deg, rgba(249,115,22,.08), rgba(168,85,247,.05)); border: 1px solid rgba(249,115,22,.2); padding: 16px; border-radius: var(--radius); margin-bottom: 20px; }
+.recommend-box h3 { font-size: 13px; margin-bottom: 6px; }
+.recommend-box .row { display: flex; gap: 8px; align-items: center; }
+.recommend-box input { flex: 1; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+.recommend-box .picks { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.recommend-box .pick-row { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 6px 10px; background: var(--surface); border-radius: 6px; display: flex; gap: 8px; }
+.recommend-box .pick-row .why { font-family: 'Inter', sans-serif; color: var(--dim); flex: 1; font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo"><div class="logo-mark">g</div><div>goat</div></a>
+  <div class="bread">· Apify</div>
+  <div class="nav-tabs">
+    <a class="nav-tab" href="/board">Board</a>
+    <a class="nav-tab" href="/files">Dosyalar</a>
+    <a class="nav-tab" href="/workflows">Workflows</a>
+    <a class="nav-tab active" href="/apify">Apify</a>
+    <a class="nav-tab" href="/apps">Apps</a>
+  </div>
+  <div class="spacer"></div>
+</header>
+
+<div class="container">
+  <div class="heading">
+    <h1>🕷️ Apify Aktör Kataloğu</h1>
+  </div>
+  <div class="subtitle">
+    goat-bot agent'larının kullandığı + öneri olarak getirilen Apify aktörleri.
+    Token verilirse canlı /v2/store kataloğu da merge edilir. Niş yazınca size
+    en uygun 3 aktör önerilir.
+  </div>
+
+  <div class="stats" id="stats">—</div>
+
+  <div class="recommend-box">
+    <h3>🎯 Niş için aktör öner</h3>
+    <div class="row">
+      <input id="nicheInput" placeholder="örn: izmir restoran, shopify ecommerce, b2b saas" onkeydown="if(event.key==='Enter')getRecs()">
+      <button class="btn primary" onclick="getRecs()">Öner</button>
+    </div>
+    <div class="picks" id="picks"></div>
+  </div>
+
+  <div class="cat-bar" id="catBar"></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+let STATE = { actors: [], categories: {}, activeCat: '' };
+
+async function load() {
+  const [actorsRes, healthRes, runsRes] = await Promise.all([
+    fetch('/api/apify/actors').then(r => r.json()),
+    fetch('/api/apify/health').then(r => r.json()),
+    fetch('/api/apify/runs').then(r => r.json()).catch(() => ({})),
+  ]);
+  STATE.actors = actorsRes.actors || [];
+  STATE.categories = actorsRes.categories || {};
+  renderStats(healthRes, runsRes, actorsRes);
+  renderCats();
+  renderGrid();
+}
+
+function renderStats(health, runs, actors) {
+  const el = document.getElementById('stats');
+  const tokenColor = health.token_configured ? 'var(--green)' : 'var(--red)';
+  const tokenStatus = health.token_configured ? 'BAĞLI' : 'YOK';
+  const totalRuns = runs.total_runs ?? '—';
+  const cost30 = runs.estimated_cost_usd != null ? `$${runs.estimated_cost_usd}` : '—';
+  el.innerHTML = `
+    <div class="stat"><div class="lbl">Token</div><div class="val" style="color:${tokenColor}">${tokenStatus}</div><div class="sub">${health.curated_count} curated aktör</div></div>
+    <div class="stat"><div class="lbl">Toplam Aktör</div><div class="val">${(actors.actors || []).length}</div><div class="sub">${actors.live ? 'live + curated' : 'sadece curated'}</div></div>
+    <div class="stat"><div class="lbl">Son Koşular</div><div class="val">${totalRuns}</div><div class="sub">son 30 gün</div></div>
+    <div class="stat"><div class="lbl">Tahmini Maliyet</div><div class="val">${cost30}</div><div class="sub">son 30 gün</div></div>
+  `;
+}
+
+function renderCats() {
+  const el = document.getElementById('catBar');
+  const cats = Object.entries(STATE.categories).sort((a, b) => b[1] - a[1]);
+  el.innerHTML = `<button class="cat-pill ${STATE.activeCat ? '' : 'active'}" onclick="setCat('')">Hepsi (${STATE.actors.length})</button>` +
+    cats.map(([c, n]) => `<button class="cat-pill ${STATE.activeCat === c ? 'active' : ''}" onclick="setCat('${c}')">${c} (${n})</button>`).join('');
+}
+
+function setCat(c) { STATE.activeCat = c; renderCats(); renderGrid(); }
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  let actors = STATE.actors;
+  if (STATE.activeCat) actors = actors.filter(a => a.category === STATE.activeCat);
+  if (!actors.length) { grid.innerHTML = '<div style="padding:40px; text-align:center; color:var(--dim);">Aktör bulunamadı</div>'; return; }
+  grid.innerHTML = actors.map(a => `
+    <div class="actor">
+      <div class="slug">${a.actor}</div>
+      <div class="best">${a.best_for || ''}</div>
+      <div class="meta">
+        <span class="pill cat">${a.category}</span>
+        <span class="pill price">$${a.price_per_1000}/1k</span>
+        <span class="pill">⚡ ${a.speed || '?'}</span>
+        ${a.live ? '<span class="pill live">live</span>' : ''}
+        ${a.reliability ? `<span class="pill">${Math.round(a.reliability * 100)}% güvenilir</span>` : ''}
+      </div>
+      <div class="fields">${(a.fields || []).slice(0, 8).map(f => `<span class="field-chip">${f}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+async function getRecs() {
+  const niche = document.getElementById('nicheInput').value.trim();
+  if (!niche) return;
+  const r = await fetch(`/api/apify/recommend?niche=${encodeURIComponent(niche)}`);
+  const data = await r.json();
+  document.getElementById('picks').innerHTML = (data.recommended || data || []).map(a => `
+    <div class="pick-row">
+      <strong>${a.actor}</strong>
+      <span class="why">${a.best_for || ''}</span>
+      <span style="color:var(--yellow);">$${a.price_per_1000}/1k</span>
+    </div>
+  `).join('');
+}
+
+load();
+</script>
+</body>
+</html>

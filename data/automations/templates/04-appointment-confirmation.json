@@ -1,0 +1,96 @@
+{
+  "name": "04 — Randevu Onay (WhatsApp + Email)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appointment-booked",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "d1111111-1111-1111-1111-111111111111",
+      "name": "Randevu Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "appointment-booked"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "1", "name": "patientName", "value": "={{ $json.body.patientName }}", "type": "string" },
+            { "id": "2", "name": "phone", "value": "={{ $json.body.phone }}", "type": "string" },
+            { "id": "3", "name": "email", "value": "={{ $json.body.email }}", "type": "string" },
+            { "id": "4", "name": "appointmentAt", "value": "={{ $json.body.appointmentAt }}", "type": "string" },
+            { "id": "5", "name": "service", "value": "={{ $json.body.service }}", "type": "string" },
+            { "id": "6", "name": "doctor", "value": "={{ $json.body.doctor || '' }}", "type": "string" },
+            { "id": "7", "name": "clinicName", "value": "={{ $json.body.clinicName || 'Klinik' }}", "type": "string" },
+            { "id": "8", "name": "clinicAddress", "value": "={{ $json.body.clinicAddress || '' }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d2222222-2222-2222-2222-222222222222",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/REPLACE_WITH_WHATSAPP_PHONE_ID/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"Merhaba {{ $json.patientName }},\\n\\n{{ $json.clinicName }} randevunuz onaylandı.\\n\\n📅 {{ $json.appointmentAt }}\\n💊 {{ $json.service }}\\n👨‍⚕️ {{ $json.doctor }}\\n📍 {{ $json.clinicAddress }}\\n\\nİptal için bu mesaja yanıt yazın.\"\n  }\n}",
+        "options": {}
+      },
+      "id": "d3333333-3333-3333-3333-333333333333",
+      "name": "WhatsApp Onay",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 220],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_WHATSAPP_TOKEN_CRED",
+          "name": "WhatsApp Meta Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.clinicName }} — Randevu onayı",
+        "emailType": "html",
+        "message": "=<h2>Randevunuz onaylandı</h2>\n<p>Merhaba {{ $json.patientName }},</p>\n<table>\n<tr><td><strong>Tarih</strong></td><td>{{ $json.appointmentAt }}</td></tr>\n<tr><td><strong>Hizmet</strong></td><td>{{ $json.service }}</td></tr>\n<tr><td><strong>Doktor</strong></td><td>{{ $json.doctor }}</td></tr>\n<tr><td><strong>Adres</strong></td><td>{{ $json.clinicAddress }}</td></tr>\n</table>\n<p>İptal veya değişiklik için bu maile yanıtlayın.</p>\n<p>{{ $json.clinicName }}</p>",
+        "options": {}
+      },
+      "id": "d4444444-4444-4444-4444-444444444444",
+      "name": "Email Onay",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [680, 380],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_WITH_GMAIL_CRED_ID", "name": "Gmail OAuth2" }
+      }
+    }
+  ],
+  "connections": {
+    "Randevu Webhook": { "main": [[{ "node": "Normalize", "type": "main", "index": 0 }]] },
+    "Normalize": {
+      "main": [
+        [
+          { "node": "WhatsApp Onay", "type": "main", "index": 0 },
+          { "node": "Email Onay", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": { "note": "WhatsApp Business Cloud API gerekli (Meta Developer). Template mesaj kullan canlıda." },
+  "tags": [{ "name": "doa-kit" }]
+}

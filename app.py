@@ -30,6 +30,10 @@ DATA_BASE = Path(os.getenv("GOAT_DATA_DIR") or (BASE_DIR / "data"))
 OUTPUTS_BASE = Path(os.getenv("GOAT_OUTPUTS_DIR") or (BASE_DIR / "outputs"))
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+# Serve carousel PNG outputs so the board can preview them
+_carousel_out = OUTPUTS_BASE / "carousel"
+_carousel_out.mkdir(parents=True, exist_ok=True)
+app.mount("/static/carousel", StaticFiles(directory=str(_carousel_out)), name="carousel_static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 AGENT_MODULES = {
@@ -55,6 +59,11 @@ AGENT_MODULES = {
     "mcphub": "agents.mcphub.agent:MCPHubAgent",
     "videoproducer": "agents.videoproducer.agent:VideoProducerAgent",
     "youtube": "agents.youtube.agent:YouTubeAgent",
+    "leadscorer": "agents.leadscorer.agent:LeadScorerAgent",
+    "browser": "agents.browser.agent:BrowserAgent",
+    "carousel": "agents.carousel.agent:CarouselAgent",
+    "improver": "agents.improver.agent:ImproverAgent",
+    "automator": "agents.automator.agent:AutomatorAgent",
 }
 
 AGENT_RESULTS = {}
@@ -1600,9 +1609,9 @@ async def files_page(request: Request):
 
 
 @app.get("/api/core/files")
-async def core_list_files(limit: int = 200):
+async def core_list_files(limit: int = 200, include_raw: bool = False):
     from core import files as _files
-    return JSONResponse({"files": _files.list_files(limit=limit)})
+    return JSONResponse({"files": _files.list_files(limit=limit, include_raw=include_raw)})
 
 
 @app.get("/api/core/files/raw")
@@ -2479,6 +2488,356 @@ async def list_videos():
                 "created_at": data.get("created_at", ""),
             })
     return JSONResponse(result)
+
+
+# ═══════════════════════════════════════════
+# COST DASHBOARD
+# ═══════════════════════════════════════════
+
+@app.get("/api/cost/summary")
+async def cost_summary(days: int = 30):
+    from services import cost_dashboard
+    from core import store as _store
+    cid = _store.active_company_id()
+    return JSONResponse(cost_dashboard.summary(cid, days=days))
+
+
+@app.post("/api/cost/alerts")
+async def cost_set_alerts(req: Request):
+    from services import cost_dashboard
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    alerts = cost_dashboard.set_alerts(
+        cid,
+        daily=body.get("daily_total"),
+        monthly=body.get("monthly_total"),
+    )
+    return JSONResponse({"ok": True, "alerts": alerts})
+
+
+# ═══════════════════════════════════════════
+# TELEGRAM APPROVAL BOT
+# ═══════════════════════════════════════════
+
+@app.post("/api/telegram/setup")
+async def telegram_setup(req: Request):
+    from services import telegram_bot
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    base_url = body.get("base_url") or str(req.base_url).rstrip("/")
+    return JSONResponse(telegram_bot.setup_webhook(cid, base_url))
+
+
+@app.post("/api/telegram/test")
+async def telegram_test():
+    from services import telegram_bot
+    from core import store as _store
+    cid = _store.active_company_id()
+    return JSONResponse(telegram_bot.push_text(cid, "🤖 *goat-bot bağlı.* Onay mesajları buraya düşecek."))
+
+
+@app.post("/api/webhooks/telegram")
+async def telegram_webhook(req: Request):
+    from services import telegram_bot
+    from core import agent_runtime, store as _store
+    payload = await req.json()
+    decision = telegram_bot.handle_callback(payload)
+    if decision.get("action") in ("approve", "reject") and decision.get("ticket_id"):
+        cid = _store.active_company_id()
+        if decision["action"] == "approve":
+            agent_runtime.approve(cid, decision["ticket_id"], approver="telegram")
+        else:
+            agent_runtime.reject(cid, decision["ticket_id"], approver="telegram", reason="Telegram'dan reddedildi")
+    return JSONResponse({"ok": True, "decision": decision})
+
+
+# ═══════════════════════════════════════════
+# EMAIL STATS (Instantly warmup tracker)
+# ═══════════════════════════════════════════
+
+@app.get("/api/email/stats")
+async def email_stats():
+    from services import instantly_stats
+    return JSONResponse(instantly_stats.aggregate())
+
+
+@app.get("/api/email/stats/{campaign_id}")
+async def email_stats_one(campaign_id: str):
+    from services import instantly_stats
+    return JSONResponse(instantly_stats.fetch_campaign_stats(campaign_id))
+
+
+# ═══════════════════════════════════════════
+# WEBHOOKS (external integrations)
+# ═══════════════════════════════════════════
+
+@app.post("/api/webhooks/stripe")
+async def webhook_stripe(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    sig = req.headers.get("stripe-signature")
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.stripe_event(cid, body, signature=sig))
+
+
+@app.post("/api/webhooks/calendly")
+async def webhook_calendly(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.calendly_event(cid, body))
+
+
+@app.post("/api/webhooks/instantly")
+async def webhook_instantly(req: Request):
+    from services import webhooks
+    from core import store as _store
+    body = await req.json()
+    cid = _store.active_company_id()
+    return JSONResponse(webhooks.instantly_event(cid, body))
+
+
+# ═══════════════════════════════════════════
+# VOICE (CEO mic input)
+# ═══════════════════════════════════════════
+
+@app.post("/api/ceo/voice")
+async def ceo_voice(req: Request):
+    from services import voice
+    raw = await req.body()
+    mime = req.headers.get("content-type") or "audio/webm"
+    return JSONResponse(voice.transcribe(raw, mime=mime))
+
+
+# ═══════════════════════════════════════════
+# COMPANY TEMPLATES (.goat)
+# ═══════════════════════════════════════════
+
+@app.get("/api/templates")
+async def list_company_templates():
+    from core import templates as _tmpl
+    return JSONResponse(_tmpl.list_templates())
+
+
+@app.get("/api/templates/{template_id}")
+async def get_company_template(template_id: str):
+    from core import templates as _tmpl
+    data = _tmpl.load_template(template_id)
+    if not data:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return JSONResponse(data)
+
+
+@app.post("/api/templates/import")
+async def import_company_template(req: Request):
+    from core import templates as _tmpl
+    body = await req.json()
+    template_id = body.get("template_id") or ""
+    return JSONResponse(_tmpl.import_template(template_id, company_id=body.get("company_id")))
+
+
+# ═══════════════════════════════════════════
+# FAL.AI DYNAMIC MODELS
+# ═══════════════════════════════════════════
+
+@app.get("/api/fal/models")
+async def fal_models(category: str = "", refresh: bool = False):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.list_models(category=category or None, force_refresh=refresh))
+
+
+@app.get("/api/fal/search")
+async def fal_search(q: str = ""):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.search(q))
+
+
+@app.get("/api/fal/recommend")
+async def fal_recommend(use_case: str = ""):
+    from services import fal_mcp
+    return JSONResponse(fal_mcp.recommend_for(use_case))
+
+
+# ═══════════════════════════════════════════
+# LLM ROUTER + OLLAMA
+# ═══════════════════════════════════════════
+
+@app.get("/api/llm/providers")
+async def llm_providers():
+    from services import llm
+    return JSONResponse(llm.available_providers())
+
+
+@app.post("/api/llm/complete")
+async def llm_complete(req: Request):
+    from services import llm
+    body = await req.json()
+    return JSONResponse(llm.complete(
+        messages=body.get("messages") or [],
+        task=body.get("task", "default"),
+        system=body.get("system", ""),
+        max_tokens=int(body.get("max_tokens") or 1500),
+        force_provider=body.get("provider"),
+    ))
+
+
+@app.get("/api/ollama/status")
+async def ollama_status():
+    from services import ollama
+    return JSONResponse(ollama.status())
+
+
+@app.get("/api/ollama/models")
+async def ollama_models():
+    from services import ollama
+    return JSONResponse(ollama.list_models())
+
+
+@app.post("/api/ollama/pull")
+async def ollama_pull(req: Request):
+    from services import ollama
+    body = await req.json()
+    return JSONResponse(ollama.pull(body.get("model", "llama3.1:8b")))
+
+
+# ═══════════════════════════════════════════
+# SELF-IMPROVEMENT
+# ═══════════════════════════════════════════
+
+@app.get("/api/improver/records")
+async def improver_records():
+    from core import improver
+    return JSONResponse(improver.all_records())
+
+
+@app.get("/api/improver/{agent_id}")
+async def improver_record(agent_id: str):
+    from core import improver
+    rec = improver.latest_record(agent_id)
+    if not rec:
+        return JSONResponse({"error": "no record yet"}, status_code=404)
+    return JSONResponse(rec)
+
+
+@app.post("/api/improver/run")
+async def improver_run(req: Request):
+    from core import improver, store
+    body = await req.json() if req.headers.get("content-type", "").startswith("application/json") else {}
+    company_id = body.get("company_id") or store.active_company_id()
+    agent_id = body.get("agent_id")
+    if agent_id:
+        return JSONResponse(improver.improve_agent(company_id, agent_id))
+    return JSONResponse(improver.improve_all(company_id))
+
+
+# ═══════════════════════════════════════════
+# APIFY CATALOG
+# ═══════════════════════════════════════════
+
+@app.get("/api/apify/actors")
+async def apify_actors(category: str = "", refresh: bool = False):
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.list_actors(category=category, refresh=refresh))
+
+
+@app.get("/api/apify/health")
+async def apify_health():
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.actor_health())
+
+
+@app.get("/api/apify/runs")
+async def apify_runs():
+    from services import apify_catalog
+    return JSONResponse(apify_catalog.actor_runs_summary())
+
+
+@app.get("/api/apify/recommend")
+async def apify_recommend(niche: str = ""):
+    from services import apify_catalog
+    return JSONResponse({"niche": niche, "recommended": apify_catalog.recommend_for_niche(niche)})
+
+
+# ═══════════════════════════════════════════
+# AUTOMATIONS (n8n-flavored)
+# ═══════════════════════════════════════════
+
+@app.get("/api/automations/templates")
+async def automations_list_templates():
+    from core import automations
+    return JSONResponse({"templates": automations.list_templates()})
+
+
+@app.get("/api/automations/templates/{template_id}")
+async def automations_template_detail(template_id: str):
+    from core import automations
+    data = automations.load_template(template_id)
+    if not data:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    nodes = data.get("nodes", [])
+    types = sorted({n.get("type", "").replace("n8n-nodes-base.", "") for n in nodes})
+    return JSONResponse({
+        "id": template_id,
+        "name": data.get("name", template_id),
+        "trigger": automations._detect_trigger(nodes),
+        "node_count": len(nodes),
+        "node_types": types,
+        "workflow": data,
+    })
+
+
+@app.get("/api/automations/installed")
+async def automations_installed(req: Request):
+    from core import automations, store
+    cid = store.active_company_id()
+    return JSONResponse({"installed": automations.list_installed(cid)})
+
+
+@app.post("/api/automations/install")
+async def automations_install(req: Request):
+    from core import automations, store
+    body = await req.json()
+    cid = store.active_company_id()
+    res = automations.install_template(cid, body.get("template_id", ""))
+    return JSONResponse(res)
+
+
+@app.post("/api/automations/{automation_id}/trigger")
+async def automations_trigger(automation_id: str, req: Request):
+    from core import automations, store
+    cid = store.active_company_id()
+    payload = {}
+    try:
+        if req.headers.get("content-type", "").startswith("application/json"):
+            payload = await req.json()
+    except Exception:
+        payload = {}
+    return JSONResponse(automations.trigger(cid, automation_id, payload=payload))
+
+
+@app.delete("/api/automations/{automation_id}")
+async def automations_delete(automation_id: str):
+    from core import automations, store
+    cid = store.active_company_id()
+    return JSONResponse({"deleted": automations.delete_installed(cid, automation_id)})
+
+
+# ═══════════════════════════════════════════
+# UI PAGES (workflows + apify)
+# ═══════════════════════════════════════════
+
+@app.get("/workflows", response_class=HTMLResponse)
+async def workflows_page(request: Request):
+    return templates.TemplateResponse("workflows.html", {"request": request})
+
+
+@app.get("/apify", response_class=HTMLResponse)
+async def apify_page(request: Request):
+    return templates.TemplateResponse("apify.html", {"request": request})
 
 
 if __name__ == "__main__":

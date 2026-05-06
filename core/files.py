@@ -66,13 +66,43 @@ SKIP_PATTERNS = (
     "config/", "logs/", ".gitkeep",
 )
 
+# Result-grade extensions: things a human would actually open and use.
+# JSON, txt, csv are RAW DATA — opt-in only via include_raw=True.
+RESULT_EXTS = {
+    ".pdf", ".md", ".html",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".mp4", ".mov", ".webm",
+    ".mp3", ".wav",
+}
+RAW_EXTS = {".json", ".txt", ".csv", ".jsonl"}
+
 EXT_KIND = {
     ".pdf": "PDF", ".md": "Markdown", ".html": "Web sayfası",
     ".png": "Görsel", ".jpg": "Görsel", ".jpeg": "Görsel", ".gif": "GIF",
-    ".webp": "Görsel", ".mp4": "Video", ".mov": "Video", ".webm": "Video",
-    ".mp3": "Ses", ".wav": "Ses", ".json": "JSON", ".txt": "Metin",
-    ".csv": "CSV",
+    ".webp": "Görsel", ".svg": "Görsel",
+    ".mp4": "Video", ".mov": "Video", ".webm": "Video",
+    ".mp3": "Ses", ".wav": "Ses", ".json": "JSON", ".jsonl": "JSON",
+    ".txt": "Metin", ".csv": "CSV",
 }
+
+# Folders that ONLY contain raw plumbing — never surface even if extension
+# happens to match (e.g. some .md inside data/proposals is fine, but
+# outputs/reports/*.json is just agent telemetry).
+RAW_ONLY_DIRS = (
+    "outputs/reports",
+    "data/leads/raw",
+    "data/leads/qualified",
+    "data/audits",
+    "data/analytics",
+    "data/social",
+    "data/ads",
+    "data/pipeline",
+    "data/agent_improvements",
+    "data/automations",
+    "data/mcp",
+    "data/memory",
+    "data/cost_prices",
+)
 
 
 def _ext_kind(path: Path) -> str:
@@ -91,8 +121,14 @@ def _should_skip(rel_path: str) -> bool:
     return any(p in rel_path for p in SKIP_PATTERNS)
 
 
-def list_files(company_id: Optional[str] = None, limit: int = 200) -> list:
-    """Tüm artifact'ları topla, en yeniden eskiye sırala."""
+def list_files(company_id: Optional[str] = None, limit: int = 200,
+               include_raw: bool = False) -> list:
+    """Tüm artifact'ları topla, en yeniden eskiye sırala.
+
+    Default: sadece **insanın gerçekten açıp kullanacağı sonuçlar** döner —
+    PDF, HTML, görsel, video, ses, markdown. JSON ve diğer ham veri dosyaları
+    `include_raw=True` ile geri açılabilir (debug için).
+    """
     out = []
     bases = [outputs_dir(), data_dir()]
     base_root = BASE_DIR
@@ -109,6 +145,15 @@ def list_files(company_id: Optional[str] = None, limit: int = 200) -> list:
                 rel = str(f)
             if _should_skip(rel):
                 continue
+            ext = f.suffix.lower()
+            if not include_raw:
+                # Filter out raw data unless explicitly requested
+                if ext in RAW_EXTS:
+                    continue
+                if any(rel.startswith(d) for d in RAW_ONLY_DIRS):
+                    continue
+                if ext not in RESULT_EXTS:
+                    continue
             try:
                 stat = f.stat()
             except OSError:

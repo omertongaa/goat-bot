@@ -20,8 +20,8 @@ class SiteBuilderAgent(BaseAgent):
     role = "Generates professional landing pages for your agency and clients"
     category = "delivery"
 
-    def run(self, site_type="agency", lead_index=0, manual_data=None):
-        # type: (str, int, dict) -> dict
+    def run(self, site_type="agency", lead_index=0, manual_data=None, **kwargs):
+        # type: (str, int, dict, object) -> dict
         """Generate a landing page.
 
         Args:

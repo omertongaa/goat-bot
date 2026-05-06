@@ -1,0 +1,88 @@
+{
+  "name": "09 — Instagram DM AI Cevap",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-webhook",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "i1111111-1111-1111-1111-111111111111",
+      "name": "IG Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "instagram-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta Instagram Graph API webhook\nconst body = $input.first().json.body;\nif (body.object !== 'instagram') return [];\n\nconst entries = body.entry || [];\nconst messages = [];\nfor (const entry of entries) {\n  for (const msg of entry.messaging || []) {\n    if (!msg.message?.text) continue;\n    messages.push({\n      json: {\n        senderId: msg.sender.id,\n        recipientId: msg.recipient.id,\n        text: msg.message.text,\n        messageId: msg.message.mid,\n        timestamp: new Date(msg.timestamp).toISOString()\n      }\n    });\n  }\n}\nreturn messages;"
+      },
+      "id": "i2222222-2222-2222-2222-222222222222",
+      "name": "Parse IG Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "modelId": { "__rl": true, "value": "gpt-4o-mini", "mode": "list" },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Sen [FIRMA ADI] firmasının sosyal medya asistanısın. Kullanıcı DM attı, kısa ve samimi yanıtla.\n\nHizmetlerimiz: [BURAYI DOLDUR — örn: emlak danışmanlığı, klinik hizmetleri]\nFiyat sorarsa: form linkini ver, insan bağlansın\nRandevu sorarsa: https://cal.com/FIRMA linkini ver\nKüfür/spam: kibar ret, moderatöre ilet\nBilmediğin konu: 'müsait olan arkadaşımıza iletiyorum' de\n\nMax 2 cümle. Emoji az. Türkçe."
+            },
+            { "role": "user", "content": "={{ $json.text }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "i3333333-3333-3333-3333-333333333333",
+      "name": "AI Reply",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [680, 300],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_WITH_OPENAI_CRED_ID", "name": "OpenAI" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/me/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "REPLACE_WITH_PAGE_ACCESS_TOKEN" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Parse IG Message').item.json.senderId }}\" },\n  \"message\": { \"text\": \"{{ $json.message?.content || $json.choices?.[0]?.message?.content }}\" }\n}",
+        "options": {}
+      },
+      "id": "i4444444-4444-4444-4444-444444444444",
+      "name": "Send IG Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "IG Webhook": { "main": [[{ "node": "Parse IG Message", "type": "main", "index": 0 }]] },
+    "Parse IG Message": { "main": [[{ "node": "AI Reply", "type": "main", "index": 0 }]] },
+    "AI Reply": { "main": [[{ "node": "Send IG Reply", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "meta": {
+    "note": "Meta Developer'da Instagram Graph API izni + Page Access Token gerekli. Test: Meta webhook UI'dan verify + subscribe."
+  },
+  "tags": [{ "name": "doa-kit" }]
+}

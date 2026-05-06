@@ -5,9 +5,10 @@ AGENTS = {
     "goat":     {"name": "goat",     "role": "Master orchestrator — runs the full pipeline",       "category": "master",      "icon": "🎯"},
 
     # === Acquisition ===
-    "scout":    {"name": "Scout",    "role": "Finds potential clients via Google Maps / Apify",     "category": "acquisition", "icon": "🔍"},
-    "filter":   {"name": "Filter",   "role": "Scores and qualifies leads for outreach",            "category": "acquisition", "icon": "⚡"},
-    "auditor":  {"name": "Auditor",  "role": "Analyzes lead websites — SEO, broken links, tech",   "category": "acquisition", "icon": "🔬"},
+    "scout":      {"name": "Scout",      "role": "Finds potential clients via Google Maps / Apify",     "category": "acquisition", "icon": "🔍"},
+    "filter":     {"name": "Filter",     "role": "Scores and qualifies leads for outreach",            "category": "acquisition", "icon": "⚡"},
+    "leadscorer": {"name": "LeadScorer", "role": "Claude Haiku ile lead'leri 0-100 puanla, hot/warm/cold sırala", "category": "acquisition", "icon": "🎯"},
+    "auditor":    {"name": "Auditor",    "role": "Analyzes lead websites — SEO, broken links, tech",   "category": "acquisition", "icon": "🔬"},
 
     # === Sales ===
     "outreach": {"name": "Outreach", "role": "Email warmup + cold campaigns via Instantly.ai",     "category": "sales",       "icon": "📧"},
@@ -19,6 +20,7 @@ AGENTS = {
     "content":     {"name": "Content",     "role": "Blog posts, social media copy, email marketing text",    "category": "creative",    "icon": "✍️"},
     "presenter":   {"name": "Presenter",   "role": "Professional presentations and pitch decks (HTML)",      "category": "creative",    "icon": "📊"},
     "brandkit":    {"name": "BrandKit",    "role": "Brand identity — colors, fonts, guidelines, assets",     "category": "creative",    "icon": "💎"},
+    "carousel":    {"name": "Carousel",    "role": "Instagram kaydırmalı içerik — 8 slide, 1080×1350 PNG",   "category": "creative",    "icon": "🎠"},
 
     # === Marketing ===
     "admanager":   {"name": "AdManager",   "role": "Ad campaign planning, copy, and optimization",           "category": "marketing",   "icon": "📢"},
@@ -40,6 +42,9 @@ AGENTS = {
 
     # === System ===
     "mcphub":      {"name": "MCP Hub",     "role": "MCP tools registry — browse, install, manage integrations", "category": "system",  "icon": "🔌"},
+    "browser":     {"name": "Browser",     "role": "Headless tarayıcı — sayfa scrape, screenshot, form doldur",  "category": "system",  "icon": "🌐"},
+    "improver":    {"name": "Improver",    "role": "Tüm agent geçmişlerini analiz eder, iyileştirme önerir",     "category": "system",  "icon": "🧠"},
+    "automator":   {"name": "Automator",   "role": "n8n workflow JSON'larını native koşturur",                    "category": "system",  "icon": "⚡"},
 }
 
 CATEGORIES = {

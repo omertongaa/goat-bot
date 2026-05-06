@@ -1,0 +1,12 @@
+{
+  "handle": "@your_handle",
+  "lang": "tr",
+  "default_theme": "terminal-dark",
+  "ui": {
+    "swipe_text": "Kaydır",
+    "swipe_arrow": "›",
+    "cta_default_button": "Takip et",
+    "cta_icon": "📌"
+  },
+  "voice_file": "voice.md"
+}

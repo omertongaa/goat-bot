@@ -1,0 +1,20 @@
+# Generated output — do not commit (kendi üretimlerini commit etme)
+output/
+!output/5-cli-araci/
+!output/5-cli-araci/**
+!output/claude-code-5-slash-komutu/
+!output/claude-code-5-slash-komutu/**
+
+# Legacy slides folder
+slides/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated HTML files at root
+*_carousel.html
+
+# Claude Code skill config (kişisel)
+.claude-skill/

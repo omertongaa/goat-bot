@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary:   #141E30;
+  --bg-secondary: #2C3E50;
+  --bg-card:      #1A2744;
+  --text-primary: #F4F1DE;
+  --text-muted:   #B8B4A0;
+  --accent:       #C89F5D;
+  --accent-light: #E8C97A;
+  --divider:      #2C3E50;
+  --font-heading: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --font-body:    'Montserrat', 'Inter', sans-serif;
+  --pad-x: 36px;
+  --pad-y: 40px;
+}
+
+body {
+  background: #0B132B;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 32px;
+  font-family: var(--font-body);
+}
+
+/* ─── SLIDE BASE ─── */
+.slide {
+  width: 420px;
+  height: 525px;
+  background: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* subtle noise overlay */
+.slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ─── PROGRESS BAR ─── */
+.progress-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--divider);
+  z-index: 5;
+}
+.progress-bar .fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+/* ─── SLIDE NUMBER ─── */
+.slide-number {
+  position: absolute;
+  top: 16px; right: var(--pad-x);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  z-index: 5;
+}
+
+/* ─── HANDLE BADGE ─── */
+.handle {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-transform: lowercase;
+}
+
+
+/* ═══════════════════════════════════════
+   COVER SLIDE
+   ═══════════════════════════════════════ */
+.slide-cover {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--pad-y) var(--pad-x);
+  background: var(--bg-primary);
+}
+
+.slide-cover .top-line {
+  position: absolute;
+  top: var(--pad-y);
+  left: var(--pad-x);
+  right: var(--pad-x);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slide-cover .category-tag {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.slide-cover .cover-eyebrow {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.slide-cover .cover-title {
+  font-family: var(--font-heading);
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.18;
+  color: var(--text-primary);
+  margin-bottom: 18px;
+}
+
+.slide-cover .cover-title em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.slide-cover .cover-subtitle {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 320px;
+  margin-bottom: 28px;
+}
+
+.slide-cover .cover-divider {
+  width: 40px;
+  height: 1px;
+  background: var(--accent);
+  margin-bottom: 18px;
+}
+
+.slide-cover .swipe-hint {
+  position: absolute;
+  bottom: var(--pad-y);
+  right: var(--pad-x);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.slide-cover .swipe-hint .arrow {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+
+/* ═══════════════════════════════════════
+   INNER SLIDES
+   ═══════════════════════════════════════ */
+.slide-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 72px var(--pad-x) var(--pad-y);
+  gap: 0;
+}
+
+.slide-inner .slide-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.slide-inner .slide-heading {
+  font-family: var(--font-heading);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.slide-inner .slide-heading em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.slide-inner .divider-short {
+  width: 32px;
+  height: 1px;
+  background: var(--accent);
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.slide-inner .slide-body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.72;
+  color: var(--text-muted);
+}
+
+.slide-inner .slide-body strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* card variant */
+.slide-inner .card {
+  background: var(--bg-card);
+  border-left: 2px solid var(--accent);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-radius: 0 4px 4px 0;
+}
+.slide-inner .card .card-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.slide-inner .card .card-body {
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* numbered list */
+.slide-inner .numbered-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.slide-inner .numbered-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.slide-inner .numbered-list li .num {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.slide-inner .numbered-list li .text {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.slide-inner .numbered-list li .text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* quote variant */
+.slide-inner .quote-block {
+  border-left: 3px solid var(--accent);
+  padding: 12px 18px;
+  background: var(--bg-card);
+  margin: 8px 0;
+}
+.slide-inner .quote-block .quote-text {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.slide-inner .quote-block .quote-attr {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 8px;
+  letter-spacing: 0.08em;
+}
+
+
+/* ═══════════════════════════════════════
+   CTA SLIDE
+   ═══════════════════════════════════════ */
+.slide-cta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: var(--pad-y) var(--pad-x);
+  background: var(--bg-primary);
+}
+
+.slide-cta .cta-icon {
+  font-size: 28px;
+  margin-bottom: 16px;
+  opacity: 0.85;
+}
+
+.slide-cta .cta-heading {
+  font-family: var(--font-heading);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.22;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+.slide-cta .cta-heading em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.slide-cta .cta-divider {
+  width: 40px;
+  height: 1px;
+  background: var(--accent);
+  margin: 0 auto 16px;
+}
+
+.slide-cta .cta-body {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-muted);
+  max-width: 300px;
+  margin-bottom: 24px;
+}
+
+.slide-cta .cta-button {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 11px 28px;
+  border-radius: 40px;
+  margin-bottom: 20px;
+  background: transparent;
+}
+
+.slide-cta .handle {
+  position: absolute;
+  bottom: var(--pad-y);
+  right: var(--pad-x);
+}
+
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     SLIDE 1 — COVER
+     Değişkenler: {{category}}, {{cover_title}}, {{cover_subtitle}}, {{handle}}
+     ═══════════════════════════════════════ -->
+<div class="slide slide-cover" id="slide-1">
+  <div class="top-line">
+    <span class="category-tag">{{category}}</span>
+    <span class="handle">{{handle}}</span>
+  </div>
+
+  <span class="cover-eyebrow">{{cover_eyebrow}}</span>
+  <h1 class="cover-title">{{cover_title}}</h1>
+  <div class="cover-divider"></div>
+  <p class="cover-subtitle">{{cover_subtitle}}</p>
+
+  <div class="swipe-hint">
+    <span>Kaydır</span>
+    <span class="arrow">›</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     SLIDE 2 — İÇ SLIDE (metin ağırlıklı)
+     ═══════════════════════════════════════ -->
+<div class="slide slide-inner" id="slide-2">
+  <div class="progress-bar"><div class="fill" style="width:25%"></div></div>
+  <span class="slide-number">02 / {{total}}</span>
+
+  <span class="slide-label">{{slide2_label}}</span>
+  <h2 class="slide-heading">{{slide2_heading}}</h2>
+  <div class="divider-short"></div>
+  <p class="slide-body">{{slide2_body}}</p>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     SLIDE 3 — NUMBERED LIST
+     ═══════════════════════════════════════ -->
+<div class="slide slide-inner" id="slide-3">
+  <div class="progress-bar"><div class="fill" style="width:50%"></div></div>
+  <span class="slide-number">03 / {{total}}</span>
+
+  <span class="slide-label">{{slide3_label}}</span>
+  <h2 class="slide-heading">{{slide3_heading}}</h2>
+  <div class="divider-short"></div>
+
+  <ul class="numbered-list">
+    <li>
+      <span class="num">01</span>
+      <span class="text"><strong>{{item1_title}}</strong>{{item1_body}}</span>
+    </li>
+    <li>
+      <span class="num">02</span>
+      <span class="text"><strong>{{item2_title}}</strong>{{item2_body}}</span>
+    </li>
+    <li>
+      <span class="num">03</span>
+      <span class="text"><strong>{{item3_title}}</strong>{{item3_body}}</span>
+    </li>
+  </ul>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     SLIDE 4 — QUOTE / CARD
+     ═══════════════════════════════════════ -->
+<div class="slide slide-inner" id="slide-4">
+  <div class="progress-bar"><div class="fill" style="width:75%"></div></div>
+  <span class="slide-number">04 / {{total}}</span>
+
+  <span class="slide-label">{{slide4_label}}</span>
+  <h2 class="slide-heading">{{slide4_heading}}</h2>
+  <div class="divider-short"></div>
+
+  <div class="quote-block">
+    <p class="quote-text">{{quote_text}}</p>
+    <p class="quote-attr">— {{quote_attr}}</p>
+  </div>
+
+  <p class="slide-body" style="margin-top:14px">{{slide4_body}}</p>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     SLIDE 5 — CTA
+     ═══════════════════════════════════════ -->
+<div class="slide slide-cta" id="slide-5">
+  <div class="progress-bar"><div class="fill" style="width:100%"></div></div>
+
+  <div class="cta-icon">📌</div>
+  <h2 class="cta-heading">{{cta_heading}}</h2>
+  <div class="cta-divider"></div>
+  <p class="cta-body">{{cta_body}}</p>
+  <div class="cta-button">{{cta_button_text}}</div>
+
+  <span class="handle">{{handle}}</span>
+</div>
+
+</body>
+</html>

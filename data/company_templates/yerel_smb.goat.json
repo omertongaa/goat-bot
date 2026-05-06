@@ -1,0 +1,32 @@
+{
+  "id": "yerel_smb",
+  "label": "Yerel SMB Generic",
+  "description": "Türkiye'de herhangi bir şehir + niş için generic yerel KOBİ ajans şablonu",
+  "company": {
+    "name": "Yerel KOBİ Ajansı",
+    "niche": "Yerel KOBİ dijital dönüşüm",
+    "target_industries": ["berber", "kuaför", "diş hekimi", "veteriner", "spor salonu"],
+    "target_cities": ["İstanbul", "Ankara", "İzmir", "Bursa", "Antalya"],
+    "settings": {
+      "work_mode": "manual",
+      "scraper_actor": "compass",
+      "email_finder_providers": ["apify_web"],
+      "cost_alerts": {"daily_total": 2.0, "monthly_total": 20.0}
+    }
+  },
+  "starter_goals": [
+    {
+      "title": "İlk şehirde 50 SMB lead'i bul",
+      "description": "Sadece tek bir şehir+niş kombinasyonu seç, Scout ile düşük bütçeli scrape, Filter+LeadScorer pipeline"
+    },
+    {
+      "title": "Hot lead'lere SiteAuditor ile audit raporu çıkar",
+      "description": "Pitch agent için SEO audit ammunition'u hazırla"
+    }
+  ],
+  "starter_budgets": {
+    "scout": 2.0,
+    "auditor": 0.5,
+    "pitch": 1.0
+  }
+}

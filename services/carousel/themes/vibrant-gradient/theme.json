@@ -1,0 +1,18 @@
+{
+  "name": "vibrant-gradient",
+  "mood_tags": ["vibrant", "energetic", "viral", "instagram-native", "modern", "bold", "comparison"],
+  "palette": {
+    "bg_primary": "linear-gradient(135deg, #1a0533 0%, #0f1a3d 50%, #0a2a3a 100%)",
+    "accent": "#A855F7",
+    "accent2": "#06B6D4",
+    "text_primary": "#FAFAFA",
+    "text_muted": "#CBD5E1"
+  },
+  "fonts": {
+    "heading": "Space Grotesk",
+    "body": "Inter",
+    "mono": "JetBrains Mono"
+  },
+  "best_for": ["model comparison", "ugc ai", "trend", "viral hook", "tool showdown", "ranking"],
+  "avoid_for": ["technical tutorial", "long form reading", "subtle content"]
+}

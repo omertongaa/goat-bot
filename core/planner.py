@@ -78,26 +78,93 @@ def materialize_plan(company_id: str, goal_id: str, plan: list) -> list:
 
 # ── Claude-backed planner ──────────────────────────────────────────
 
-AVAILABLE_AGENTS_BRIEF = """
-Available agents and what they do:
-- scout:      Find business leads from Google Maps / B2B sources. Params: query (str), location (str), limit (int).
-- filter:     Score and classify leads (hot/warm/cold). No params.
-- auditor:    Audit a website for SEO, broken links, tech stack. Params: url (str) OR max_leads (int) to batch.
-- pitch:      Generate a Turkish proposal PDF for hot leads. No params.
-- outreach:   Create a 3-step email campaign via Instantly.ai. Requires APPROVAL before send. No params.
-- designer:   Generate visual design assets. Params: type (str), brand (dict).
-- videomaker: Generate an AI video via Kie.ai + Remotion. Requires APPROVAL.
-- content:    Generate blog/social content drafts.
-- brandkit:   Build a brand kit (colors, logo, voice). Params: brand_name (str).
-- admanager:  Generate paid ad campaigns. Requires APPROVAL.
-- social:     Schedule social media posts. Requires APPROVAL.
-- analytics:  Compute metrics from past runs.
-- sitebuilder: Build a landing page for a lead. Params: lead_index (int).
-- presenter:  Build a presentation deck.
+# Cache the agents brief — built once from app.AGENT_MODULES at first call
+_AGENTS_BRIEF_CACHE: Optional[str] = None
+
+
+def _build_agents_brief() -> str:
+    """Walk app.AGENT_MODULES, instantiate each agent class, pull
+    agent_id / name / role / category. Build a Turkish-friendly brief
+    grouped by category. Cached after first build."""
+    global _AGENTS_BRIEF_CACHE
+    if _AGENTS_BRIEF_CACHE is not None:
+        return _AGENTS_BRIEF_CACHE
+
+    try:
+        import importlib
+        app_mod = importlib.import_module("app")
+        modules_map = getattr(app_mod, "AGENT_MODULES", {}) or {}
+    except Exception:
+        modules_map = {}
+
+    if not modules_map:
+        # Last-resort static fallback covering common agents
+        _AGENTS_BRIEF_CACHE = _STATIC_AGENTS_BRIEF
+        return _AGENTS_BRIEF_CACHE
+
+    agents = []
+    for agent_id, spec in modules_map.items():
+        if agent_id in ("ceo", "goat"):
+            # CEO is the orchestrator itself; goat is the legacy meta-runner
+            continue
+        try:
+            import importlib
+            module_path, class_name = spec.rsplit(":", 1)
+            mod = importlib.import_module(module_path)
+            cls = getattr(mod, class_name)
+            agents.append({
+                "id": getattr(cls, "agent_id", agent_id),
+                "name": getattr(cls, "name", agent_id.title()),
+                "role": getattr(cls, "role", "—"),
+                "category": getattr(cls, "category", "other"),
+            })
+        except Exception:
+            continue
+
+    # Group by category — gives Claude semantic structure
+    by_cat = {}
+    for a in agents:
+        by_cat.setdefault(a["category"], []).append(a)
+
+    cat_labels = {
+        "acquisition": "Lead bulma & filtreleme",
+        "intelligence": "Analiz & istihbarat",
+        "creative": "Tasarım & içerik & sunum",
+        "marketing": "Pazarlama & reklam & sosyal",
+        "delivery": "Teslimat (web sitesi, kampanya)",
+        "education": "Eğitim & danışmanlık",
+        "production": "Üretim (video / YouTube)",
+        "system": "Sistem (MCP, automation, improver)",
+        "sales": "Satış (teklif, outreach)",
+        "master": "Master orchestrator",
+        "other": "Diğer",
+    }
+
+    lines = ["AVAILABLE AGENTS — kategori bazlı liste:"]
+    for cat in ("acquisition", "sales", "intelligence", "creative",
+                "marketing", "delivery", "production", "education", "system", "other"):
+        items = by_cat.get(cat) or []
+        if not items:
+            continue
+        lines.append(f"\n## {cat_labels.get(cat, cat).upper()}")
+        for a in items:
+            lines.append(f"  - {a['id']}: {a['role']}")
+
+    _AGENTS_BRIEF_CACHE = "\n".join(lines)
+    return _AGENTS_BRIEF_CACHE
+
+
+# Static fallback if app.AGENT_MODULES introspection fails
+_STATIC_AGENTS_BRIEF = """AVAILABLE AGENTS:
+- scout, filter, auditor, leadscorer, pitch, outreach, sitebuilder
+- designer, content, presenter, brandkit, videomaker, videoproducer, carousel
+- admanager, social, youtube
+- analytics, browser, automator
+- mentor, mcphub, improver, storyboard
 """
 
-PLANNER_PROMPT = """Sen GOAT şirketinin CEO'susun. Aşağıdaki hedefi gerçekleştirmek için
-agentlardan oluşan bir iş planı hazırla. Sadece geçerli agent_id'leri kullan.
+PLANNER_PROMPT = """Sen GOAT şirketinin CEO'susun. Hedefi gerçekleştirmek için
+şirketin tüm agentlarından oluşan zengin bir iş planı hazırla.
 
 HEDEF:
   Başlık: {title}
@@ -111,13 +178,30 @@ HEDEF:
 
 {agents_brief}
 
-ÇIKTI — sadece geçerli JSON array ver, başka açıklama yazma:
+PLAN KURALLARI:
+1. Hedefin **tüm aşamalarını** çıkar — sadece scout→outreach değil. Hedefe uygunsa
+   marka, içerik, sunum, tasarım, web sitesi, sosyal medya, otomasyon adımlarını da ekle.
+2. Plan en az **5**, en fazla **15** adım olsun. Büyük hedef için fazla, küçük için az.
+3. Her adım gerçek bir agent'a verilsin. Aynı agent birden fazla adımda kullanılabilir
+   (örn: content agent hem blog hem social caption üretebilir).
+4. Hedefin doğasına uygun **paralel akışlar** kur:
+   - Lead-odaklı hedef: scout → filter → auditor → leadscorer → pitch → presenter → outreach
+   - Marka/lansman hedefi: brandkit → designer → sitebuilder → content → carousel → social → admanager
+   - Büyüme hedefi: analytics → improver → content → social → admanager
+5. Mutation eden agent'lar (outreach, social, admanager, youtube, videoproducer, videomaker,
+   instagramdm) — params kısmında "needs_approval": true olsun.
+6. Her step'in `params`'ını sektöre özel doldur. Boş `{{}}` mümkünse verme.
+
+ÇIKTI — sadece geçerli JSON array ver, açıklama yazma:
 [
-  {{"agent_id": "scout",  "title": "...", "description": "...", "params": {{"query":"...", "location":"...", "limit":50}} }},
-  {{"agent_id": "filter", "title": "...", "description": "...", "params": {{}} }},
+  {{"agent_id": "scout", "title": "İzmir restoranlarını tara",
+    "description": "50 lead, contact details ile",
+    "params": {{"query":"restoran", "location":"İzmir", "limit":50}} }},
+  {{"agent_id": "leadscorer", "title": "Leadleri AI ile sırala",
+    "description": "0-100 puan + hot/warm/cold tier",
+    "params": {{}} }},
   ...
 ]
-Adım sayısı 3-8 arası. Sıra önemli (önceki adıma bağımlı olabilir).
 """
 
 
@@ -130,7 +214,7 @@ def _plan_with_claude(company: dict, goal: dict) -> Optional[list]:
         company_name=company.get("name", "goat"),
         niche=company.get("niche", "—"),
         cities=", ".join(company.get("target_cities", []) or []) or "—",
-        agents_brief=AVAILABLE_AGENTS_BRIEF.strip(),
+        agents_brief=_build_agents_brief().strip(),
     )
     try:
         result = subprocess.run(
@@ -159,50 +243,137 @@ def _plan_with_claude(company: dict, goal: dict) -> Optional[list]:
 # ── Rule-based fallback ────────────────────────────────────────────
 
 def _plan_fallback(company: dict, goal: dict) -> list:
-    """Sensible Turkish-SMB default when Claude is unavailable.
-
-    The default flow: Scout → Filter → Auditor → Pitch → Outreach.
-    Query/location pulled from company profile with goal-specific overrides.
+    """Rule-based plan when Claude isn't available. Picks one of two
+    templates based on goal text: lead-acquisition vs brand-launch.
+    Both produce 7-9 steps using a wider range of agents.
     """
     niche = (company.get("niche") or "").lower()
     cities = company.get("target_cities") or []
     target_industries = company.get("target_industries") or []
+    company_name = company.get("name") or "goat"
 
+    text = (
+        f"{goal.get('title', '')} {goal.get('description', '')} "
+        f"{goal.get('target_metric', '')}"
+    ).lower()
+
+    is_brand_goal = any(kw in text for kw in (
+        "marka", "lansman", "launch", "brand", "kimlik", "rebrand",
+        "yeni ürün", "yeni urun", "açılış", "acilis",
+    ))
+
+    if is_brand_goal:
+        return _brand_launch_plan(company_name, niche)
+
+    # Default: lead-acquisition flow (richer than the old 5-step version)
     query = _infer_query(goal, niche, target_industries)
     location = cities[0] if cities else ""
-
     limit = _infer_limit(goal)
 
     return [
         {
             "agent_id": "scout",
-            "title": f"Scout {query} {location}".strip(),
-            "description": f"{limit} lead bul: {query} / {location}",
+            "title": f"Scout: {query} {location}".strip(),
+            "description": f"{limit} lead bul (Google Maps + B2B)",
             "params": {"query": query, "location": location, "limit": limit},
         },
         {
             "agent_id": "filter",
-            "title": "Leadleri skorla ve sınıflandır",
-            "description": "Hot / warm / cold ayrımı",
+            "title": "Leadleri kural-bazlı skorla",
+            "description": "Email/website/rating'e göre hot/warm/cold",
+            "params": {},
+        },
+        {
+            "agent_id": "leadscorer",
+            "title": "Leadleri AI ile derinlemesine skorla",
+            "description": "Claude Haiku ile 0-100 puan + tier",
             "params": {},
         },
         {
             "agent_id": "auditor",
-            "title": "Hot leadlerin websitelerini denetle",
+            "title": "Hot leadlerin sitelerini denetle",
             "description": "SEO + broken links + tech stack",
             "params": {"max_leads": 10},
         },
         {
             "agent_id": "pitch",
-            "title": "Hot leadler için Türkçe teklif hazırla",
-            "description": "PDF proposal + cover image",
+            "title": "Hot leadler için Türkçe teklif PDF'i",
+            "description": "Audit-aware proposal + cover image",
             "params": {},
         },
         {
+            "agent_id": "presenter",
+            "title": "Genel pitch deck hazırla",
+            "description": f"{niche} sektörü için sunum, hot leadlerle paylaşılabilir",
+            "params": {"template": "pitch_deck", "topic": f"{company_name} — {niche}"},
+        },
+        {
+            "agent_id": "content",
+            "title": "Outreach için email + LinkedIn copy",
+            "description": "Sektöre özel 3 hook variant",
+            "params": {"content_type": "email", "topic": niche, "count": 3},
+        },
+        {
             "agent_id": "outreach",
-            "title": "3 adımlı email kampanyası (ONAY GEREKLİ)",
-            "description": "Intro → Value → Last call",
+            "title": "3 adımlı email kampanyası",
+            "description": "Intro → Value → Last call (Instantly.ai)",
             "params": {},
+            "needs_approval": True,
+        },
+    ]
+
+
+def _brand_launch_plan(company_name: str, niche: str) -> list:
+    """Plan for brand/launch goals — uses creative & marketing agents."""
+    return [
+        {
+            "agent_id": "brandkit",
+            "title": f"{company_name} marka kimliği oluştur",
+            "description": "Renkler, fontlar, ses tonu, logo briefi",
+            "params": {"business_name": company_name, "industry": niche, "style": "modern"},
+        },
+        {
+            "agent_id": "designer",
+            "title": "Sosyal medya görsel seti",
+            "description": "Instagram + LinkedIn + Twitter banner ve post",
+            "params": {"design_type": "social_post", "business_name": company_name, "platform": "instagram"},
+        },
+        {
+            "agent_id": "sitebuilder",
+            "title": "Lansman landing page",
+            "description": "Tek sayfa, CTA odaklı, marka kit ile",
+            "params": {"site_type": "agency"},
+        },
+        {
+            "agent_id": "content",
+            "title": "Lansman blog yazısı + 10 sosyal post",
+            "description": "Türkçe, sektöre özel, SEO odaklı",
+            "params": {"content_type": "blog", "topic": f"{company_name} lansman", "count": 1},
+        },
+        {
+            "agent_id": "carousel",
+            "title": "Instagram lansman carousel",
+            "description": "5-7 slayt, marka renkleri",
+            "params": {"topic": f"{company_name} hakkında 5 şey"},
+        },
+        {
+            "agent_id": "presenter",
+            "title": "Şirket tanıtım sunumu",
+            "description": "Yatırımcı / partner için pitch deck",
+            "params": {"template": "company", "topic": f"{company_name} tanıtım"},
+        },
+        {
+            "agent_id": "social",
+            "title": "30 günlük sosyal medya planı",
+            "description": "Hashtag + posting takvimi + bio",
+            "params": {"action": "strategy", "platform": "instagram", "business_name": company_name},
+            "needs_approval": True,
+        },
+        {
+            "agent_id": "admanager",
+            "title": "Lansman reklam kampanyası",
+            "description": "Meta + Google için 5 ad copy varianti",
+            "params": {"platform": "meta", "campaign_type": "awareness", "business_name": company_name},
             "needs_approval": True,
         },
     ]

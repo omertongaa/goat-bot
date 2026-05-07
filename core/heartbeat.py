@@ -1,10 +1,11 @@
 """Heartbeat loop — the autonomous brain.
 
 Runs periodically (every N minutes). Each tick:
-    1. For every active company, load pending tickets ordered by created_at
+    0. For every active company, retry failed tickets (up to MAX_RETRIES)
+    1. For active goals with no open tickets, run the planner and materialize
     2. Execute pending tickets IN PARALLEL via a thread pool
     3. Respect budgets (execute_in_ticket already handles hard-stop)
-    4. For active goals with no open tickets, run the planner and materialize
+    4. After execution, mark goals whose tickets are all terminal as completed
 
 Paperclip-style: multiple agents work simultaneously, not in a strict queue.
 No parent_ticket_id blocking — tickets from the same goal fire concurrently.
@@ -12,12 +13,19 @@ No parent_ticket_id blocking — tickets from the same goal fire concurrently.
 
 import importlib
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from typing import Optional
 
 from core import store, activity_log, agent_runtime, planner
 
 MAX_PARALLEL = 5             # concurrent tickets per tick (per company)
 MAX_COMPANIES_PER_TICK = 10
+MAX_RETRIES = 2              # failed ticket → up to 2 auto-retries
+TERMINAL_STATES = {"completed", "failed", "cancelled", "paused_budget"}
+
+
+def _utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _load_agent_modules_map() -> dict:
@@ -60,7 +68,10 @@ def tick(company_id: Optional[str] = None) -> dict:
     )
 
     modules_map = _load_agent_modules_map()
-    summary = {"companies_checked": 0, "tickets_run": 0, "plans_created": 0}
+    summary = {
+        "companies_checked": 0, "tickets_run": 0, "plans_created": 0,
+        "retries": 0, "goals_completed": 0,
+    }
 
     for cid in company_ids:
         summary["companies_checked"] += 1
@@ -78,6 +89,9 @@ def tick(company_id: Optional[str] = None) -> dict:
             v = (company.get("api_keys") or {}).get(src) or (company.get("settings") or {}).get(src)
             if v:
                 _os.environ[dst] = v
+
+        # 0) Retry failed tickets (auto, up to MAX_RETRIES)
+        summary["retries"] += _retry_failed_tickets(cid)
 
         # 1) Plan any goal that has no tickets yet
         goals = store.list_goals(cid, status="active")
@@ -122,12 +136,71 @@ def tick(company_id: Optional[str] = None) -> dict:
                     except Exception:
                         pass
 
+        # 3) Goal completion check — mark goals whose tickets all reached terminal
+        summary["goals_completed"] += _check_goal_completion(cid)
+
     activity_log.append(
         "default" if not company_ids else company_ids[0],
         "heartbeat_tick", actor="system", subject="",
         details=summary,
     )
     return summary
+
+
+def _retry_failed_tickets(cid: str) -> int:
+    """Reset failed tickets back to pending, up to MAX_RETRIES per ticket.
+    Skip tickets that needed approval (those failed for human reasons, not transient).
+    Returns number of tickets requeued."""
+    failed = store.list_tickets(cid, status="failed")
+    requeued = 0
+    for t in failed:
+        if t.get("retry_count", 0) >= MAX_RETRIES:
+            continue
+        if t.get("needs_approval"):
+            # Approval-gated failures aren't transient — skip auto-retry
+            continue
+        t["retry_count"] = t.get("retry_count", 0) + 1
+        t["last_retry_at"] = _utcnow_iso()
+        # Clear prior error so next run starts fresh
+        t.pop("error", None)
+        agent_runtime._transition(t, "pending", actor="heartbeat-retry")
+        activity_log.append(
+            cid, "ticket_retry", actor="heartbeat", subject=t["id"],
+            details={"attempt": t["retry_count"], "agent_id": t.get("agent_id")},
+        )
+        requeued += 1
+    return requeued
+
+
+def _check_goal_completion(cid: str) -> int:
+    """For each active goal, if all its tickets are in a terminal state,
+    promote the goal to completed (or completed_with_errors). Returns count."""
+    completed = 0
+    for goal in store.list_goals(cid, status="active"):
+        tickets = store.list_tickets(cid, goal_id=goal["id"])
+        if not tickets:
+            continue
+        if not all(t.get("status") in TERMINAL_STATES for t in tickets):
+            continue
+        any_failed = any(t.get("status") == "failed" for t in tickets)
+        completed_n = sum(1 for t in tickets if t.get("status") == "completed")
+        failed_n = sum(1 for t in tickets if t.get("status") == "failed")
+        paused_n = sum(1 for t in tickets if t.get("status") == "paused_budget")
+        cancelled_n = sum(1 for t in tickets if t.get("status") == "cancelled")
+
+        goal["status"] = "completed_with_errors" if any_failed else "completed"
+        goal["completed_at"] = _utcnow_iso()
+        goal["completion_stats"] = {
+            "total": len(tickets), "completed": completed_n,
+            "failed": failed_n, "paused_budget": paused_n, "cancelled": cancelled_n,
+        }
+        store.save_goal(goal)
+        activity_log.append(
+            cid, "goal_completed", actor="heartbeat", subject=goal["id"],
+            details={"status": goal["status"], **goal["completion_stats"]},
+        )
+        completed += 1
+    return completed
 
 
 def _execute_existing_ticket(company_id: str, ticket: dict, agent, run_params: dict) -> None:

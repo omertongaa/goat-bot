@@ -44,7 +44,7 @@ class OutreachAgent(BaseAgent):
 
         # Always generate the email sequence — value-first, no API blocking
         self.log("Email dizisi hazırlanıyor...")
-        sequence = self._generate_sequence(agency_name, owner_name, niche)
+        sequence = self._generate_sequence(config)
         self.log(f"{len(sequence)} adımlı dizi hazır")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -187,27 +187,97 @@ class OutreachAgent(BaseAgent):
                 return [l for l in data.get("leads", []) if l.get("qualification") == "hot"]
         return []
 
-    def _generate_sequence(self, agency_name, owner_name, niche):
-        """Generate a 3-step email sequence. Uses Claude if available, otherwise templates."""
-        # Try Claude for personalized sequence
-        prompt = f"""Bir otomasyon ajansı için 3 adımlı soğuk email dizisi yaz.
+    def _generate_sequence(self, config):
+        """Generate a multi-step email sequence from config.
+
+        Reads `outreach_strategy` section of config (if present) for rich personalization:
+          - hook, pain_point, key_numbers, social_proof, cta_style, cta_examples,
+            tone, language, sequence_steps, sequence_delays_days
+        Falls back to basic 3-step generic template if outreach_strategy is missing.
+
+        Uses Claude if available, otherwise templates.
+        """
+        agency_name = config.get("agency_name") or config.get("name") or "goat Agency"
+        owner_name = config.get("owner_name", "")
+        niche = config.get("niche", "işletme")
+        sender = owner_name or "Ben"
+
+        # Extract optional outreach_strategy enrichment
+        strategy = config.get("outreach_strategy", {}) or {}
+        pain_point = strategy.get("pain_point", "")
+        key_numbers = strategy.get("key_numbers", []) or []
+        social_proof = strategy.get("social_proof", []) or []
+        cta_style = strategy.get("cta_style", "")
+        cta_examples = strategy.get("cta_examples", []) or []
+        tone = strategy.get("tone", "samimi, değer odaklı, kısa")
+        language = strategy.get("language", "turkish")
+        steps = int(strategy.get("sequence_steps", 3))
+        delays = strategy.get("sequence_delays_days") or [0, 3, 7, 14][:steps]
+        target_titles = config.get("target_titles", []) or []
+        value_prop = config.get("value_proposition", "")
+
+        # Build language directive
+        lang_directive = "Türkçe olsun." if language == "turkish" else f"Dil: {language}."
+
+        # Build enrichment blocks (only included if present)
+        enrichment_blocks = []
+        if value_prop:
+            enrichment_blocks.append(f"Değer önerisi: {value_prop}")
+        if pain_point:
+            enrichment_blocks.append(f"Konuşulacak ana dert: {pain_point}")
+        if key_numbers:
+            nums = "\n".join(f"  - {n}" for n in key_numbers)
+            enrichment_blocks.append(f"Kullanılabilecek somut sayılar:\n{nums}")
+        if social_proof:
+            proof = "\n".join(f"  - {p}" for p in social_proof)
+            enrichment_blocks.append(f"Sosyal kanıt vakaları (gerçek müşteri sonuçları):\n{proof}")
+        if cta_examples:
+            ctas = "\n".join(f"  - {c}" for c in cta_examples)
+            enrichment_blocks.append(f"CTA örnekleri ({cta_style} stilinde):\n{ctas}")
+        if target_titles:
+            enrichment_blocks.append(f"Hedef alıcı unvanları: {', '.join(target_titles)}")
+
+        enrichment = "\n\n".join(enrichment_blocks)
+
+        # Sequence step plan (delays per step)
+        step_plan_lines = []
+        for i in range(steps):
+            delay = delays[i] if i < len(delays) else (i * 3)
+            if i == 0:
+                purpose = "Tanışma + dert kıvılcımı (kısa, somut, jenerik açılış YOK)"
+            elif i == steps - 1:
+                purpose = "Son hatırlatma — yumuşak, baskıcı olmayan kapanış"
+            else:
+                purpose = "Değer ekleme — somut sayı, sosyal kanıt veya yeni bir açı"
+            step_plan_lines.append(f"Email {i+1} (gün {delay}): {purpose}")
+        step_plan = "\n".join(step_plan_lines)
+
+        prompt = f"""Bir B2B ajansı için {steps} adımlı soğuk email dizisi yaz.
 
 Ajans: {agency_name}
 Kurucu: {owner_name}
-Hedef sektör: {niche}
+Hedef sektör/niş: {niche}
 
-Her email için subject ve body yaz. Türkçe olsun. Kısa, samimi, değer odaklı.
-Email 1: Tanışma + fark ettiğin bir sorun
-Email 2: 3 gün sonra, somut değer önerisi
-Email 3: 7 gün sonra, son hatırlatma
+{enrichment}
 
-JSON formatında dön:
-[{{"step":1,"delay_days":0,"subject":"...","body":"..."}}, ...]"""
+Sekans planı:
+{step_plan}
 
-        response = self.call_claude(prompt, timeout=30)
+Ton: {tone}
+{lang_directive} Her mail kısa olsun (5-7 cümle). Subject 40-60 karakter. "{{{{first_name}}}}" ve "{{{{company_name}}}}" placeholder'larını kullan — alıcıya kişisel hissi versin.
+
+Önemli kurallar:
+- Generic açılış YASAK ("Umarım iyisinizdir" gibi). Direkt dert veya somut soruyla başla.
+- Tek CTA, basit. "30 dk demo" yerine yumuşak evet/hayır sorusu tercih et.
+- Sosyal kanıt varsa SADECE BİR vaka kullan her mail'de (üst üste yığma).
+- İmza: "{sender}\\n{agency_name}"
+
+JSON formatında dön (başka açıklama eklemeden):
+[{{"step":1,"delay_days":{delays[0] if delays else 0},"subject":"...","body":"..."}}, ...]"""
+
+        response = self.call_claude(prompt, timeout=45)
         if response:
             try:
-                # Try to extract JSON from response
                 import re
                 json_match = re.search(r'\[.*\]', response, re.DOTALL)
                 if json_match:
@@ -215,8 +285,17 @@ JSON formatında dön:
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-        # Fallback: template-based sequence
-        sender = owner_name or "Ben"
+        # === Fallback: template-based sequence ===
+        # If outreach_strategy is rich, build a config-driven fallback.
+        # Otherwise fall back to the legacy generic 3-step template.
+        if pain_point and social_proof:
+            return self._fallback_from_strategy(
+                agency_name, sender, niche, pain_point,
+                key_numbers, social_proof, cta_examples,
+                steps, delays
+            )
+
+        # Legacy generic fallback (original behavior, kept for backward compat)
         return [
             {
                 "step": 1,
@@ -252,3 +331,84 @@ JSON formatında dön:
                         f"Başarılar,\n{sender}",
             },
         ]
+
+    def _fallback_from_strategy(self, agency_name, sender, niche,
+                                  pain_point, key_numbers, social_proof,
+                                  cta_examples, steps, delays):
+        """Build a fallback sequence using outreach_strategy config (no Claude needed).
+
+        Produces a coherent multi-step sequence by rotating through:
+          - pain_point (step 1)
+          - key_numbers (step 2)
+          - social_proof (middle steps)
+          - soft breakup (final step)
+        """
+        proof_one = social_proof[0] if social_proof else ""
+        proof_two = social_proof[1] if len(social_proof) > 1 else proof_one
+        number_block = "\n".join(f"- {n}" for n in key_numbers[:3]) if key_numbers else ""
+        cta = cta_examples[0] if cta_examples else "Bu hafta 15 dakikanız var mı?"
+        cta_soft = cta_examples[-1] if len(cta_examples) > 1 else cta
+
+        sequence = []
+
+        # Step 1 — pain point hook
+        sequence.append({
+            "step": 1,
+            "delay_days": delays[0] if delays else 0,
+            "subject": f"{{{{company_name}}}} satışçısı haftada kaç saatini kaybediyor?",
+            "body": (
+                f"Merhaba {{{{first_name}}}},\n\n"
+                f"{pain_point}\n\n"
+                f"Biz {agency_name} olarak {niche} alanında çalışan firmalara "
+                f"bu derdi otomasyonla çözüyoruz.\n\n"
+                f"{cta}\n\n"
+                f"Saygılarımla,\n{sender}\n{agency_name}"
+            ),
+        })
+
+        # Step 2 — concrete numbers + first proof
+        if steps >= 2:
+            sequence.append({
+                "step": 2,
+                "delay_days": delays[1] if len(delays) > 1 else 3,
+                "subject": "Re: Geçen mesajımın somut karşılığı",
+                "body": (
+                    f"Merhaba {{{{first_name}}}},\n\n"
+                    f"Geçen hafta yazdığım dert bir tahmin değildi, sektör verisi:\n\n"
+                    f"{number_block}\n\n"
+                    + (f"Vaka: {proof_one}\n\n" if proof_one else "")
+                    + f"{cta}\n\n"
+                    f"{sender}"
+                ),
+            })
+
+        # Step 3 — second proof + alternative angle
+        if steps >= 3:
+            sequence.append({
+                "step": 3,
+                "delay_days": delays[2] if len(delays) > 2 else 7,
+                "subject": "Sizinki gibi bir firma için somut sonuç",
+                "body": (
+                    f"Merhaba {{{{first_name}}}},\n\n"
+                    f"{proof_two if proof_two else proof_one}\n\n"
+                    f"{{{{company_name}}}} için de benzer bir kurguyu konuşmaya açık olur muyuz?\n\n"
+                    f"{cta_soft}\n\n"
+                    f"{sender}"
+                ),
+            })
+
+        # Step 4 — soft breakup
+        if steps >= 4:
+            sequence.append({
+                "step": 4,
+                "delay_days": delays[3] if len(delays) > 3 else 14,
+                "subject": "Re: Son sorum",
+                "body": (
+                    f"Merhaba {{{{first_name}}}},\n\n"
+                    f"Son kez yazıyorum. Eğer satış otomasyonu şu an önceliğiniz değilse tamamen anlıyorum.\n\n"
+                    f"İlerleyen aylarda düşünürseniz buradan ulaşabilirsiniz.\n\n"
+                    f"Başarılar,\n{sender}\n{agency_name}"
+                ),
+            })
+
+        return sequence

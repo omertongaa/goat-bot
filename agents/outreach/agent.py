@@ -207,6 +207,8 @@ class OutreachAgent(BaseAgent):
         pain_point = strategy.get("pain_point", "")
         key_numbers = strategy.get("key_numbers", []) or []
         social_proof = strategy.get("social_proof", []) or []
+        industry_research = strategy.get("industry_research", []) or []
+        founding_cohort = strategy.get("founding_cohort", {}) or {}
         cta_style = strategy.get("cta_style", "")
         cta_examples = strategy.get("cta_examples", []) or []
         tone = strategy.get("tone", "samimi, değer odaklı, kısa")
@@ -230,7 +232,14 @@ class OutreachAgent(BaseAgent):
             enrichment_blocks.append(f"Kullanılabilecek somut sayılar:\n{nums}")
         if social_proof:
             proof = "\n".join(f"  - {p}" for p in social_proof)
-            enrichment_blocks.append(f"Sosyal kanıt vakaları (gerçek müşteri sonuçları):\n{proof}")
+            enrichment_blocks.append(f"Bizim kendi müşteri vakalarımız (gerçek):\n{proof}")
+        if industry_research:
+            research = "\n".join(f"  - {r}" for r in industry_research)
+            enrichment_blocks.append(f"Sektör araştırması verisi (kaynaklı, başkasının vakası DEĞİL):\n{research}")
+        if founding_cohort and founding_cohort.get("active"):
+            enrichment_blocks.append(
+                f"Founding cohort konumlandırması (N=0 dürüst kabul, avantaja çevir):\n  {founding_cohort.get('message', '')}"
+            )
         if cta_examples:
             ctas = "\n".join(f"  - {c}" for c in cta_examples)
             enrichment_blocks.append(f"CTA örnekleri ({cta_style} stilinde):\n{ctas}")
@@ -269,7 +278,8 @@ Ton: {tone}
 Önemli kurallar:
 - Generic açılış YASAK ("Umarım iyisinizdir" gibi). Direkt dert veya somut soruyla başla.
 - Tek CTA, basit. "30 dk demo" yerine yumuşak evet/hayır sorusu tercih et.
-- Sosyal kanıt varsa SADECE BİR vaka kullan her mail'de (üst üste yığma).
+- Sosyal kanıt YASAK ETİK: SADECE config'in social_proof alanındaki vakaları kullan. Eğer social_proof boşsa, BAŞKA bir firma adı UYDURMA. Bunun yerine industry_research verisini veya founding_cohort konumunu kullan.
+- Founding cohort aktifse: N=0 olduğunu dürüstçe kabul et ve avantaja çevir ("ilk müşteri olmak özel" mesajı).
 - İmza: "{sender}\\n{agency_name}"
 
 JSON formatında dön (başka açıklama eklemeden):
@@ -288,11 +298,11 @@ JSON formatında dön (başka açıklama eklemeden):
         # === Fallback: template-based sequence ===
         # If outreach_strategy is rich, build a config-driven fallback.
         # Otherwise fall back to the legacy generic 3-step template.
-        if pain_point and social_proof:
+        if pain_point and (industry_research or founding_cohort or social_proof):
             return self._fallback_from_strategy(
                 agency_name, sender, niche, pain_point,
-                key_numbers, social_proof, cta_examples,
-                steps, delays
+                key_numbers, social_proof, industry_research, founding_cohort,
+                cta_examples, steps, delays
             )
 
         # Legacy generic fallback (original behavior, kept for backward compat)
@@ -334,17 +344,20 @@ JSON formatında dön (başka açıklama eklemeden):
 
     def _fallback_from_strategy(self, agency_name, sender, niche,
                                   pain_point, key_numbers, social_proof,
+                                  industry_research, founding_cohort,
                                   cta_examples, steps, delays):
         """Build a fallback sequence using outreach_strategy config (no Claude needed).
 
-        Produces a coherent multi-step sequence by rotating through:
-          - pain_point (step 1)
-          - key_numbers (step 2)
-          - social_proof (middle steps)
-          - soft breakup (final step)
+        Honest social proof rules:
+          - Use social_proof ONLY if it contains your own (real) customer cases.
+          - If empty, use industry_research (sourced, generic) instead.
+          - If founding_cohort.active, frame N=0 as advantage (limited founding spots).
+        Never fabricate customer names.
         """
-        proof_one = social_proof[0] if social_proof else ""
-        proof_two = social_proof[1] if len(social_proof) > 1 else proof_one
+        own_proof = social_proof[0] if social_proof else ""
+        research_one = industry_research[0] if industry_research else ""
+        research_two = industry_research[1] if len(industry_research) > 1 else research_one
+        cohort_msg = founding_cohort.get("message", "") if founding_cohort and founding_cohort.get("active") else ""
         number_block = "\n".join(f"- {n}" for n in key_numbers[:3]) if key_numbers else ""
         cta = cta_examples[0] if cta_examples else "Bu hafta 15 dakikanız var mı?"
         cta_soft = cta_examples[-1] if len(cta_examples) > 1 else cta
@@ -366,38 +379,57 @@ JSON formatında dön (başka açıklama eklemeden):
             ),
         })
 
-        # Step 2 — concrete numbers + first proof
+        # Step 2 — numbers + sourced industry research (NOT third-party customer cases)
         if steps >= 2:
+            proof_line = ""
+            if own_proof:
+                proof_line = f"Bizim müşterimiz: {own_proof}\n\n"
+            elif research_one:
+                proof_line = f"{research_one}\n\n"
             sequence.append({
                 "step": 2,
-                "delay_days": delays[1] if len(delays) > 1 else 3,
+                "delay_days": delays[1] if len(delays) > 1 else 4,
                 "subject": "Re: Geçen mesajımın somut karşılığı",
                 "body": (
                     f"Merhaba {{{{first_name}}}},\n\n"
-                    f"Geçen hafta yazdığım dert bir tahmin değildi, sektör verisi:\n\n"
+                    f"Geçen hafta yazdığım dert bir tahmin değildi:\n\n"
                     f"{number_block}\n\n"
-                    + (f"Vaka: {proof_one}\n\n" if proof_one else "")
-                    + f"{cta}\n\n"
+                    f"{proof_line}"
+                    f"{cta}\n\n"
                     f"{sender}"
                 ),
             })
 
-        # Step 3 — second proof + alternative angle
+        # Step 3 — founding cohort offer (if active) + soft breakup
         if steps >= 3:
+            if cohort_msg:
+                body = (
+                    f"Merhaba {{{{first_name}}}},\n\n"
+                    f"Son bir not — dürüst olalım:\n\n"
+                    f"{cohort_msg}\n\n"
+                    f"{{{{company_name}}}} ilk 10 arasına girmek ister mi?\n\n"
+                    f"{cta_soft}\n\n"
+                    f"{sender}\n{agency_name}"
+                )
+                subj = "Son sorum — ilk 10 müşteri özel teklif"
+            else:
+                followup = research_two if research_two else number_block
+                body = (
+                    f"Merhaba {{{{first_name}}}},\n\n"
+                    f"Son kez yazıyorum. Konu aciliyetli değilse atla, ama bir veri daha bırakayım:\n\n"
+                    f"{followup}\n\n"
+                    f"{{{{company_name}}}} için benzer bir kurguyu konuşmaya açık olur muyuz?\n\n"
+                    f"Başarılar,\n{sender}\n{agency_name}"
+                )
+                subj = "Re: Son sorum"
             sequence.append({
                 "step": 3,
-                "delay_days": delays[2] if len(delays) > 2 else 7,
-                "subject": "Sizinki gibi bir firma için somut sonuç",
-                "body": (
-                    f"Merhaba {{{{first_name}}}},\n\n"
-                    f"{proof_two if proof_two else proof_one}\n\n"
-                    f"{{{{company_name}}}} için de benzer bir kurguyu konuşmaya açık olur muyuz?\n\n"
-                    f"{cta_soft}\n\n"
-                    f"{sender}"
-                ),
+                "delay_days": delays[2] if len(delays) > 2 else 10,
+                "subject": subj,
+                "body": body,
             })
 
-        # Step 4 — soft breakup
+        # Step 4+ — soft breakup if requested (keeps backward compat with steps>=4 configs)
         if steps >= 4:
             sequence.append({
                 "step": 4,
